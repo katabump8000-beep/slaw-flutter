@@ -1,0 +1,58 @@
+name: Build Flutter APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Create Android project
+        run: |
+          flutter create --org io.github.katabump8000_beep --project-name twa --platforms android build_app
+          rm -rf build_app/lib build_app/pubspec.yaml
+          cp -r app_src/lib build_app/lib
+          cp app_src/pubspec.yaml build_app/pubspec.yaml
+
+      - name: Android settings
+        run: |
+          cd build_app
+          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 23/; s/minSdkVersion flutter.minSdkVersion/minSdkVersion 23/' android/app/build.gradle* || true
+          sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' android/app/src/main/AndroidManifest.xml
+          sed -i 's/android:label="[^"]*"/android:label="SLAW"/' android/app/src/main/AndroidManifest.xml
+
+      - name: Build release APK
+        run: |
+          cd build_app
+          flutter pub get
+          flutter build apk --release --build-number=$((1000 + ${{ github.run_number }}))
+
+      - name: Sign APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          echo "$KEYSTORE_BASE64" | base64 -d > signing.keystore
+          "$BT/zipalign" -p -f 4 build_app/build/app/outputs/flutter-apk/app-release.apk aligned.apk
+          "$BT/apksigner" sign --ks signing.keystore --ks-key-alias my-key-alias \
+            --ks-pass env:KS_PASS --key-pass env:KEY_PASS --out SLAW.apk aligned.apk
+          rm -f signing.keystore aligned.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SLAW-apk
+          path: SLAW.apk
