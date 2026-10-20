@@ -5,39 +5,47 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'app_state.dart';
+import 'bell.dart';
+import 'data.dart';
 import 'firebase_options.dart';
+import 'profile.dart';
+import 'settings.dart';
+import 'widgets.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: firebaseOptions);
+  prefs = await SharedPreferences.getInstance();
+  final ac = prefs.getString('ac');
+  accentHex.value = hexOk(ac) ? ac! : kDefaultAccentHex;
   runApp(const SlawApp());
 }
-
-const kOrange = Color(0xFFFF7A1A);
-const kBg = Color(0xFF120804);
 
 class SlawApp extends StatelessWidget {
   const SlawApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'SLAW',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(useMaterial3: true).copyWith(
-        scaffoldBackgroundColor: kBg,
-        colorScheme: ColorScheme.fromSeed(seedColor: kOrange, brightness: Brightness.dark),
-        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF1B0A04)),
+    return ValueListenableBuilder<String>(
+      valueListenable: accentHex,
+      builder: (context, ac, _) => MaterialApp(
+        title: 'SLAW',
+        debugShowCheckedModeBanner: false,
+        scaffoldMessengerKey: messengerKey,
+        theme: buildTheme(ac),
+        // الواجهة من اليمين لليسار
+        builder: (context, child) => Directionality(textDirection: TextDirection.rtl, child: child!),
+        home: const AuthGate(),
       ),
-      // الواجهة من اليمين لليسار
-      builder: (context, child) => Directionality(textDirection: TextDirection.rtl, child: child!),
-      home: const AuthGate(),
     );
   }
 }
 
-/// يقرر: شاشة الدخول أو شاشة الدردشات
+/// يقرر: شاشة الدخول أو الشاشة الرئيسية
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
@@ -47,9 +55,74 @@ class AuthGate extends StatelessWidget {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snap) {
         final u = snap.data;
-        if (u != null && !u.isAnonymous) return const ChatsScreen();
+        if (u != null && !u.isAnonymous) return HomeLoader(key: ValueKey(u.uid));
         return const LoginScreen();
       },
+    );
+  }
+}
+
+/// يحمّل بيانات الحساب (الملف، الرتبة، الحظر) قبل فتح الشاشة الرئيسية
+class HomeLoader extends StatefulWidget {
+  const HomeLoader({super.key});
+
+  @override
+  State<HomeLoader> createState() => _HomeLoaderState();
+}
+
+class _HomeLoaderState extends State<HomeLoader> {
+  late final Future<String> f = Session.load();
+
+  @override
+  void dispose() {
+    BellService.stop();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String>(
+      future: f,
+      builder: (context, s) {
+        if (s.connectionState != ConnectionState.done) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+        final r = s.data ?? 'error';
+        if (r == 'ok') return const ChatsScreen();
+        return BlockedScreen(reason: r);
+      },
+    );
+  }
+}
+
+class BlockedScreen extends StatelessWidget {
+  final String reason;
+  const BlockedScreen({super.key, required this.reason});
+
+  @override
+  Widget build(BuildContext context) {
+    final msg = reason == 'banned'
+        ? 'أنت محظور من استعمال التطبيق'
+        : reason == 'noprofile'
+            ? 'لا يوجد ملف لهذا الحساب'
+            : 'تعذر الاتصال، تأكد من الإنترنت ثم أعد فتح التطبيق';
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(msg, textAlign: TextAlign.center, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: 200,
+                child: AppButton('تسجيل خروج', kind: 'r', onPressed: () => FirebaseAuth.instance.signOut()),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -101,7 +174,7 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('SLAW', style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: kOrange)),
+                Text('SLAW', style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: context.accent)),
                 const SizedBox(height: 8),
                 const Text('سجّل الدخول بكلمة السر الخاصة بحسابك'),
                 const SizedBox(height: 24),
@@ -141,7 +214,63 @@ class GroupItem {
   GroupItem(this.id, this.name, this.kind);
 }
 
-/// قائمة القروبات التي أنت عضو فيها
+const Map<String, String> kKindName = {
+  'main': 'نقابة',
+  'ads': 'إعلانات',
+  'shop': 'المتجر',
+  'news': 'الصحيفة',
+};
+
+/// صورة القروب (groupPhotos/{id}) أو أول حرف من اسمه
+class GroupAvatar extends StatefulWidget {
+  final String gid;
+  final String name;
+  final double size;
+  const GroupAvatar({super.key, required this.gid, required this.name, this.size = 42});
+
+  @override
+  State<GroupAvatar> createState() => _GroupAvatarState();
+}
+
+class _GroupAvatarState extends State<GroupAvatar> {
+  MemoryImage? image;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final s = await ref('groupPhotos/${widget.gid}').get();
+      final d = s.value?.toString() ?? '';
+      if (d.isEmpty) return;
+      final img = MemoryImage(base64Decode(d.substring(d.indexOf(',') + 1)));
+      if (mounted) setState(() => image = img);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final img = image;
+    return Container(
+      width: widget.size,
+      height: widget.size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFF3A1A0D),
+        image: img == null ? null : DecorationImage(image: img, fit: BoxFit.cover),
+      ),
+      child: img == null
+          ? Text(firstChar(widget.name), style: TextStyle(fontSize: widget.size * .39, fontWeight: FontWeight.w800))
+          : null,
+    );
+  }
+}
+
+/// الشاشة الرئيسية: الهيدر + المجموعات + الأصدقاء
 class ChatsScreen extends StatefulWidget {
   const ChatsScreen({super.key});
 
@@ -151,16 +280,29 @@ class ChatsScreen extends StatefulWidget {
 
 class _ChatsScreenState extends State<ChatsScreen> {
   late Future<List<GroupItem>> future = _load();
+  List<String> favs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    try {
+      favs = (jsonDecode(prefs.getString('favs') ?? '[]') as List).map((e) => e.toString()).toList();
+    } catch (_) {
+      favs = [];
+    }
+    BellService.start();
+    Session.ensurePid();
+  }
 
   Future<List<GroupItem>> _load() async {
-    final db = FirebaseDatabase.instance;
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-    final gs = await db.ref('groups').get();
+    final database = FirebaseDatabase.instance;
+    final me = FirebaseAuth.instance.currentUser!.uid;
+    final gs = await database.ref('groups').get();
     if (!gs.exists) return [];
     final map = Map<String, dynamic>.from(gs.value as Map);
     final out = <GroupItem>[];
     await Future.wait(map.entries.map((e) async {
-      final m = await db.ref('members/${e.key}/$uid').get();
+      final m = await database.ref('members/${e.key}/$me').get();
       if (m.exists) {
         final v = Map<String, dynamic>.from(e.value as Map);
         out.add(GroupItem(e.key, (v['name'] ?? '').toString(), (v['kind'] ?? '').toString()));
@@ -170,45 +312,210 @@ class _ChatsScreenState extends State<ChatsScreen> {
     return out;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('الدردشات'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => FirebaseAuth.instance.signOut(),
+  void _toggleFav(String u) {
+    setState(() {
+      if (favs.contains(u)) {
+        favs.remove(u);
+      } else {
+        favs.add(u);
+      }
+    });
+    prefs.setString('favs', jsonEncode(favs));
+  }
+
+  Widget _iconBtn(IconData icon, VoidCallback onTap) {
+    return InkWell(
+      customBorder: const CircleBorder(),
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: const BoxDecoration(shape: BoxShape.circle, color: Color.fromRGBO(255, 255, 255, .06)),
+        child: Icon(icon, size: 22),
+      ),
+    );
+  }
+
+  Widget _header(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: const BoxDecoration(
+        color: kBg2,
+        border: Border(bottom: BorderSide(color: kLine)),
+      ),
+      child: Row(
+        children: [
+          UserAvatar(
+            myUid,
+            size: 42,
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
           ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: ValueListenableBuilder<int>(
+              valueListenable: avatarTick,
+              builder: (context, _, __) => Text(
+                Session.me.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+          _iconBtn(Icons.person_add_alt, () => addFriendSheet(context)),
+          const SizedBox(width: 8),
+          BellButton(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BellScreen()))),
+          const SizedBox(width: 8),
+          _iconBtn(Icons.settings_outlined, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()))),
         ],
       ),
-      body: FutureBuilder<List<GroupItem>>(
-        future: future,
-        builder: (context, snap) {
-          if (snap.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final list = snap.data ?? [];
-          if (list.isEmpty) return const Center(child: Text('لا توجد دردشات'));
-          return ListView.separated(
-            itemCount: list.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, i) {
-              final g = list[i];
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: kOrange.withOpacity(.25),
-                  child: Text(g.name.isEmpty ? '?' : g.name[0]),
-                ),
-                title: Text(g.name),
+    );
+  }
+
+  Widget _secard(BuildContext context, String title, Widget child) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: accentA(context, .55)),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [const Color.fromRGBO(0, 0, 0, .35), accentA(context, .06)],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            color: accentA(context, .12),
+            child: Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: context.accent2)),
+          ),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _row({required Widget leading, required String title, String? sub, Widget? trailing, VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: Color.fromRGBO(255, 190, 140, .08))),
+        ),
+        child: Row(
+          children: [
+            leading,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  if (sub != null) Text(sub, style: const TextStyle(fontSize: 12, color: kMu)),
+                ],
+              ),
+            ),
+            if (trailing != null) trailing,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _groups(BuildContext context) {
+    return FutureBuilder<List<GroupItem>>(
+      future: future,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()));
+        }
+        final list = snap.data ?? [];
+        if (list.isEmpty) {
+          return const Padding(padding: EdgeInsets.all(20), child: Center(child: Text('لا توجد مجموعات', style: TextStyle(color: kMu))));
+        }
+        return Column(
+          children: [
+            for (final g in list)
+              _row(
+                leading: GroupAvatar(gid: g.id, name: g.name),
+                title: g.name,
+                sub: kKindName[g.kind],
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => ChatScreen(gid: g.id, name: g.name)),
                 ),
-              );
-            },
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _friends(BuildContext context) {
+    return StreamBuilder<DatabaseEvent>(
+      stream: ref('friends/$myUid').onValue,
+      builder: (context, snap) {
+        final v = snap.data?.snapshot.value;
+        final ids = v is Map ? v.keys.map((k) => k.toString()).toList() : <String>[];
+        ids.sort((a, b) => (favs.contains(a) ? 0 : 1).compareTo(favs.contains(b) ? 0 : 1));
+        if (ids.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(20),
+            child: Center(child: Text('أضف أصدقاء وسيظهرون هنا للمراسلة', style: TextStyle(color: kMu))),
           );
-        },
+        }
+        return Column(
+          children: [
+            for (final u in ids)
+              FutureBuilder<Prof>(
+                future: prof(u),
+                builder: (context, ps) {
+                  final fav = favs.contains(u);
+                  return _row(
+                    leading: UserAvatar(u, size: 42),
+                    title: ps.data?.name ?? '…',
+                    sub: fav ? 'مفضّل' : 'صديق',
+                    trailing: InkWell(
+                      onTap: () => _toggleFav(u),
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Icon(fav ? Icons.star : Icons.star_border, color: fav ? context.accent2 : kMu),
+                      ),
+                    ),
+                    // مؤقتاً يفتح الملف التعريفي. المراسلة الخاصة في المرحلة 2
+                    onTap: () => viewProfile(context, u),
+                  );
+                },
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: [
+            _header(context),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.only(bottom: 12),
+                children: [
+                  _secard(context, 'المجموعات', _groups(context)),
+                  _secard(context, 'الدردشات', _friends(context)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
