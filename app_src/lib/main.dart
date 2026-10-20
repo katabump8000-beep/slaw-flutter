@@ -6,7 +6,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_state.dart';
 import 'bell.dart';
@@ -38,14 +37,9 @@ Future<void> main() async {
     runApp(InitErrorApp('Firebase: $e'));
     return;
   }
-  try {
-    prefs = await SharedPreferences.getInstance().timeout(const Duration(seconds: 10));
-    final ac = prefs.getString('ac');
-    accentHex.value = hexOk(ac) ? ac! : kDefaultAccentHex;
-  } catch (e) {
-    runApp(InitErrorApp('Prefs: $e'));
-    return;
-  }
+  await prefs.init();
+  final ac = prefs.getString('ac');
+  accentHex.value = hexOk(ac) ? ac! : kDefaultAccentHex;
   runApp(const SlawApp());
 }
 

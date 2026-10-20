@@ -1,8 +1,88 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// التخزين المحلي (مثل localStorage في التطبيق القديم)
-late SharedPreferences prefs;
+/// التخزين المحلي (مثل localStorage في التطبيق القديم).
+/// يجرّب مكتبة shared_preferences أولاً، وإذا تعطلت على الجهاز يستعمل ملفاً مؤقتاً،
+/// وإذا تعذّر يبقى في الذاكرة فقط. لا يوقف التطبيق أبداً.
+class Store {
+  SharedPreferences? _sp;
+  final Map<String, Object> _m = {};
+  File? _file;
+
+  Future<void> init() async {
+    try {
+      _sp = await SharedPreferences.getInstance().timeout(const Duration(seconds: 6));
+      return;
+    } catch (_) {
+      _sp = null;
+    }
+    try {
+      final f = File('${Directory.systemTemp.path}/slaw_prefs.json');
+      _file = f;
+      if (f.existsSync()) {
+        final d = jsonDecode(f.readAsStringSync());
+        if (d is Map) {
+          d.forEach((k, v) {
+            if (v != null) _m[k.toString()] = v as Object;
+          });
+        }
+      }
+    } catch (_) {
+      _file = null;
+    }
+  }
+
+  void _put(String k, Object v) {
+    final s = _sp;
+    if (s != null) {
+      if (v is String) {
+        s.setString(k, v).catchError((_) => false);
+      } else if (v is int) {
+        s.setInt(k, v).catchError((_) => false);
+      } else if (v is bool) {
+        s.setBool(k, v).catchError((_) => false);
+      }
+      return;
+    }
+    _m[k] = v;
+    final f = _file;
+    if (f != null) {
+      try {
+        f.writeAsString(jsonEncode(_m)).catchError((_) => f);
+      } catch (_) {}
+    }
+  }
+
+  String? getString(String k) {
+    final s = _sp;
+    if (s != null) return s.getString(k);
+    final v = _m[k];
+    return v is String ? v : null;
+  }
+
+  int? getInt(String k) {
+    final s = _sp;
+    if (s != null) return s.getInt(k);
+    final v = _m[k];
+    return v is int ? v : null;
+  }
+
+  bool? getBool(String k) {
+    final s = _sp;
+    if (s != null) return s.getBool(k);
+    final v = _m[k];
+    return v is bool ? v : null;
+  }
+
+  void setString(String k, String v) => _put(k, v);
+  void setInt(String k, int v) => _put(k, v);
+  void setBool(String k, bool v) => _put(k, v);
+}
+
+final Store prefs = Store();
 
 /// لعرض رسائل التنبيه (toast) من أي مكان بدون context
 final GlobalKey<ScaffoldMessengerState> messengerKey = GlobalKey<ScaffoldMessengerState>();
