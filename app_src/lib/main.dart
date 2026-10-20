@@ -18,11 +18,63 @@ import 'widgets.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: firebaseOptions);
-  prefs = await SharedPreferences.getInstance();
-  final ac = prefs.getString('ac');
-  accentHex.value = hexOk(ac) ? ac! : kDefaultAccentHex;
+  // إذا حدث خطأ أثناء رسم أي شاشة يظهر نصه بدل شاشة فارغة
+  ErrorWidget.builder = (details) => Material(
+        color: kBg,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'خطأ: ${details.exceptionAsString()}',
+              textDirection: TextDirection.ltr,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+            ),
+          ),
+        ),
+      );
+  try {
+    await Firebase.initializeApp(options: firebaseOptions);
+  } catch (e) {
+    runApp(InitErrorApp('Firebase: $e'));
+    return;
+  }
+  try {
+    prefs = await SharedPreferences.getInstance().timeout(const Duration(seconds: 10));
+    final ac = prefs.getString('ac');
+    accentHex.value = hexOk(ac) ? ac! : kDefaultAccentHex;
+  } catch (e) {
+    runApp(InitErrorApp('Prefs: $e'));
+    return;
+  }
   runApp(const SlawApp());
+}
+
+/// شاشة تظهر عند فشل تشغيل التطبيق وفيها نص الخطأ لتصويره
+class InitErrorApp extends StatelessWidget {
+  final String message;
+  const InitErrorApp(this.message, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark(useMaterial3: true),
+      home: Scaffold(
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Center(
+              child: SelectableText(
+                'تعذر تشغيل التطبيق\n\n$message',
+                textDirection: TextDirection.ltr,
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class SlawApp extends StatelessWidget {
