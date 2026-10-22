@@ -448,7 +448,7 @@ class _ChatScreenState extends State<ChatScreen> {
             Material(
               color: context.accent,
               shape: const CircleBorder(),
-              child: IconButton(onPressed: _sendText, icon: const Icon(Icons.send, color: kDarkText, matchTextDirection: true)),
+              child: IconButton(onPressed: _sendText, icon: const Icon(Icons.send, color: kDarkText)),
             ),
           ],
         ),
