@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,15 +26,38 @@ jobs:
         run: |
           flutter create --org io.github.katabump8000_beep --project-name twa --platforms android build_app
           rm -rf build_app/lib build_app/pubspec.yaml
-          cp -r app_src/lib build_app/lib
-          cp app_src/pubspec.yaml build_app/pubspec.yaml
+          mkdir build_app/lib
+          cp *.dart build_app/lib/
+          cp pubspec.yaml build_app/pubspec.yaml
 
       - name: Android settings
         run: |
           cd build_app
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 23/; s/minSdkVersion flutter.minSdkVersion/minSdkVersion 23/' android/app/build.gradle* || true
-          sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' android/app/src/main/AndroidManifest.xml
-          sed -i 's/android:label="[^"]*"/android:label="SLAW"/' android/app/src/main/AndroidManifest.xml
+          python3 - <<'PY'
+          p = 'android/app/src/main/AndroidManifest.xml'
+          s = open(p, encoding='utf-8').read()
+          perms = ''.join('    <uses-permission android:name="android.permission.%s"/>\n' % n for n in ['INTERNET', 'VIBRATE', 'ACCESS_NETWORK_STATE', 'POST_NOTIFICATIONS', 'RECORD_AUDIO'])
+          s = s.replace('<application', perms + '    <application', 1)
+          link = ('            <intent-filter>\n'
+                  '                <action android:name="android.intent.action.VIEW"/>\n'
+                  '                <category android:name="android.intent.category.DEFAULT"/>\n'
+                  '                <category android:name="android.intent.category.BROWSABLE"/>\n'
+                  '                <data android:scheme="fir" android:host="join"/>\n'
+                  '            </intent-filter>\n')
+          s = s.replace('</activity>', link + '        </activity>', 1)
+          import re
+          s = re.sub(r'android:label="[^"]*"', 'android:label="FIR"', s, count=1)
+          open(p, 'w', encoding='utf-8').write(s)
+          PY
+
+      - name: Analyze (shows errors)
+        continue-on-error: true
+        run: |
+          cd build_app
+          flutter pub get
+          flutter analyze --no-fatal-infos --no-fatal-warnings > ../analyze.txt 2>&1 || true
+          grep -E "^ *error" ../analyze.txt | head -40 | while IFS= read -r l; do echo "::error::$l"; done || true
 
       - name: Build release APK
         run: |
@@ -56,3 +82,11 @@ jobs:
         with:
           name: SLAW-apk
           path: SLAW.apk
+
+      - name: Publish release (public download link)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: FIR build ${{ github.run_number }}
+          make_latest: true
+          files: SLAW.apk
