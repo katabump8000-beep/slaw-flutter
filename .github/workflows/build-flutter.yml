@@ -73,6 +73,7 @@ jobs:
         run: |
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           echo "$KEYSTORE_BASE64" | base64 -d > signing.keystore
+          keytool -list -v -keystore signing.keystore -alias my-key-alias -storepass "$KS_PASS" 2>/dev/null | grep -E "SHA1|SHA256" | while IFS= read -r l; do echo "::notice::$l"; done || true
           "$BT/zipalign" -p -f 4 build_app/build/app/outputs/flutter-apk/app-release.apk aligned.apk
           "$BT/apksigner" sign --ks signing.keystore --ks-key-alias my-key-alias \
             --ks-pass env:KS_PASS --key-pass env:KEY_PASS --out SLAW.apk aligned.apk
