@@ -302,7 +302,10 @@ class _AuthFlowState extends State<AuthFlow> {
       await FirebaseAuth.instance.signInWithProvider(GoogleAuthProvider());
     } catch (e) {
       final s = e.toString();
-      if (!s.contains('canceled') && !s.contains('cancelled')) toast('تعذر دخول المطورين', bad: true);
+      if (!s.contains('canceled') && !s.contains('cancelled')) {
+        final code = e is FirebaseAuthException ? e.code : s.split('\n').first;
+        toast('تعذر دخول المطورين: ${code.length > 90 ? code.substring(0, 90) : code}', bad: true);
+      }
     }
   }
 
