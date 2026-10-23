@@ -308,3 +308,85 @@ Future<T?> showAppSheet<T>(BuildContext context, List<Widget> Function(BuildCont
     ),
   );
 }
+
+
+/// شارة «مطور» ثابتة: تدرج أزرق كهربائي إلى بنفسجي مع توهج خفيف، بدون أي حركة
+class DevBadge extends StatelessWidget {
+  const DevBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ShaderMask(
+      blendMode: BlendMode.srcIn,
+      shaderCallback: (r) => const LinearGradient(
+        colors: [Color(0xFF2EA8FF), Color(0xFF8A3DFF)],
+      ).createShader(r),
+      child: const Text(
+        'مطور',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: Colors.white,
+          shadows: [
+            Shadow(color: Color(0x992EA8FF), blurRadius: 4),
+            Shadow(color: Color(0x668A3DFF), blurRadius: 6),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// علامة اللانهاية للإمبراطور (أحمر خمري / أسود / ذهبي)
+class InfinityMark extends StatelessWidget {
+  final double size;
+  const InfinityMark({super.key, this.size = 18});
+
+  @override
+  Widget build(BuildContext context) {
+    return ShaderMask(
+      blendMode: BlendMode.srcIn,
+      shaderCallback: (r) => const LinearGradient(
+        colors: [Color(0xFF8A1030), Color(0xFF1A1A1A), Color(0xFFD4AF37)],
+      ).createShader(r),
+      child: Text('∞', style: TextStyle(fontSize: size, fontWeight: FontWeight.w900, color: Colors.white)),
+    );
+  }
+}
+
+/// بطاقة قسم بعنوان (للشاشة الرئيسية)
+class SecCard extends StatelessWidget {
+  final String title;
+  final List<Widget> children;
+  const SecCard({super.key, required this.title, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: accentA(context, .55)),
+        color: const Color.fromRGBO(0, 0, 0, .25),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            color: accentA(context, .12),
+            child: Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: context.accent2)),
+          ),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+/// لون بشفافية معينة من نص hex
+Color tint(String hex, double a) {
+  final c = rgbOf(hex);
+  return Color.fromRGBO(c[0], c[1], c[2], a);
+}

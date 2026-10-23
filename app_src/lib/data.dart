@@ -45,6 +45,7 @@ Future<Prof> prof(String u) => _profs.putIfAbsent(u, () async {
     });
 
 void dropProf(String u) => _profs.remove(u);
+void dropRole(String u) => _roles.remove(u);
 void setProfCache(String u, Prof p) => _profs[u] = Future.value(p);
 
 /// الصورة الشخصية كنص data:image (avatars/{uid})

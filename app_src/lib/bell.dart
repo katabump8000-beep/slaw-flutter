@@ -4,145 +4,172 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'chat.dart';
 import 'data.dart';
-import 'profile.dart';
+import 'home.dart';
 import 'widgets.dart';
 
-/// إشعار واحد (من notifs أو sus أو reports)
 class NotifItem {
-  final String src; // n = notifs, s = sus, r = reports
   final String k;
   final Map<String, dynamic> v;
-  NotifItem(this.src, this.k, this.v);
+  NotifItem(this.k, this.v);
 
-  int get ts => v['ts'] is num ? (v['ts'] as num).toInt() : 0;
-  String get t => src == 's' ? 'sus' : (v['t'] ?? '').toString();
+  String get t => (v['t'] ?? '').toString();
   String get from => (v['from'] ?? '').toString();
+  String get g => (v['g'] ?? '').toString();
   String get m => (v['m'] ?? '').toString();
+  String get mid => (v['mid'] ?? '').toString();
+  String get tx => (v['tx'] ?? '').toString();
   num get a => v['a'] is num ? v['a'] as num : 0;
+  int get ts => v['ts'] is num ? (v['ts'] as num).toInt() : 0;
+  String get groupLabel => m.isNotEmpty ? m : (g.isNotEmpty ? groupName(g) : 'قروب');
 }
 
-class NotifText {
-  final String plain;
-  final String text;
-  final IconData icon;
-  const NotifText(this.plain, this.text, this.icon);
-}
-
-String _or(String s, String d) => s.isEmpty ? d : s;
-
-/// نص الإشعار حسب نوعه
-NotifText notifLine(NotifItem n, String name) {
-  final a = fmtN(n.a);
+String notifText(NotifItem n, String who) {
   switch (n.t) {
-    case 'fr':
-      return NotifText('طلب صداقة جديد', 'أرسل لك $name طلب صداقة', Icons.person_add);
-    case 'tr':
-      return NotifText('وصلك رصيد $a', 'وصلك رصيد $a من $name', Icons.swap_horiz);
-    case 'sus':
-      return NotifText('حساب مشبوه', 'حساب مشبوه: $name', Icons.warning_amber);
     case 'men':
-      return NotifText('منشن', 'ذكرك $name في «${_or(n.m, 'نقابة')}»', Icons.alternate_email);
-    case 'gift':
-      return NotifText('هدية', 'وصلتك هدية من $name', Icons.card_giftcard);
+      return 'هناك من ذكر اسمك\n$who ذكرك في «${n.groupLabel}»';
+    case 'tr':
+      return '$who حوّل لك ${fmtN(n.a)} رصيد';
+    case 'add':
+      return 'تمت إضافتك إلى «${n.groupLabel}»';
+    case 'kick':
+      return 'تم طردك من «${n.groupLabel}»';
+    case 'mute':
+      return 'تم كتمك في «${n.groupLabel}»';
     default:
-      final m = _or(n.m, 'إشعار');
-      return NotifText(m, m, Icons.notifications);
+      return n.tx.isNotEmpty ? n.tx : 'إشعار جديد';
   }
 }
 
-/// يراقب الإشعارات ويحسب غير المقروء
+IconData notifIcon(String t) {
+  switch (t) {
+    case 'men':
+      return Icons.alternate_email;
+    case 'tr':
+      return Icons.payments_outlined;
+    case 'add':
+      return Icons.group_add_outlined;
+    case 'kick':
+      return Icons.logout;
+    case 'mute':
+      return Icons.volume_off_outlined;
+    case 'war':
+    case 'warend':
+      return Icons.shield_outlined;
+    default:
+      return Icons.notifications_none;
+  }
+}
+
+/// مستمع الإشعارات: notifs/{uid}
 class BellService {
   static final Map<String, NotifItem> items = {};
-  static final ValueNotifier<int> unread = ValueNotifier<int>(0);
-  static int seen = 0;
-  static final List<StreamSubscription<DatabaseEvent>> _subs = [];
+  static final ValueNotifier<int> tick = ValueNotifier<int>(0);
+  static final ValueNotifier<Set<String>> mentionGroups = ValueNotifier<Set<String>>(<String>{});
+  static StreamSubscription<DatabaseEvent>? _a;
+  static StreamSubscription<DatabaseEvent>? _r;
+  static String _uid = '';
+  static DateTime _startAt = DateTime.now();
+
+  static int get seenTs => prefs.getInt('bell_seen') ?? 0;
+  static int get unread => items.values.where((n) => n.ts > seenTs).length;
+  static bool get muted => prefs.getBool('mute') ?? false;
 
   static void start() {
+    if (myUid.isEmpty) return;
+    if (_uid == myUid && _a != null) return;
     stop();
-    unread.value = 0;
-    seen = prefs.getInt('bell_seen_$myUid') ?? 0;
-    _subs.add(ref('notifs/$myUid').onChildAdded.listen((e) => _add('n', e.snapshot), onError: (_) {}));
-    if (Session.isDev) {
-      _subs.add(ref('sus').onChildAdded.listen((e) => _add('s', e.snapshot), onError: (_) {}));
-      _subs.add(ref('reports').onChildAdded.listen((e) => _add('r', e.snapshot), onError: (_) {}));
-    }
+    _uid = myUid;
+    _startAt = DateTime.now();
+    final q = ref('notifs/$_uid');
+    _a = q.onChildAdded.listen((e) {
+      final v = e.snapshot.value;
+      final k = e.snapshot.key;
+      if (k == null || v is! Map) return;
+      final n = NotifItem(k, Map<String, dynamic>.from(v));
+      items[k] = n;
+      _recompute();
+      final live = DateTime.now().difference(_startAt).inSeconds > 3;
+      if (live && !muted) {
+        prof(n.from).then((p) => toast(notifText(n, p.name).replaceAll('\n', ' • '), accent: true));
+      }
+    }, onError: (_) {});
+    _r = q.onChildRemoved.listen((e) {
+      final k = e.snapshot.key;
+      if (k == null) return;
+      items.remove(k);
+      _recompute();
+    }, onError: (_) {});
   }
 
   static void stop() {
-    for (final s in _subs) {
-      s.cancel();
-    }
-    _subs.clear();
+    _a?.cancel();
+    _r?.cancel();
+    _a = null;
+    _r = null;
+    _uid = '';
     items.clear();
+    mentionGroups.value = <String>{};
+    tick.value++;
   }
 
-  static void _add(String src, DataSnapshot s) {
-    final v = s.value;
-    final key = s.key;
-    if (v is! Map || key == null) return;
-    final id = '$src$key';
-    if (items.containsKey(id)) return;
-    final n = NotifItem(src, key, Map<String, dynamic>.from(v));
-    items[id] = n;
-    unread.value = items.values.where((x) => x.ts > seen).length;
-    final fresh = n.ts > seen && DateTime.now().millisecondsSinceEpoch - n.ts < 20000;
-    if (fresh && WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
-      toast(notifLine(n, '').plain, accent: true);
-    }
+  static void _recompute() {
+    mentionGroups.value = items.values.where((n) => n.t == 'men' && n.g.isNotEmpty).map((n) => n.g).toSet();
+    tick.value++;
   }
 
   static void markSeen() {
-    seen = DateTime.now().millisecondsSinceEpoch + 5000;
-    prefs.setInt('bell_seen_$myUid', seen);
-    unread.value = 0;
+    var mx = 0;
+    for (final n in items.values) {
+      if (n.ts > mx) mx = n.ts;
+    }
+    prefs.setInt('bell_seen', mx);
+    tick.value++;
+  }
+
+  static Future<void> removeMany(Iterable<String> ks) async {
+    final up = <String, Object?>{};
+    for (final k in ks) {
+      up['notifs/$_uid/$k'] = null;
+    }
+    if (up.isNotEmpty) await db.ref().update(up);
   }
 }
 
-/// أيقونة الجرس مع عدّاد غير المقروء
+/// زر الجرس مع إشارة برتقالية وعدّاد
 class BellButton extends StatelessWidget {
-  final VoidCallback onTap;
-  const BellButton({super.key, required this.onTap});
+  const BellButton({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: Container(
-            width: 38,
-            height: 38,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: Color.fromRGBO(255, 255, 255, .06),
-            ),
-            child: const Icon(Icons.notifications_none, size: 22),
-          ),
-        ),
-        Positioned(
-          top: -3,
-          left: -3,
-          child: ValueListenableBuilder<int>(
-            valueListenable: BellService.unread,
-            builder: (context, n, _) {
-              if (n <= 0) return const SizedBox.shrink();
-              return Container(
-                constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(color: kRed, borderRadius: BorderRadius.circular(9)),
-                child: Text(
-                  n > 99 ? '99+' : '$n',
-                  style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w800),
+    return ValueListenableBuilder<int>(
+      valueListenable: BellService.tick,
+      builder: (c, _, __) {
+        final n = BellService.unread;
+        return IconButton(
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const BellScreen())),
+          icon: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              const Icon(Icons.notifications_none),
+              if (n > 0)
+                Positioned(
+                  top: -5,
+                  right: -6,
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(color: context.accent, borderRadius: BorderRadius.circular(9)),
+                    child: Text(n > 99 ? '99+' : '$n',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: kDarkText)),
+                  ),
                 ),
-              );
-            },
+            ],
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -155,145 +182,119 @@ class BellScreen extends StatefulWidget {
 }
 
 class _BellScreenState extends State<BellScreen> {
+  bool selecting = false;
+  final Set<String> sel = <String>{};
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => BellService.markSeen());
+    BellService.markSeen();
+    BellService.tick.addListener(_on);
+  }
+
+  @override
+  void dispose() {
+    BellService.tick.removeListener(_on);
+    super.dispose();
+  }
+
+  void _on() {
+    if (mounted) setState(() {});
+  }
+
+  List<NotifItem> get list {
+    final l = BellService.items.values.toList();
+    l.sort((a, b) => b.ts.compareTo(a.ts));
+    return l;
+  }
+
+  Future<void> _open(NotifItem n) async {
+    if (selecting) {
+      setState(() => sel.contains(n.k) ? sel.remove(n.k) : sel.add(n.k));
+      return;
+    }
+    try {
+      await BellService.removeMany([n.k]);
+    } catch (_) {}
+    if (!mounted) return;
+    if (n.g.isNotEmpty && memCache[n.g] != null) {
+      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ChatScreen(gid: n.g, focusMid: n.mid)));
+    }
+  }
+
+  Future<void> _delete(Iterable<String> ks) async {
+    try {
+      await BellService.removeMany(ks.toList());
+      sel.clear();
+      if (mounted) setState(() => selecting = false);
+    } catch (e) {
+      err(e);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final items = BellService.items.values.toList()..sort((a, b) => b.ts.compareTo(a.ts));
+    final l = list;
+    final muted = BellService.muted;
     return Scaffold(
-      appBar: AppBar(title: const Text('الإشعارات')),
-      body: items.isEmpty
+      appBar: AppBar(
+        title: Text(selecting ? 'تحديد (${sel.length})' : 'الإشعارات'),
+        actions: [
+          IconButton(
+            tooltip: 'كتم الإشعارات',
+            icon: Icon(muted ? Icons.notifications_off_outlined : Icons.notifications_active_outlined),
+            onPressed: () {
+              prefs.setBool('mute', !muted);
+              setState(() {});
+              toast(!muted ? 'تم كتم الإشعارات' : 'تم تفعيل الإشعارات');
+            },
+          ),
+          IconButton(
+            tooltip: 'حذف',
+            icon: Icon(selecting ? Icons.close : Icons.delete_outline),
+            onPressed: () => setState(() {
+              selecting = !selecting;
+              sel.clear();
+            }),
+          ),
+        ],
+      ),
+      body: l.isEmpty
           ? const Center(child: Text('لا توجد إشعارات', style: TextStyle(color: kMu)))
           : ListView.builder(
-              itemCount: items.length,
-              itemBuilder: (c, i) => NotifRow(
-                key: ValueKey('${items[i].src}${items[i].k}'),
-                n: items[i],
-                onRemoved: () => setState(() {}),
-              ),
-            ),
-    );
-  }
-}
-
-class NotifRow extends StatefulWidget {
-  final NotifItem n;
-  final VoidCallback onRemoved;
-  const NotifRow({super.key, required this.n, required this.onRemoved});
-
-  @override
-  State<NotifRow> createState() => _NotifRowState();
-}
-
-class _NotifRowState extends State<NotifRow> {
-  String text = '...';
-  bool done = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _name();
-  }
-
-  void _set(String name) {
-    if (mounted) setState(() => text = notifLine(widget.n, name).text);
-  }
-
-  Future<void> _name() async {
-    final n = widget.n;
-    if (n.src == 's') {
-      _set((await prof(n.k)).name);
-    } else if (n.src == 'r') {
-      final a = await prof(n.from);
-      final b = await prof(n.v['tg']?.toString() ?? '');
-      if (mounted) {
-        setState(() => text = 'بلاغ: ${a.name} أبلغ عن ${b.name} — ${n.v['r'] ?? ''}');
-      }
-    } else if (n.from.isNotEmpty) {
-      _set((await prof(n.from)).name);
-    } else {
-      _set('');
-    }
-  }
-
-  Future<void> _accept() async {
-    final n = widget.n;
-    try {
-      await db.ref().update(<String, Object?>{
-        'friends/$myUid/${n.from}': true,
-        'friends/${n.from}/$myUid': true,
-        'freq/$myUid/${n.from}': null,
-        'notifs/$myUid/${n.k}': null,
-      });
-      if (mounted) setState(() => done = true);
-      toast('تمت إضافة الصديق', accent: true);
-    } catch (e) {
-      err(e);
-    }
-  }
-
-  Future<void> _ignore() async {
-    final n = widget.n;
-    try {
-      await db.ref().update(<String, Object?>{
-        'freq/$myUid/${n.from}': null,
-        'notifs/$myUid/${n.k}': null,
-      });
-      BellService.items.remove('n${n.k}');
-      widget.onRemoved();
-    } catch (e) {
-      err(e);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final n = widget.n;
-    final line = notifLine(n, '');
-    final isReq = n.t == 'fr' && n.src == 'n' && !done;
-    return Opacity(
-      opacity: done ? .5 : 1,
-      child: InkWell(
-        onTap: n.src == 'r' ? () => viewProfile(context, n.v['tg']?.toString() ?? '') : null,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: Color.fromRGBO(255, 190, 140, .1))),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(line.icon, color: context.accent2, size: 24),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(text, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, height: 1.7)),
-                    if (n.ts > 0)
-                      Text(hhmm(n.ts), style: const TextStyle(fontSize: 11, color: kMu)),
-                    if (isReq)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Row(
-                          children: [
-                            AppButton('قبول', compact: true, onPressed: _accept),
-                            const SizedBox(width: 8),
-                            AppButton('تجاهل', kind: 'g', compact: true, onPressed: _ignore),
-                          ],
+              itemCount: l.length,
+              itemBuilder: (c, i) {
+                final n = l[i];
+                return ListTile(
+                  onTap: () => _open(n),
+                  leading: selecting
+                      ? Checkbox(value: sel.contains(n.k), onChanged: (_) => _open(n))
+                      : CircleAvatar(
+                          backgroundColor: accentA(context, .18),
+                          child: Icon(notifIcon(n.t), color: context.accent2, size: 20),
                         ),
-                      ),
+                  title: FutureBuilder<Prof>(
+                    future: prof(n.from),
+                    builder: (c, s) => Text(notifText(n, s.data?.name ?? '...'), style: const TextStyle(fontSize: 14, height: 1.5)),
+                  ),
+                  trailing: Text(hhmm(n.ts), style: const TextStyle(fontSize: 11, color: kMu)),
+                );
+              },
+            ),
+      bottomNavigationBar: selecting
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Row(
+                  children: [
+                    Expanded(child: AppButton('حذف المحدد (${sel.length})', kind: 'r', onPressed: sel.isEmpty ? null : () => _delete(sel.toList()))),
+                    const SizedBox(width: 10),
+                    Expanded(child: AppButton('حذف الكل', kind: 'r', onPressed: l.isEmpty ? null : () => _delete(l.map((e) => e.k).toList()))),
                   ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
+            )
+          : null,
     );
   }
 }
