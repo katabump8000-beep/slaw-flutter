@@ -1,3 +1,4 @@
+
 name: Build Flutter APK
 on:
   workflow_dispatch:
@@ -29,6 +30,7 @@ jobs:
           mkdir build_app/lib
           cp *.dart build_app/lib/
           cp pubspec.yaml build_app/pubspec.yaml
+          cp google-services.json build_app/android/app/google-services.json
 
       - name: Android settings
         run: |
