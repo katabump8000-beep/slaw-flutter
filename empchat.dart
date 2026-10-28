@@ -180,7 +180,7 @@ class _ThreadState extends State<_Thread> {
           padding: const EdgeInsets.all(8),
           child: SafeArea(top: false, child: Row(children: [
             Expanded(child: TextField(controller: c, decoration: const InputDecoration(hintText: 'اكتب رسالة…'))),
-            IconButton(onPressed: _send, icon: Icon(Icons.send, color: context.accent, matchTextDirection: true)),
+            IconButton(onPressed: _send, icon: Transform.flip(flipX: true, child: Icon(Icons.send, color: context.accent))),
           ])),
         ),
       ]),

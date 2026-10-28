@@ -724,7 +724,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           const SizedBox(width: 6),
-          Material(color: context.accent, shape: const CircleBorder(), child: IconButton(onPressed: _sendText, icon: const Icon(Icons.send, color: kDarkText, matchTextDirection: true))),
+          Material(color: context.accent, shape: const CircleBorder(), child: IconButton(onPressed: _sendText, icon: Transform.flip(flipX: true, child: const Icon(Icons.send, color: kDarkText)))),
         ]),
       ),
     );

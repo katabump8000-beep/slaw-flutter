@@ -112,7 +112,7 @@ Future<void> uploadVideo(String key) async {
 /// موسيقى الخلفية (للإمبراطور): ≤ 3.3 ميجابايت، تُشغَّل بمستوى 15%
 Future<void> uploadBgm() async {
   try {
-    final r = await FilePicker.platform.pickFiles(type: FileType.audio, withData: true);
+    final r = await FilePicker.pickFiles(type: FileType.audio, withData: true);
     if (r == null || r.files.isEmpty) return;
     final f = r.files.first;
     final b = f.bytes;
