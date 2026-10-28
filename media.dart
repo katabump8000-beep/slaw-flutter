@@ -112,11 +112,9 @@ Future<void> uploadVideo(String key) async {
 /// موسيقى الخلفية (للإمبراطور): ≤ 3.3 ميجابايت، تُشغَّل بمستوى 15%
 Future<void> uploadBgm() async {
   try {
-    final r = await FilePicker.pickFiles(type: FileType.audio, withData: true);
-    if (r == null || r.files.isEmpty) return;
-    final f = r.files.first;
-    final b = f.bytes;
-    if (b == null) return;
+    final f = await FilePicker.pickFile(type: FileType.audio);
+    if (f == null) return;
+    final b = await f.readAsBytes();
     if (b.length > 3300000) {
       toast('الملف كبير. الحد 3.3 ميجابايت', bad: true);
       return;
