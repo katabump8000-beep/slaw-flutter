@@ -80,12 +80,12 @@ jobs:
                           try {
                               val bytes = if (Build.VERSION.SDK_INT >= 28) {
                                   val info = packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
-                                  info.signingInfo.apkContentsSigners[0].toByteArray()
+                                  info.signingInfo!!.apkContentsSigners[0].toByteArray()
                               } else {
                                   @Suppress("DEPRECATION")
                                   val info = packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNATURES)
                                   @Suppress("DEPRECATION")
-                                  info.signatures[0].toByteArray()
+                                  info.signatures!![0].toByteArray()
                               }
                               val d = MessageDigest.getInstance("SHA-256").digest(bytes)
                               result.success(d.joinToString("") { "%%02x".format(it) })
