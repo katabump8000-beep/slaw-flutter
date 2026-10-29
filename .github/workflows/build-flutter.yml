@@ -25,7 +25,7 @@ jobs:
       - name: Create Android project
         run: |
           flutter create --org io.github.katabump8000_beep --project-name twa --platforms android build_app
-          rm -rf build_app/lib build_app/pubspec.yaml
+          rm -rf build_app/lib build_app/pubspec.yaml build_app/test
           mkdir -p build_app/lib build_app/assets/audio
           cp *.dart build_app/lib/
           cp pubspec.yaml build_app/pubspec.yaml
