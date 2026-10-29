@@ -955,11 +955,91 @@ class _VoiceState extends State<_Voice> {
   Widget build(BuildContext context) => GestureDetector(
         onTap: _tap,
         child: Container(
-          width: 180,
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Row(children: [Icon(playing ? Icons.pause_circle_filled : Icons.play_circle_fill, size: 34), const SizedBox(width: 8), Expanded(child: Container(height: 3, decoration: BoxDecoration(color: const Color(0x66FFFFFF), borderRadius: BorderRadius.circular(2))))]),
+          width: 210,
+          padding: const EdgeInsets.fromLTRB(8, 8, 10, 8),
+          decoration: BoxDecoration(color: const Color(0x33000000), borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0x33FFFFFF))),
+          child: Row(children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withAlpha(235)),
+              child: Icon(playing ? Icons.pause_rounded : Icons.play_arrow_rounded, size: 28, color: const Color(0xFF2A0D00)),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                SizedBox(
+                  height: 22,
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                    for (var i = 0; i < 22; i++)
+                      Expanded(child: Center(child: Container(width: 2.4, height: 5.0 + ((i * 7) % 11) * 1.5, decoration: BoxDecoration(color: playing ? Colors.white : const Color(0xB3FFFFFF), borderRadius: BorderRadius.circular(2))))),
+                  ]),
+                ),
+                const SizedBox(height: 2),
+                Text(playing ? '🎧 جارٍ التشغيل…' : '🎧 استمع إليها', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+              ]),
+            ),
+          ]),
         ),
       );
+}
+
+/// مشغّل رسالة صوتية للاستخدام في شاشات أخرى
+class VoiceBubble extends StatelessWidget {
+  final String src;
+  const VoiceBubble({super.key, required this.src});
+  @override
+  Widget build(BuildContext context) => _Voice(src: src);
+}
+
+/// إطار رسائل الإمبراطور: خمري ملكي داكن وحواف تلمع بموجات
+class _RoyalFrame extends StatefulWidget {
+  final Widget child;
+  const _RoyalFrame({required this.child});
+  @override
+  State<_RoyalFrame> createState() => _RoyalFrameState();
+}
+
+class _RoyalFrameState extends State<_RoyalFrame> with SingleTickerProviderStateMixin {
+  late final AnimationController ac = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
+
+  @override
+  void dispose() {
+    ac.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF5A0F26), Color(0xFF2B0612)]),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: CustomPaint(
+          foregroundPainter: _RoyalPainter(ac),
+          child: Padding(padding: const EdgeInsets.fromLTRB(11, 7, 11, 5), child: widget.child),
+        ),
+      );
+}
+
+class _RoyalPainter extends CustomPainter {
+  final Animation<double> a;
+  _RoyalPainter(this.a) : super(repaint: a);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final box = Offset.zero & size;
+    final rr = RRect.fromRectAndRadius(box, const Radius.circular(16)).deflate(1);
+    final shader = SweepGradient(
+      transform: GradientRotation(a.value * 2 * pi),
+      colors: const [Color(0xFF7A1633), Color(0xFFFFD27A), Color(0xFFE8B84A), Color(0xFF7A1633), Color(0xFF7A1633)],
+      stops: const [0.0, 0.1, 0.18, 0.34, 1.0],
+    ).createShader(box);
+    canvas.drawRRect(rr, Paint()..style = PaintingStyle.stroke..strokeWidth = 2.2..shader = shader);
+  }
+
+  @override
+  bool shouldRepaint(covariant _RoyalPainter old) => false;
 }
 
 class MsgBubble extends StatefulWidget {
@@ -1086,12 +1166,17 @@ class _MsgBubbleState extends State<MsgBubble> {
         ));
         return GestureDetector(
           onLongPress: widget.onLong,
-          child: Container(
-            constraints: BoxConstraints(maxWidth: maxW, minWidth: 64),
-            padding: const EdgeInsets.fromLTRB(11, 7, 11, 5),
-            decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hexColor(col), hexColor(darkHex(col))]), borderRadius: BorderRadius.circular(16)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: body),
-          ),
+          child: r == 'emp'
+              ? ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxW, minWidth: 64),
+                  child: _RoyalFrame(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: body)),
+                )
+              : Container(
+                  constraints: BoxConstraints(maxWidth: maxW, minWidth: 64),
+                  padding: const EdgeInsets.fromLTRB(11, 7, 11, 5),
+                  decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hexColor(col), hexColor(darkHex(col))]), borderRadius: BorderRadius.circular(16)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: body),
+                ),
         );
       },
     );

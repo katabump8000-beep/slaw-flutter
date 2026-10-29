@@ -1,10 +1,17 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
 
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 
 import 'app_state.dart';
+import 'chat.dart' show VoiceBubble;
 import 'data.dart';
+import 'profile.dart';
 import 'widgets.dart';
 
 /// بطاقة «دردشة الإمبراطور»: أول عنصر في الشاشة الرئيسية
@@ -117,7 +124,8 @@ class EmpRequestsScreen extends StatelessWidget {
 class _Thread extends StatefulWidget {
   final String path;
   final String title;
-  const _Thread({required this.path, required this.title});
+  final String? peer;
+  const _Thread({required this.path, required this.title, this.peer});
   @override
   State<_Thread> createState() => _ThreadState();
 }
@@ -126,6 +134,10 @@ class _ThreadState extends State<_Thread> {
   final Map<String, Map<dynamic, dynamic>> msgs = {};
   final c = TextEditingController();
   StreamSubscription<DatabaseEvent>? sub;
+  final AudioRecorder rec = AudioRecorder();
+  bool recording = false;
+  String? recPath;
+  Timer? recTimer;
 
   @override
   void initState() {
@@ -139,6 +151,8 @@ class _ThreadState extends State<_Thread> {
   @override
   void dispose() {
     sub?.cancel();
+    recTimer?.cancel();
+    rec.dispose();
     super.dispose();
   }
 
@@ -154,11 +168,72 @@ class _ThreadState extends State<_Thread> {
     }
   }
 
+  Future<void> _startRec() async {
+    try {
+      if (!await rec.hasPermission()) {
+        toast('فعّل إذن الميكروفون', bad: true);
+        return;
+      }
+      final dir = (await getTemporaryDirectory()).path;
+      final p = '$dir/dm_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await rec.start(const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 24000, sampleRate: 16000), path: p);
+      recPath = p;
+      if (mounted) setState(() => recording = true);
+      recTimer = Timer(const Duration(seconds: 20), () {
+        if (recording) _finishRec(send: true);
+      });
+    } catch (e) {
+      if (mounted) setState(() => recording = false);
+      err(e);
+    }
+  }
+
+  Future<void> _finishRec({required bool send}) async {
+    recTimer?.cancel();
+    String? p;
+    try {
+      p = await rec.stop();
+    } catch (_) {}
+    p ??= recPath;
+    if (mounted) setState(() => recording = false);
+    if (!send || p == null) return;
+    try {
+      final b = await File(p).readAsBytes();
+      final d = 'data:audio/mp4;base64,${base64Encode(b)}';
+      if (d.length > 140000) {
+        toast('التسجيل طويل جداً', bad: true);
+        return;
+      }
+      await ref(widget.path).push().set(<String, Object?>{
+        'from': myUid,
+        'text': '🎤 رسالة صوتية',
+        'au': d,
+        'dur': min(60, max(1, b.length ~/ 3000)),
+        'ts': ServerValue.timestamp,
+      });
+    } catch (e) {
+      err(e);
+    }
+  }
+
+  Widget _title() {
+    final peer = widget.peer;
+    if (peer == null || peer.isEmpty) return Text(widget.title);
+    return GestureDetector(
+      onTap: () => viewProfile(context, peer),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        UserAvatar(peer, size: 34),
+        const SizedBox(width: 10),
+        Flexible(child: FutureBuilder<Prof>(future: prof(peer), builder: (cx, s) => Text(s.data?.name ?? widget.title, overflow: TextOverflow.ellipsis))),
+      ]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final keys = msgs.keys.toList()..sort();
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
+      appBar: AppBar(title: _title()),
       body: Column(children: [
         Expanded(
           child: ListView(reverse: true, padding: const EdgeInsets.all(10), children: [
@@ -170,7 +245,9 @@ class _ThreadState extends State<_Thread> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * .78),
                   decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), color: msgs[k]!['from'] == myUid ? const Color(0xFF7A2A00) : const Color(0xFF26304A)),
-                  child: Text((msgs[k]!['text'] ?? '').toString(), style: const TextStyle(height: 1.5)),
+                  child: (msgs[k]!['au'] ?? '').toString().isNotEmpty
+                      ? VoiceBubble(src: msgs[k]!['au'].toString())
+                      : Text((msgs[k]!['text'] ?? '').toString(), style: const TextStyle(height: 1.5)),
                 ),
               ),
           ]),
@@ -178,10 +255,20 @@ class _ThreadState extends State<_Thread> {
         Container(
           color: kBg2,
           padding: const EdgeInsets.all(8),
-          child: SafeArea(top: false, child: Row(children: [
-            Expanded(child: TextField(controller: c, decoration: const InputDecoration(hintText: 'اكتب رسالة…'))),
-            IconButton(onPressed: _send, icon: Transform.flip(flipX: true, child: Icon(Icons.send, color: context.accent))),
-          ])),
+          child: SafeArea(
+            top: false,
+            child: recording
+                ? Row(children: [
+                    IconButton(onPressed: () => _finishRec(send: false), icon: const Icon(Icons.close_rounded, color: kRed)),
+                    const Expanded(child: Text('🔴 جارٍ التسجيل…', style: TextStyle(fontWeight: FontWeight.w800))),
+                    IconButton(onPressed: () => _finishRec(send: true), icon: Transform.flip(flipX: true, child: Icon(Icons.send, color: context.accent))),
+                  ])
+                : Row(children: [
+                    Expanded(child: TextField(controller: c, decoration: const InputDecoration(hintText: 'اكتب رسالة…'))),
+                    IconButton(onPressed: _startRec, icon: Icon(Icons.mic_rounded, color: context.accent)),
+                    IconButton(onPressed: _send, icon: Transform.flip(flipX: true, child: Icon(Icons.send, color: context.accent))),
+                  ]),
+          ),
         ),
       ]),
     );
@@ -193,7 +280,7 @@ class EmpChatScreen extends StatelessWidget {
   final String uid;
   const EmpChatScreen({super.key, required this.uid});
   @override
-  Widget build(BuildContext context) => _Thread(path: 'emp/msg/$uid', title: Session.isEmp ? 'مراسلة عضو' : 'دردشة الإمبراطور');
+  Widget build(BuildContext context) => _Thread(path: 'emp/msg/$uid', title: Session.isEmp ? 'مراسلة عضو' : 'دردشة الإمبراطور', peer: Session.isEmp ? uid : Session.emp);
 }
 
 /// مراسلة بين مطورين
@@ -203,7 +290,7 @@ class DevDmScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = [myUid, peer]..sort();
-    return _Thread(path: 'dm/${p[0]}/${p[1]}', title: 'مراسلة مطور');
+    return _Thread(path: 'dm/${p[0]}/${p[1]}', title: 'مراسلة مطور', peer: peer);
   }
 }
 
@@ -214,6 +301,6 @@ class FriendDmScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = [myUid, peer]..sort();
-    return _Thread(path: 'fdm/${p[0]}/${p[1]}', title: 'دردشة صديق');
+    return _Thread(path: 'fdm/${p[0]}/${p[1]}', title: 'دردشة صديق', peer: peer);
   }
 }

@@ -98,7 +98,7 @@ class WarWatcher {
       if (memCache[(f['dg'] ?? '').toString()] == true) c = _red;
       if (memCache[(f['ag'] ?? '').toString()] == true) c = _blue;
     }
-    if (c == null) return;
+    if (c == null || Session.isEmp) return;
     glow.value = c;
     Future<void>.delayed(const Duration(milliseconds: 1800), () => glow.value = null);
   }
@@ -160,8 +160,8 @@ class EdgeGlow extends StatelessWidget {
           duration: const Duration(milliseconds: 450),
           child: Container(
             decoration: BoxDecoration(
-              border: Border.all(color: (col ?? Colors.transparent).withAlpha(90), width: 3),
-              boxShadow: [BoxShadow(color: (col ?? Colors.transparent).withAlpha(70), blurRadius: 28, spreadRadius: -8)],
+              border: Border.all(color: (col ?? Colors.transparent).withAlpha(38), width: 2),
+              boxShadow: [BoxShadow(color: (col ?? Colors.transparent).withAlpha(26), blurRadius: 16, spreadRadius: -8)],
             ),
           ),
         ),
@@ -447,6 +447,14 @@ class _WarCardState extends State<WarCard> {
     final o = widget.o;
     final decl = o['t'] == 'decl';
     final left = ((o['st'] as num?)?.toInt() ?? 0) - DateTime.now().millisecondsSinceEpoch;
+    if (decl && left < -120000) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), border: Border.all(color: kLine)),
+        child: Text('⚔️ انتهت حرب «${o['a']}» و«${o['d']}»', textAlign: TextAlign.center, style: const TextStyle(color: kMu, fontSize: 12.5)),
+      );
+    }
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -719,52 +727,79 @@ class _WarEpicState extends State<WarEpicScreen> with SingleTickerProviderStateM
 
   Widget _head(String t, Color c) => Padding(padding: const EdgeInsets.fromLTRB(8, 10, 8, 4), child: Text(t, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: c)));
 
-  Widget _list(ScrollController sc, List<List<String>> adm, List<List<String>> mem) {
-    final items = <Widget>[
-      if (adm.isNotEmpty) _head('👑 المشرفون:', _red),
-      ...adm.map((e) => _rect(e, true)),
-      if (mem.isNotEmpty) _head('👤 الأعضاء:', const Color(0xFF4DA3FF)),
-      ...mem.map((e) => _rect(e, false)),
-      const SizedBox(height: 40),
-    ];
-    if (items.length <= 1) return const SizedBox();
-    return ListView.builder(controller: sc, itemBuilder: (c, i) => items[i % items.length]);
+  // نزول بقوة: تكبير ضخم ثم اصطدام بالشاشة
+  Widget _slam(double tt, double t0, Widget child, {double dur = .38}) {
+    if (tt < t0) return Opacity(opacity: 0, child: child);
+    final p = _seg(tt, t0, t0 + dur);
+    final scale = 2.6 - 1.6 * Curves.easeIn.transform(p);
+    return Opacity(opacity: min(1.0, p * 4), child: Transform.scale(scale: scale, child: child));
   }
 
-  Widget _side(bool atk, double tt) {
+  // ارتجاج الشاشة عند كل اصطدام
+  Offset _quake(double tt) {
+    var dx = 0.0, dy = 0.0;
+    for (final h in const [3.38, 3.88, 4.88, 5.38]) {
+      final q = tt - h;
+      if (q >= 0 && q < .45) {
+        final k = 1 - q / .45;
+        dx += sin(q * 70) * 7 * k;
+        dy += cos(q * 55) * 5 * k;
+      }
+    }
+    return Offset(dx, dy);
+  }
+
+  Widget _head2(bool atk, double tt) {
     final g = (f[atk ? 'ag' : 'dg'] ?? '').toString();
     final name = (f[atk ? 'an' : 'dn'] ?? '').toString();
-    final p = atk ? _seg(tt, 3.0, 3.8) : _seg(tt, 4.5, 5.3);
-    final shake = sin(p * 38) * 9 * (1 - p);
+    final t0 = atk ? 3.0 : 4.5;
+    final col = atk ? _yellow : _red;
     return Column(children: [
-      Transform.translate(
-        offset: Offset(shake, -(1 - p) * 300),
-        child: Opacity(opacity: p, child: Container(
-          decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: atk ? _yellow : _red, width: 4), boxShadow: [BoxShadow(color: (atk ? _yellow : _red).withAlpha(170), blurRadius: 24)]),
-          child: GroupPhoto(g, size: 120),
-        )),
-      ),
+      _slam(tt, t0, Container(
+        decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: col, width: 4), boxShadow: [BoxShadow(color: col.withAlpha(120), blurRadius: 14)]),
+        child: GroupPhoto(g, size: 120),
+      )),
       const SizedBox(height: 6),
-      Opacity(opacity: _seg(tt, atk ? 3.4 : 4.9, atk ? 4.0 : 5.5), child: Text(name, textAlign: TextAlign.center, maxLines: 2, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900))),
-      Opacity(opacity: _seg(tt, atk ? 3.6 : 5.0, atk ? 4.2 : 5.6), child: Text(atk ? 'المهاجم' : 'المدافع', style: TextStyle(color: atk ? _yellow : _red, fontWeight: FontWeight.w800))),
-      Expanded(
-        child: Opacity(
-          opacity: _seg(tt, 6.0, 6.8) * (1 - _seg(tt, endT - 4, endT - .3)),
-          child: _list(atk ? scA : scD, atk ? admA : admD, atk ? memA : memD),
-        ),
-      ),
+      _slam(tt, t0 + .5, Column(children: [
+        Text(name, textAlign: TextAlign.center, maxLines: 2, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+        Text(atk ? 'المهاجم' : 'المدافع', style: TextStyle(color: col, fontWeight: FontWeight.w800)),
+      ])),
     ]);
+  }
+
+  // قائمة واحدة: كل صف فيه مشرف/عضو من كل نقابة متقابلين، والفراغ يبقى فراغاً
+  Widget _pairedList() {
+    Widget cell(List<List<String>> l, int i, bool admin) => i < l.length ? _rect(l[i], admin) : const SizedBox(height: 54);
+    Widget row(Widget a, Widget b) => Row(children: [Expanded(child: a), const SizedBox(width: 36), Expanded(child: b)]);
+    final items = <Widget>[];
+    final na = max(admA.length, admD.length);
+    if (na > 0) {
+      items.add(row(_head('👑 المشرفون:', _red), _head('👑 المشرفون:', _red)));
+      for (var i = 0; i < na; i++) {
+        items.add(row(cell(admA, i, true), cell(admD, i, true)));
+      }
+    }
+    final nm = max(memA.length, memD.length);
+    if (nm > 0) {
+      items.add(row(_head('👤 الأعضاء:', const Color(0xFF4DA3FF)), _head('👤 الأعضاء:', const Color(0xFF4DA3FF))));
+      for (var i = 0; i < nm; i++) {
+        items.add(row(cell(memA, i, false), cell(memD, i, false)));
+      }
+    }
+    if (items.isEmpty) return const SizedBox();
+    items.add(const SizedBox(height: 60));
+    return ListView.builder(controller: scA, itemBuilder: (c, i) => items[i % items.length]);
   }
 
   Widget _royal() => Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: const Color(0xDD000000), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0x33FFFFFF))),
+        decoration: BoxDecoration(color: const Color(0xF2050505), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0x33FFFFFF))),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const Text('🍷 الإمبراطور:', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFD4AF37))),
           Container(
             margin: const EdgeInsets.symmetric(vertical: 6),
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-            decoration: BoxDecoration(color: const Color(0xFF4A0F1F), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFB03060), width: 2), boxShadow: const [BoxShadow(color: Color(0xAAB03060), blurRadius: 16)]),
+            decoration: BoxDecoration(color: const Color(0xFF4A0F1F), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFB03060), width: 2)),
             child: const Text('آلَجَيـــــــًّسًــــــــي', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
           ),
           if (roy.isNotEmpty) const Text('🖋 الرتب الملكية:', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF5DE08A))),
@@ -801,13 +836,19 @@ class _WarEpicState extends State<WarEpicScreen> with SingleTickerProviderStateM
         if (tt >= 3)
           Directionality(
             textDirection: TextDirection.ltr,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 40),
-              child: Row(children: [
-                Expanded(child: _side(true, tt)),
-                Opacity(opacity: _seg(tt, 4.5, 5.0), child: const Text('VS', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white))),
-                Expanded(child: _side(false, tt)),
-              ]),
+            child: Transform.translate(
+              offset: _quake(tt),
+              child: Padding(
+                padding: const EdgeInsets.only(top: 40),
+                child: Column(children: [
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Expanded(child: _head2(true, tt)),
+                    SizedBox(width: 36, child: Padding(padding: const EdgeInsets.only(top: 50), child: Opacity(opacity: _seg(tt, 4.5, 5.0), child: const FittedBox(child: Text('VS', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)))))),
+                    Expanded(child: _head2(false, tt)),
+                  ]),
+                  Expanded(child: Opacity(opacity: _seg(tt, 6.0, 6.8) * (1 - _seg(tt, endT - 4, endT - .3)), child: _pairedList())),
+                ]),
+              ),
             ),
           ),
         if (royalShown) Positioned(left: 14, right: 14, bottom: 30, child: Opacity(opacity: 1 - _seg(tt, endT - 4, endT - .3), child: _royal())),
