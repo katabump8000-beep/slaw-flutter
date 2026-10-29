@@ -115,7 +115,7 @@ jobs:
         run: |
           cd build_app
           flutter pub get
-          flutter build apk --release --no-shrink --build-number=$((1000 + ${{ github.run_number }}))
+          flutter build apk --release --no-shrink --build-number=$((1000 + ${{ github.run_number }})) --dart-define=BUILD=${{ github.run_number }}
 
       - name: Sign APK
         env:
