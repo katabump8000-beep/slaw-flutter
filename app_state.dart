@@ -44,6 +44,8 @@ class Store {
         s.setInt(k, v).catchError((_) => false);
       } else if (v is bool) {
         s.setBool(k, v).catchError((_) => false);
+      } else if (v is List<String>) {
+        s.setStringList(k, v).catchError((_) => false);
       }
       return;
     }
@@ -77,6 +79,14 @@ class Store {
     return v is bool ? v : null;
   }
 
+  List<String>? getStringList(String k) {
+    final s = _sp;
+    if (s != null) return s.getStringList(k);
+    final v = _m[k];
+    return v is List ? v.map((e) => e.toString()).toList() : null;
+  }
+
+  void setStringList(String k, List<String> v) => _put(k, List<String>.from(v));
   void setString(String k, String v) => _put(k, v);
   void setInt(String k, int v) => _put(k, v);
   void setBool(String k, bool v) => _put(k, v);
