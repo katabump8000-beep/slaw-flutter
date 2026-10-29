@@ -28,6 +28,8 @@ class _ProfileBodyState extends State<_ProfileBody> {
   int msgs = 0, wins = 0, likes = 0, contrib = 0, pubs = 0, pride = 100;
   bool liked = false;
   bool loading = true;
+  bool priv = false;
+  String note = '';
 
   @override
   void initState() {
@@ -55,6 +57,8 @@ class _ProfileBodyState extends State<_ProfileBody> {
     likes = _n(await _g('likeCount/$u'));
     pubs = _n(await _g('pubCount/$u'));
     pride = await prideOf(u);
+    priv = (await _g('pdata/$u/priv')) == true;
+    note = ((await _g('pdata/$u/note')) ?? '').toString();
     final mg = memCache.entries.where((e) => e.value == true && groupKind(e.key) == 'main').map((e) => e.key).toList();
     if (mg.isNotEmpty) {
       final c = await _g('guildStats/${mg.first}/contrib/$u');
@@ -108,8 +112,19 @@ class _ProfileBodyState extends State<_ProfileBody> {
       Center(child: Wrap(spacing: 6, runSpacing: 6, children: [if (role == 'dev' || role == 'emp') const DevBadge(), if (tag != null) tag, ageTag(p!), Tag(p!.gender == 'f' ? 'أنثى' : 'ذكر'), if (pubs > 10) const Tag('رتبة عالية 🌟')])),
       if (pid.isNotEmpty) Center(child: Text('ID: $pid', style: const TextStyle(color: kMu, letterSpacing: 1.5))),
       const SizedBox(height: 8),
-      Row(children: [_stat('رسائل', '$msgs'), _stat('فوز بالفعاليات', '$wins'), _stat('مساهمة الترقية', '$contrib')]),
-      Row(children: [_stat('النشر', '$pubs'), _stat('درجة الفخر', '$pride%'), _stat('الإعجابات', '$likes')]),
+      if (note.isNotEmpty)
+        Container(
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: const Color.fromRGBO(0, 0, 0, .25), borderRadius: BorderRadius.circular(12), border: Border.all(color: kLine)),
+          child: Text(note, textAlign: TextAlign.center, style: const TextStyle(height: 1.7)),
+        ),
+      if (priv && widget.uid != myUid && !Session.isDev)
+        const Padding(padding: EdgeInsets.all(14), child: Center(child: Text('🔒 هذا الملف التعريفي خاص', style: TextStyle(color: kMu))))
+      else ...[
+        Row(children: [_stat('رسائل', '$msgs'), _stat('فوز بالفعاليات', '$wins'), _stat('مساهمة الترقية', '$contrib')]),
+        Row(children: [_stat('النشر', '$pubs'), _stat('درجة الفخر', '$pride%'), _stat('الإعجابات', '$likes')]),
+      ],
       const SizedBox(height: 8),
       if (widget.uid != myUid)
         Center(

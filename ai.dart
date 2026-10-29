@@ -11,17 +11,36 @@ import 'data.dart';
 
 Future<String?> _gemini(List<Map<String, Object?>> parts, {int maxTokens = 20}) async {
   try {
-    final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$kGeminiModel:generateContent');
     final body = jsonEncode(<String, Object?>{
       'contents': [
-        {'parts': parts}
+        {
+          'role': 'user',
+          'parts': parts
+        }
       ],
       'generationConfig': {'temperature': 0, 'maxOutputTokens': maxTokens},
     });
-    final r = await http
-        .post(url, headers: {'Content-Type': 'application/json', 'x-goog-api-key': kGeminiKey}, body: body)
-        .timeout(const Duration(seconds: 18));
-    if (r.statusCode != 200) return null;
+    // مفاتيح AQ. هي مفاتيح Vertex AI السريعة، ومفاتيح AIza هي مفاتيح AI Studio
+    final urls = kGeminiKey.startsWith('AQ.')
+        ? <String>[
+            'https://aiplatform.googleapis.com/v1/publishers/google/models/$kGeminiModel:generateContent?key=$kGeminiKey',
+            'https://generativelanguage.googleapis.com/v1beta/models/$kGeminiModel:generateContent?key=$kGeminiKey',
+          ]
+        : <String>[
+            'https://generativelanguage.googleapis.com/v1beta/models/$kGeminiModel:generateContent?key=$kGeminiKey',
+            'https://aiplatform.googleapis.com/v1/publishers/google/models/$kGeminiModel:generateContent?key=$kGeminiKey',
+          ];
+    http.Response? r;
+    for (final u in urls) {
+      try {
+        final x = await http.post(Uri.parse(u), headers: {'Content-Type': 'application/json'}, body: body).timeout(const Duration(seconds: 18));
+        if (x.statusCode == 200) {
+          r = x;
+          break;
+        }
+      } catch (_) {}
+    }
+    if (r == null) return null;
     final j = jsonDecode(r.body);
     if (j is Map && j['promptFeedback'] is Map && (j['promptFeedback'] as Map)['blockReason'] != null) return 'UNSAFE';
     final c = (j['candidates'] as List?)?.first;

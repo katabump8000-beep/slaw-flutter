@@ -161,3 +161,12 @@ class Session {
     } catch (_) {}
   }
 }
+
+
+/// تسجيل خسارة في الألعاب (للمتصدرين)
+Future<void> addLoss(int n) async {
+  try {
+    if (n <= 0 || Session.isEmp) return;
+    await ref('loss/$myUid').set(ServerValue.increment(n));
+  } catch (_) {}
+}

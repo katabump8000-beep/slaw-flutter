@@ -91,13 +91,21 @@ Future<void> runCommand(BuildContext ctx, String gid, String raw) async {
           '╮─❖『 أوامر ALJESI 』❖─╭\n.تفاصيلي — بطاقتك\n.رصيدي — رصيدك\n.العاب — قائمة الألعاب\n.كريستال [مبلغ]\n.بالونات\n.اعلام\n.كتابة\n.الوان\n.حيوانات — فعالية الحيوانات\n.شخصيات — تخمين الشخصيات\n.تحويل — تحويل رصيد\n.المتصدرين — متصدرو اليوم\n.فخر — درجة الفخر\n.المتجر\n╰─❖『 ALJESI 』❖─╯');
       break;
     case 'رصيدي':
-      await botSay(gid, '💰 رصيدك الحالي: ${fmtN(await balanceNow())}');
+      if (args.contains('@') && Session.isDev) {
+        await _giveBalance(gid, args);
+      } else {
+        await botSay(gid, '💰 رصيدك الحالي: ${fmtN(await balanceNow())}');
+      }
       break;
     case 'فخر':
       await botSay(gid, '🛡 درجة فخرك: ${await prideOf(myUid)}%');
       break;
     case 'تفاصيلي':
-      await _details(gid);
+      if (args.isNotEmpty) {
+        await _detailsOf(gid, args);
+      } else {
+        await _details(gid);
+      }
       break;
     case 'المتصدرين':
       await _board(gid);
@@ -167,6 +175,86 @@ Future<void> _details(String gid) async {
         '👍 الإعجابات: ${r[5] ?? 0}',
         '🛡 درجة الفخر: $pr%',
         if (v is Map) '✈️ زائر في: ${groupName((v['g'] ?? '').toString())}',
+        '╰─❖『 ALJESI 』❖─╯',
+      ].join('\n'));
+}
+
+Future<String?> _uidByName(String gid, String raw) async {
+  final n = normAr(raw.replaceFirst('@', '').trim());
+  if (n.isEmpty) return null;
+  try {
+    final v = (await ref('members/$gid').get()).value;
+    if (v is! Map) return null;
+    final ids = v.keys.map((e) => e.toString()).toList();
+    final ps = await Future.wait(ids.map(prof));
+    for (var i = 0; i < ids.length; i++) {
+      if (normAr(ps[i].name) == n) return ids[i];
+    }
+  } catch (_) {}
+  return null;
+}
+
+/// .رصيد @اسم 50  (للإمبراطور والمطورين)
+Future<void> _giveBalance(String gid, String args) async {
+  final m = RegExp(r'^(.*?)\s*([0-9\u0660-\u0669]+)\s*$').firstMatch(args.trim());
+  if (m == null) {
+    await botSay(gid, '❌ الصيغة: ‎.رصيد @اسم 50');
+    return;
+  }
+  final n = int.tryParse(normDigits(m.group(2)!)) ?? 0;
+  final u = await _uidByName(gid, m.group(1)!);
+  if (u == null || n <= 0) {
+    await botSay(gid, '❌ لم أجد العضو أو المبلغ غير صحيح');
+    return;
+  }
+  try {
+    await ref('wallets/$u/bal').set(ServerValue.increment(n));
+    final p = await prof(u);
+    final after = (await ref('wallets/$u/bal').get()).value;
+    final mg = groupKind(gid) == 'main' ? gid : (mainGroups().isNotEmpty ? mainGroups().first : gid);
+    final txt = '💸 ${Session.me.name} حوّل ${fmtN(n)} رصيد إلى ${p.name}';
+    await botSay(gid, '╮─❖『 بطاقة تحويل 』❖─╭\n📥 المستلم: ${p.name}\n🏰 النقابة: ${groupName(mg)}\n📤 المحوِّل: ${Session.me.name}\n💰 المبلغ: ${fmtN(n)}\n🧾 رصيده بعد التحويل: ${after is num ? fmtN(after) : '-'}\n╰─❖『 ALJESI 』❖─╯');
+    await feedNote('shop', txt, k: 'tr');
+    await sendNotif(u, {'t': 'tr', 'a': n, 'g': mg, 'm': groupName(mg)});
+  } catch (e) {
+    err(e);
+  }
+}
+
+Future<void> _detailsOf(String gid, String raw) async {
+  final u = await _uidByName(gid, raw);
+  if (u == null) {
+    await botSay(gid, '❌ لم أجد هذا العضو في هذه الدردشة');
+    return;
+  }
+  Future<Object?> g(String p) async {
+    try {
+      return (await ref(p).get()).value;
+    } catch (_) {
+      return null;
+    }
+  }
+  final mg = groupKind(gid) == 'main' ? gid : (mainGroups().isNotEmpty ? mainGroups().first : gid);
+  final priv = (await g('pdata/$u/priv')) == true;
+  if (priv && u != myUid && !Session.isDev && (await g('groupAdmins/$mg/$myUid')) == null) {
+    await botSay(gid, '🔒 الملف التعريفي لهذا العضو خاص');
+    return;
+  }
+  final r = await Future.wait<Object?>([g('msgTotal/$u'), g('wins/$u'), g('likeCount/$u'), g('groupAdmins/$mg/$u'), g('pdata/$u/note')]);
+  final p = await prof(u);
+  final role = await roleOf(u);
+  final pr = await prideOf(u);
+  final rank = role == 'emp' ? 'الإمبراطور ∞' : role == 'dev' ? 'رتبة عليا' : (r[3] != null ? 'مشرف' : 'عضو');
+  await botSay(
+      gid,
+      [
+        '╮─❖『 تفاصيل ${p.name} 』❖─╭',
+        '🎖 الرتبة: $rank',
+        '💬 الرسائل: ${r[0] ?? 0}',
+        '🏆 الفوز بالفعاليات: ${r[1] ?? 0}',
+        '👍 الإعجابات: ${r[2] ?? 0}',
+        '🛡 درجة الفخر: $pr%',
+        if ((r[4] ?? '').toString().isNotEmpty) '📝 ${r[4]}',
         '╰─❖『 ALJESI 』❖─╯',
       ].join('\n'));
 }
@@ -367,6 +455,7 @@ class _CrystalScreenState extends State<CrystalScreen> {
       }
     }
     final net = pay - b;
+    if (net < 0) await addLoss(-net);
     await _bal();
     final line = res.p.join(' ');
     final txt = res.r == 'win' ? '🎉 ربح ${fmtN(net)} رصيد (×${res.m})' : (res.r == 'retry' ? '↩️ استرجع رهانه' : '💥 خسر ${fmtN(b)} رصيد');
@@ -521,6 +610,7 @@ class _BalloonScreenState extends State<BalloonScreen> with SingleTickerProvider
     }
     final p = pay.round();
     final net = p - stake;
+    if (net < 0) await addLoss(-net);
     if (p > 0) {
       try {
         await addBalRetry(p);

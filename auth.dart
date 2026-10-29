@@ -28,6 +28,65 @@ String _hex(String s) => sha256.convert(utf8.encode(s)).toString();
 String derivedEmail(String pw) => 'p${_hex('fir-e|$pw').substring(0, 40)}@fir-app.com';
 String derivedPass(String pw) => _hex('fir-p|$pw');
 
+// ---- تغيير كلمة السر: كلمة جديدة تفتح نفس الحساب عبر "بديل" مشفّر ----
+String aliasKey(String pw) => _hex('fir-a|$pw').substring(0, 40);
+
+List<int> _aliasStream(String pw, int n) {
+  final out = <int>[];
+  var seed = sha256.convert(utf8.encode('fir-ak|$pw')).bytes;
+  while (out.length < n) {
+    out.addAll(seed);
+    seed = sha256.convert(seed).bytes;
+  }
+  return out.sublist(0, n);
+}
+
+String aliasEnc(String pw, String plain) {
+  final b = utf8.encode(plain);
+  final k = _aliasStream(pw, b.length);
+  return base64Encode([for (var i = 0; i < b.length; i++) b[i] ^ k[i]]);
+}
+
+String aliasDec(String pw, String blob) {
+  final b = base64Decode(blob);
+  final k = _aliasStream(pw, b.length);
+  return utf8.decode([for (var i = 0; i < b.length; i++) b[i] ^ k[i]]);
+}
+
+/// يرجع [البريد الفعلي, كلمة سر Firebase] إن كانت [pw] كلمة سر بديلة مسجّلة
+Future<List<String>?> aliasCreds(String pw) async {
+  try {
+    final s = await ref('pwAlias/${aliasKey(pw)}').get();
+    final v = s.value;
+    if (v is Map) {
+      final t = aliasDec(pw, (v['c'] ?? '').toString());
+      final i = t.indexOf('|');
+      if (i > 0) return [t.substring(0, i), t.substring(i + 1)];
+    }
+  } catch (_) {}
+  return null;
+}
+
+/// يتحقق من كلمة السر الحالية للمستخدم المسجَّل (أصلية أو بديلة) ويرجع بياناته الفعلية
+Future<List<String>?> currentCreds(String pw) async {
+  final u = FirebaseAuth.instance.currentUser;
+  if (u == null || u.email == null) return null;
+  try {
+    await u.reauthenticateWithCredential(EmailAuthProvider.credential(email: u.email!, password: derivedPass(pw)));
+    final sw = await ref('pwSwap/${u.uid}').get();
+    if (sw.exists) return null;
+    return [u.email!, derivedPass(pw)];
+  } on FirebaseAuthException catch (_) {}
+  final a = await aliasCreds(pw);
+  if (a == null || a[0] != u.email) return null;
+  try {
+    await u.reauthenticateWithCredential(EmailAuthProvider.credential(email: a[0], password: a[1]));
+    return a;
+  } catch (_) {
+    return null;
+  }
+}
+
 // ---------- فلتر اللقب: عربي فقط بلا زخرفة ----------
 final RegExp _nameRe = RegExp(r'^[\u0621-\u063F\u0641-\u064A ]{2,20}$');
 const List<String> _bad = [
@@ -416,7 +475,24 @@ class _PasswordLoginScreenState extends State<PasswordLoginScreen> {
       error = '';
     });
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(email: derivedEmail(p), password: derivedPass(p));
+      try {
+        final cr = await FirebaseAuth.instance.signInWithEmailAndPassword(email: derivedEmail(p), password: derivedPass(p));
+        final sw = await ref('pwSwap/${cr.user!.uid}').get();
+        if (sw.exists) {
+          await FirebaseAuth.instance.signOut();
+          if (mounted) setState(() {
+            error = 'تم تغيير كلمة السر لهذا الحساب، استخدم كلمة السر الجديدة';
+            busy = false;
+          });
+          return;
+        }
+      } on FirebaseAuthException catch (e) {
+        final wrong0 = e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential';
+        if (!wrong0) rethrow;
+        final a = await aliasCreds(p);
+        if (a == null) rethrow;
+        await FirebaseAuth.instance.signInWithEmailAndPassword(email: a[0], password: a[1]);
+      }
       prefs.setBool('seen_login', true);
       if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
     } on FirebaseAuthException catch (e) {

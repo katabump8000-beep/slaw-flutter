@@ -8,6 +8,7 @@ import 'bell.dart';
 import 'data.dart';
 import 'firebase_options.dart';
 import 'home.dart';
+import 'tapsound.dart';
 import 'tools.dart';
 import 'war.dart';
 import 'widgets.dart';
@@ -61,7 +62,7 @@ class FirApp extends StatelessWidget {
         theme: buildTheme(ac),
         builder: (context, child) => Directionality(
           textDirection: TextDirection.rtl,
-          child: Stack(children: [child ?? const SizedBox(), const EdgeGlow()]),
+          child: TapSound(child: Stack(children: [child ?? const SizedBox(), const EdgeGlow()])),
         ),
         home: const AuthGate(),
       ),

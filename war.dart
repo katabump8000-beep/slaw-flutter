@@ -15,6 +15,7 @@ import 'widgets.dart';
 
 const Color _red = Color(0xFFFF3B3B);
 const Color _yellow = Color(0xFFFFD21F);
+const Color _blue = Color(0xFF2E8BFF);
 
 double _seg(double t, double a, double b) => ((t - a) / (b - a)).clamp(0.0, 1.0);
 
@@ -58,7 +59,7 @@ class WarWatcher {
       feeds.remove(e.snapshot.key);
       tick.value++;
     }, onError: (_) {});
-    _glowT = Timer.periodic(const Duration(seconds: 10), (_) => _pulse());
+    _glowT = Timer.periodic(const Duration(seconds: 9), (_) => _pulse());
     for (final g in mainGroups()) {
       _sfx.add(ref('warSfx/$g').onValue.listen((e) {
         final v = e.snapshot.value;
@@ -95,11 +96,11 @@ class WarWatcher {
       final st = (f['st'] as num?)?.toInt() ?? 0;
       if (now >= st + 120000) continue;
       if (memCache[(f['dg'] ?? '').toString()] == true) c = _red;
-      if (memCache[(f['ag'] ?? '').toString()] == true) c = _yellow;
+      if (memCache[(f['ag'] ?? '').toString()] == true) c = _blue;
     }
     if (c == null) return;
     glow.value = c;
-    Future<void>.delayed(const Duration(milliseconds: 1500), () => glow.value = null);
+    Future<void>.delayed(const Duration(milliseconds: 1800), () => glow.value = null);
   }
 
   static final List<Future<void> Function()> _queue = [];
@@ -145,7 +146,7 @@ class WarWatcher {
   }
 }
 
-/// طبقة الإشعاع على حواف الشاشة (أحمر للمدافعين، أصفر للمهاجمين)
+/// طبقة الإشعاع على حواف الشاشة (أحمر للمدافعين، أزرق للمهاجمين)
 class EdgeGlow extends StatelessWidget {
   const EdgeGlow({super.key});
 
@@ -159,8 +160,8 @@ class EdgeGlow extends StatelessWidget {
           duration: const Duration(milliseconds: 450),
           child: Container(
             decoration: BoxDecoration(
-              border: Border.all(color: (col ?? Colors.transparent).withAlpha(170), width: 9),
-              boxShadow: [BoxShadow(color: (col ?? Colors.transparent).withAlpha(120), blurRadius: 40, spreadRadius: -6)],
+              border: Border.all(color: (col ?? Colors.transparent).withAlpha(90), width: 3),
+              boxShadow: [BoxShadow(color: (col ?? Colors.transparent).withAlpha(70), blurRadius: 28, spreadRadius: -8)],
             ),
           ),
         ),
@@ -213,8 +214,8 @@ Future<void> declareWarSheet(BuildContext context) async {
 
 Future<void> _declare(String a, String d) async {
   try {
-    if ((await balanceNow()) < 20000) {
-      toast('رصيدك لا يكفي (20,000)', bad: true);
+    if ((await balanceNow()) < 10000) {
+      toast('رصيدك لا يكفي (10,000)', bad: true);
       return;
     }
     final wid = ref('wars').push().key!;
@@ -224,7 +225,7 @@ Future<void> _declare(String a, String d) async {
       'wars/$wid': <String, Object?>{'a': a, 'd': d, 'by': myUid, 't0': now, 'st': st, 'en': st, 's': 'p'},
       'activeWar/$a': wid,
       'activeWar/$d': wid,
-      'wallets/$myUid/bal': ServerValue.increment(-20000),
+      'wallets/$myUid/bal': ServerValue.increment(-10000),
       'warFeed/$wid': <String, Object?>{
         'ag': a, 'dg': d, 'an': groupName(a), 'dn': groupName(d), 'by': myUid, 'bn': Session.me.name,
         'st': st, 'ts': ServerValue.timestamp,

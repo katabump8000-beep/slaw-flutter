@@ -45,6 +45,20 @@ class _SecurityState extends State<SecurityScreen> {
   final pw = TextEditingController();
   String msg = '';
   bool busy = false;
+  String saved = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSaved();
+  }
+
+  Future<void> _loadSaved() async {
+    try {
+      final s = await ref('recMail/$myUid').get();
+      if (s.exists && mounted) setState(() => saved = s.value.toString());
+    } catch (_) {}
+  }
 
   Future<void> _save() async {
     final e = em.text.trim().toLowerCase();
@@ -57,12 +71,23 @@ class _SecurityState extends State<SecurityScreen> {
       msg = '';
     });
     try {
-      final u = FirebaseAuth.instance.currentUser!;
-      if (u.email == null) throw 'noemail';
-      await u.reauthenticateWithCredential(EmailAuthProvider.credential(email: u.email!, password: derivedPass(pw.text)));
-      final blob = _enc(e, '${u.email}|${derivedPass(pw.text)}');
+      final c = await currentCreds(pw.text);
+      if (c == null) {
+        if (mounted) setState(() {
+          msg = 'كلمة السر غير صحيحة';
+          busy = false;
+        });
+        return;
+      }
+      final blob = _enc(e, '${c[0]}|${c[1]}');
       await ref('rec/${_recHash(e)}').set(<String, Object?>{'u': myUid, 'b': blob});
-      if (mounted) setState(() => msg = 'تم تأمين حسابك ✅');
+      try {
+        await ref('recMail/$myUid').set(e);
+      } catch (_) {}
+      if (mounted) setState(() {
+        saved = e;
+        msg = 'تم تأمين حسابك ✅';
+      });
     } on FirebaseAuthException {
       if (mounted) setState(() => msg = 'كلمة السر غير صحيحة');
     } catch (_) {
@@ -76,6 +101,17 @@ class _SecurityState extends State<SecurityScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('تأمين الحساب')),
       body: ListView(padding: const EdgeInsets.all(18), children: [
+        if (saved.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: const Color.fromRGBO(0, 0, 0, .25), borderRadius: BorderRadius.circular(12), border: Border.all(color: kLine)),
+            child: Row(children: [
+              Icon(Icons.mark_email_read_outlined, color: context.accent2),
+              const SizedBox(width: 10),
+              Expanded(child: Text('بريد الاستعادة المسجّل: $saved', textDirection: TextDirection.ltr, style: const TextStyle(fontWeight: FontWeight.w700))),
+            ]),
+          ),
         const Text('أضف بريداً إلكترونياً للاستعادة في حال نسيت كلمة السر.', style: TextStyle(height: 1.8)),
         const SizedBox(height: 12),
         TextField(controller: em, keyboardType: TextInputType.emailAddress, textDirection: TextDirection.ltr, decoration: const InputDecoration(hintText: 'بريد الاستعادة')),

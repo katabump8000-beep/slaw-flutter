@@ -10,6 +10,8 @@ import 'data.dart';
 import 'ai.dart';
 import 'emp.dart';
 import 'security.dart';
+import 'pwchange.dart';
+import 'privacy.dart';
 import 'sfx.dart';
 import 'support.dart';
 import 'tools.dart';
@@ -151,6 +153,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               setState(() {});
             },
           ),
+          SwitchListTile(
+            value: !Sfx.fxOff,
+            title: const Text('أصوات التطبيق'),
+            subtitle: const Text('النقر والمؤثرات (ما عدا مؤثرات الدخول الخاصة)', style: TextStyle(color: kMu, fontSize: 12)),
+            onChanged: (v) {
+              prefs.setBool('fx_off', !v);
+              setState(() {});
+            },
+          ),
+          const ProfilePrivacyTiles(),
           _title('الحساب'),
           ListTile(
             leading: const Icon(Icons.verified_user_outlined),
@@ -168,6 +180,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leading: const Icon(Icons.lock_outline),
             title: const Text('تأمين الحساب'),
             onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SecurityScreen())),
+          ),
+          ListTile(
+            leading: const Icon(Icons.key_rounded),
+            title: const Text('تغيير كلمة السر'),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ChangePasswordScreen())),
           ),
           const SupportTile(),
           if (Session.isDev)

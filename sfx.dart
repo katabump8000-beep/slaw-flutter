@@ -18,9 +18,23 @@ class Sfx {
   static bool _bgStarted = false;
 
   static bool get bgDisabled => prefs.getBool('bgm_off') ?? false;
+  static bool get fxOff => prefs.getBool('fx_off') ?? false;
+  static const Set<String> _always = {'emp_in.wav', 'dev_in.wav'};
+  static final AudioPlayer _ck = AudioPlayer();
+  static int _lastCk = 0;
+
+  /// صوت النقر
+  static void click() {
+    if (fxOff) return;
+    final n = DateTime.now().millisecondsSinceEpoch;
+    if (n - _lastCk < 120) return;
+    _lastCk = n;
+    _ck.stop().then((_) => _ck.setVolume(.5)).then((_) => _ck.play(AssetSource('audio/click.mp3'))).catchError((_) {});
+  }
 
   /// تشغيل مؤثر وانتظار نهايته
   static Future<void> playWait(String name, {double volume = 1}) async {
+    if (fxOff && !_always.contains(name)) return;
     final c = Completer<void>();
     final sub = _fx.onPlayerComplete.listen((_) {
       if (!c.isCompleted) c.complete();
@@ -43,6 +57,7 @@ class Sfx {
   /// مشغل مستقل (للعروض الطويلة)
   static Future<AudioPlayer> start(String name, {double volume = 1}) async {
     final p = AudioPlayer();
+    if (fxOff && !_always.contains(name)) return p;
     try {
       await p.setVolume(volume);
       await p.play(AssetSource('audio/$name'));

@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'data.dart';
+import 'idedit.dart';
 import 'widgets.dart';
 
 /// إدارة المستخدمين (للإمبراطور فقط): بحث بالـID أو الاسم ثم تعيين مطور
 class EmpScreen extends StatefulWidget {
-  const EmpScreen({super.key});
+  final bool canAppoint;
+  const EmpScreen({super.key, this.canAppoint = true});
 
   @override
   State<EmpScreen> createState() => _EmpScreenState();
@@ -43,7 +45,7 @@ class _EmpScreenState extends State<EmpScreen> {
       found = [];
     });
     try {
-      if (RegExp(r'^\d{9}$').hasMatch(t)) {
+      if (RegExp(r'^\d{4,12}$').hasMatch(t)) {
         final s = await ref('pids/$t').get();
         if (s.exists) found = [s.value.toString()];
       } else {
@@ -108,11 +110,21 @@ class _EmpScreenState extends State<EmpScreen> {
                   ],
                 ),
               ),
-              if (r != 'emp')
+              Column(mainAxisSize: MainAxisSize.min, children: [
+                if (r != 'emp' && widget.canAppoint)
+                  SizedBox(
+                    width: 120,
+                    child: AppButton(isDev ? 'إزالة الرتبة' : 'تعيين كمطور', kind: isDev ? 'r' : 'main', compact: true, onPressed: () => _toggle(u, isDev)),
+                  ),
+                if (r != 'emp' && widget.canAppoint) const SizedBox(height: 6),
                 SizedBox(
                   width: 120,
-                  child: AppButton(isDev ? 'إزالة الرتبة' : 'تعيين كمطور', kind: isDev ? 'r' : 'main', compact: true, onPressed: () => _toggle(u, isDev)),
+                  child: AppButton('تعديل المعرّف', kind: 'g', compact: true, onPressed: () async {
+                    await editPidDialog(context, u);
+                    if (mounted) setState(() {});
+                  }),
                 ),
+              ]),
             ],
           ),
         );
@@ -135,7 +147,7 @@ class _EmpScreenState extends State<EmpScreen> {
                     controller: q,
                     textInputAction: TextInputAction.search,
                     onSubmitted: (_) => _search(),
-                    decoration: const InputDecoration(hintText: 'ابحث بالـID (9 أرقام) أو الاسم'),
+                    decoration: const InputDecoration(hintText: 'ابحث بالـID أو الاسم'),
                   ),
                 ),
                 const SizedBox(width: 8),

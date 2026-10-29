@@ -206,3 +206,14 @@ class DevDmScreen extends StatelessWidget {
     return _Thread(path: 'dm/${p[0]}/${p[1]}', title: 'مراسلة مطور');
   }
 }
+
+/// دردشة بين صديقين
+class FriendDmScreen extends StatelessWidget {
+  final String peer;
+  const FriendDmScreen({super.key, required this.peer});
+  @override
+  Widget build(BuildContext context) {
+    final p = [myUid, peer]..sort();
+    return _Thread(path: 'fdm/${p[0]}/${p[1]}', title: 'دردشة صديق');
+  }
+}

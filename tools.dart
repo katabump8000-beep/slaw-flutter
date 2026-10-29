@@ -5,6 +5,10 @@ import 'package:flutter/services.dart';
 import 'app_state.dart';
 import 'core.dart';
 import 'data.dart';
+import 'emp.dart';
+import 'guildtools.dart';
+import 'update.dart';
+import 'idedit.dart';
 import 'home.dart';
 import 'media.dart';
 import 'quiz.dart';
@@ -71,7 +75,7 @@ String _fmtTs(int ts) {
 /// جلب uid من ID مكوّن من 9 أرقام
 Future<String?> uidFromPid(String raw) async {
   final t = normDigits(raw.trim());
-  if (!RegExp(r'^\d{9}$').hasMatch(t)) return null;
+  if (!RegExp(r'^\d{4,12}$').hasMatch(t)) return null;
   try {
     final s = await ref('pids/$t').get();
     return s.exists ? s.value.toString() : null;
@@ -91,7 +95,7 @@ class _ToolsState extends State<ToolsScreen> {
     final c = TextEditingController();
     await showAppSheet<void>(context, (sc) => [
           Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-          TextField(controller: c, keyboardType: TextInputType.number, maxLength: 9, decoration: const InputDecoration(hintText: 'ID المستخدم (9 أرقام)', counterText: '')),
+          TextField(controller: c, keyboardType: TextInputType.number, maxLength: 12, decoration: const InputDecoration(hintText: 'ID المستخدم', counterText: '')),
           AppButton('متابعة', onPressed: () async {
             final u = await uidFromPid(c.text);
             if (u == null) {
@@ -194,6 +198,8 @@ class _ToolsState extends State<ToolsScreen> {
         _t(Icons.casino_outlined, 'الفعاليات ⚙️', () => go(const QuizAdminScreen()), sub: 'صور الحيوانات والشخصيات'),
         _t(Icons.bar_chart, 'الإحصائيات', () => go(const StatsScreen())),
         _t(Icons.shield_outlined, 'درجة الفخر (بالـID)', _pride),
+        _t(Icons.badge_outlined, 'تعديل معرّفات', () => go(EmpScreen(canAppoint: emp)), sub: 'ابحث عن أي مستخدم وعدّل معرّفه'),
+        _t(Icons.edit_outlined, 'تعديل معرّفي', () => editPidDialog(context, myUid)),
         if (emp) ...[
           const Divider(),
           _t(Icons.block, 'المقيدون', () => go(const RestrictedScreen()), sub: 'من ظهرت له رسالة «لا يمكن إنشاء حساب آخر»'),
@@ -206,6 +212,10 @@ class _ToolsState extends State<ToolsScreen> {
             if (ok == true) await resetLeaderboard();
           }),
           _t(Icons.schedule, 'ساعة الحسبة اليومية', _hour),
+          _t(Icons.merge_type, 'دمج نقابات', () => mergeGuilds(context), sub: 'نقل الأعضاء إلى نقابة واحدة باسم جديد'),
+          _t(Icons.tune, 'تعديل مستوى النقابة', () => editGuildLevels(context), sub: 'الهجوم والدفاع'),
+          _t(Icons.science_outlined, 'تجارب', () => warTrial(context), sub: 'عرض الحرب عندك فقط'),
+          _t(Icons.system_update, 'نشر تحديث', () => publishUpdateSheet(context), sub: 'يظهر للأعضاء عند فتح التطبيق'),
           _t(Icons.support_agent, 'تعيين مسؤول الدعم', _support, sub: 'يصله إشعار البلاغات'),
           _t(Icons.library_music_outlined, 'تعيين موسيقى بالخلفية', () => uploadBgm(), sub: 'مستوى الصوت 15%'),
           _t(Icons.help_outline, 'التعليمات (فيديو)', () => uploadVideo('guide'), sub: 'يظهر عند الضغط على 🔽'),

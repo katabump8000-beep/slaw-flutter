@@ -263,12 +263,35 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // ---------- الإرسال ----------
+  Map<String, String>? _reply;
+
+  Future<void> _startReply(Map<String, dynamic> m) async {
+    final type = (m['type'] ?? 'text').toString();
+    var t = '';
+    if (type == 'text') {
+      t = (m['text'] ?? '').toString();
+    } else if (type == 'image') {
+      final c = (m['cap'] ?? '').toString();
+      t = c.isNotEmpty ? c : 'صورة';
+    } else if (type == 'sticker') {
+      t = 'ملصق';
+    } else if (type == 'audio') {
+      t = 'تسجيل صوتي';
+    }
+    if (t.isEmpty) return;
+    final p = await prof((m['from'] ?? '').toString());
+    if (!mounted) return;
+    setState(() => _reply = {'n': p.name, 't': t.length > 100 ? t.substring(0, 100) : t});
+  }
+
   Map<String, Object?> _base(String type) => <String, Object?>{
         'from': myUid,
         'type': type,
         'ts': ServerValue.timestamp,
         'color': Session.me.color,
         if (visitor) 'vis': true,
+        if (_reply != null) 'rpn': _reply!['n'],
+        if (_reply != null) 'rpt': _reply!['t'],
       };
 
   Future<String> _post(Map<String, Object?> m, {bool count = true}) async {
@@ -279,6 +302,7 @@ class _ChatScreenState extends State<ChatScreen> {
       up['msgTotal/$myUid'] = ServerValue.increment(1);
     }
     await db.ref().update(up);
+    if (mounted && _reply != null) setState(() => _reply = null);
     return k;
   }
 
@@ -589,6 +613,16 @@ class _ChatScreenState extends State<ChatScreen> {
               Clipboard.setData(ClipboardData(text: (m['text'] ?? '').toString()));
               toast('تم النسخ');
             }),
+          if (type == 'sticker' && (m['sid'] ?? '').toString().isNotEmpty)
+            AppButton('⭐ حفظ الملصق في ملصقاتي', kind: 'g', onPressed: () async {
+              Navigator.of(sc).pop();
+              try {
+                await ref('myStickers/$myUid/${m['sid']}').set(true);
+                toast('تم حفظ الملصق ✅');
+              } catch (e) {
+                err(e);
+              }
+            }),
           if (own && type == 'text')
             AppButton('✏️ تعديل', kind: 'g', onPressed: () {
               Navigator.of(sc).pop();
@@ -684,6 +718,24 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _composer() {
+    final r = _reply;
+    if (r == null) return _composerBody();
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        color: kBg2,
+        padding: const EdgeInsets.fromLTRB(12, 6, 4, 0),
+        child: Row(children: [
+          Icon(Icons.reply_rounded, size: 18, color: context.accent2),
+          const SizedBox(width: 8),
+          Expanded(child: Text('رد على ${r['n']}: ${r['t']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, color: kMu))),
+          IconButton(visualDensity: VisualDensity.compact, onPressed: () => setState(() => _reply = null), icon: const Icon(Icons.close, size: 18)),
+        ]),
+      ),
+      _composerBody(),
+    ]);
+  }
+
+  Widget _composerBody() {
     if (!canWrite) {
       return Container(
         width: double.infinity,
@@ -806,6 +858,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 cache: imgCache,
                 onLong: () => _menu(id),
                 onAvatar: () => _avatarTap(from),
+                onReply: type == 'sys' ? null : () => _startReply(m),
               );
             },
           ),
@@ -918,8 +971,9 @@ class MsgBubble extends StatefulWidget {
   final Map<String, Uint8List> cache;
   final VoidCallback onLong;
   final VoidCallback onAvatar;
+  final VoidCallback? onReply;
 
-  const MsgBubble({super.key, required this.id, required this.m, required this.mine, required this.admin, required this.bio, required this.cache, required this.onLong, required this.onAvatar});
+  const MsgBubble({super.key, required this.id, required this.m, required this.mine, required this.admin, required this.bio, required this.cache, required this.onLong, required this.onAvatar, this.onReply});
 
   @override
   State<MsgBubble> createState() => _MsgBubbleState();
@@ -997,6 +1051,16 @@ class _MsgBubbleState extends State<MsgBubble> {
             ),
           if (!mine && bio != null && (bio['t'] ?? '').toString().isNotEmpty)
             Padding(padding: const EdgeInsets.only(bottom: 3), child: Text(bio['t'].toString(), style: TextStyle(fontSize: 11, color: hexOk(bio['c']?.toString()) ? hexColor(bio['c'].toString()) : kMu))),
+          if ((m['rpt'] ?? '').toString().isNotEmpty)
+            Container(
+              margin: const EdgeInsets.only(bottom: 5),
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+              decoration: BoxDecoration(color: const Color(0x33000000), borderRadius: BorderRadius.circular(8), border: const BorderDirectional(start: BorderSide(color: Colors.white70, width: 3))),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Text('رد على ${m['rpn'] ?? ''}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                Text(m['rpt'].toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Color(0xCCFFFFFF))),
+              ]),
+            ),
         ];
         if (type == 'image') {
           final b = _bytes();
@@ -1040,6 +1104,12 @@ class _MsgBubbleState extends State<MsgBubble> {
           if (!mine) UserAvatar(from, size: 30, onTap: widget.onAvatar),
           if (!mine) const SizedBox(width: 6),
           Flexible(child: bubble),
+          if (widget.onReply != null)
+            GestureDetector(
+              onTap: widget.onReply,
+              behavior: HitTestBehavior.opaque,
+              child: const Padding(padding: EdgeInsets.fromLTRB(6, 0, 4, 6), child: Icon(Icons.reply_rounded, size: 20, color: kMu)),
+            ),
         ]),
       ),
     );

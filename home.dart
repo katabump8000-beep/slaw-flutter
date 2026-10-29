@@ -19,6 +19,9 @@ import 'shop.dart';
 import 'tally.dart';
 import 'tools.dart';
 import 'war.dart';
+import 'friends.dart';
+import 'board.dart';
+import 'update.dart';
 import 'widgets.dart';
 
 const Map<String, String> kKinds = {
@@ -183,6 +186,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _reload().then((_) {
       WarWatcher.start();
       checkVisitExpiry();
+      Board.sync();
+      if (mounted) checkUpdate(context);
     });
     Sfx.syncBgm();
     initLocalNotifs(ask: true).then((_) => startBackgroundPolling());
@@ -209,6 +214,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState st) {
     if (st == AppLifecycleState.resumed) {
       Sfx.unblock('bg');
+      Board.sync();
     } else {
       Sfx.block('bg');
     }
@@ -341,6 +347,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final system = ids.where((g) => groupKind(g) != 'main').toList();
     final hasMain = mains.any((g) => memCache[g] == true);
     return Scaffold(
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
+          child: AppButton('🏆 المتصدرون', kind: 'g', compact: true, onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const BoardScreen()))),
+        ),
+      ),
       floatingActionButton: Session.isDev
           ? FloatingActionButton(onPressed: _newGroup, child: const Icon(Icons.add))
           : null,
@@ -379,6 +391,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       child: Text('دخول', style: TextStyle(color: context.accent2, fontWeight: FontWeight.w800)),
                     ),
                   const GuideButton(),
+                  IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const FriendsScreen())), icon: const Icon(Icons.person_add_alt_1)),
                   IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ShopScreen())), icon: const Icon(Icons.shopping_bag_outlined)),
                   const BellButton(),
                   IconButton(onPressed: _openSettings, icon: const Icon(Icons.settings_outlined)),
@@ -396,6 +409,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           physics: const AlwaysScrollableScrollPhysics(),
                           children: [
                             const EmpChatCard(),
+                            const FriendsSection(),
                             if (!hasMain && !Session.isDev)
                               Container(
                                 margin: const EdgeInsets.all(12),
