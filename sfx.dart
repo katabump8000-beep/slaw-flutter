@@ -20,54 +20,40 @@ class Sfx {
   static bool get bgDisabled => prefs.getBool('bgm_off') ?? false;
   static bool get fxOff => prefs.getBool('fx_off') ?? false;
   static const Set<String> _always = {'emp_in.wav', 'dev_in.wav'};
+  static bool _isAlways(String n) => _always.contains(n) || n.startsWith('fx') || n.startsWith('kool');
+  static int get bgVolPct => prefs.getInt('bgm_vol') ?? 15;
+
+  /// يمنع النقر وغيره من إيقاف الموسيقى (لا يطلب تركيز الصوت من النظام)
+  static Future<void> init() async {
+    try {
+      await AudioPlayer.global.setAudioContext(AudioContextConfig(focus: AudioContextConfigFocus.mixWithOthers).build());
+    } catch (_) {}
+    try {
+      await _ck.setPlayerMode(PlayerMode.lowLatency);
+    } catch (_) {}
+  }
+
+  static Future<void> setBgVol(int pct) async {
+    prefs.setInt('bgm_vol', pct);
+    try {
+      await _bg.setVolume(pct / 100);
+    } catch (_) {}
+  }
   static final AudioPlayer _ck = AudioPlayer();
   static int _lastCk = 0;
 
-  /// نوع نغمة الضغط: 0 = الأصلية، 1..5 = الأنواع الجديدة
-  static int get clickType => (prefs.getInt('ck_t') ?? 0).clamp(0, 5);
-  static String _clickFile(int t) => t <= 0 ? 'click.mp3' : 'click$t.wav';
-
   /// صوت النقر
   static void click() {
-    if (fxOff) return;
+    if (fxOff || _block.isNotEmpty) return;
     final n = DateTime.now().millisecondsSinceEpoch;
     if (n - _lastCk < 120) return;
     _lastCk = n;
-    _ck.stop().then((_) => _ck.setVolume(.5)).then((_) => _ck.play(AssetSource('audio/${_clickFile(clickType)}'))).catchError((_) {});
-  }
-
-  /// تجربة نغمة ضغط معيّنة
-  static void previewClick(int t) {
-    _ck.stop().then((_) => _ck.setVolume(.6)).then((_) => _ck.play(AssetSource('audio/${_clickFile(t)}'))).catchError((_) {});
-  }
-
-  static final AudioPlayer _er = AudioPlayer();
-  static int _lastEr = 0;
-
-  /// صوت الخطأ (كلمة سر خاطئة، رصيد غير كاف، أي خطأ)
-  static void error() {
-    if (fxOff) return;
-    final n = DateTime.now().millisecondsSinceEpoch;
-    if (n - _lastEr < 500) return;
-    _lastEr = n;
-    _er.stop().then((_) => _er.setVolume(.8)).then((_) => _er.play(AssetSource('audio/error.wav'))).catchError((_) {});
-  }
-
-  static int _fxN = 0;
-  static void _fxBegin() {
-    _fxN++;
-    block('fx');
-  }
-
-  static void _fxEnd() {
-    if (_fxN > 0) _fxN--;
-    if (_fxN == 0) unblock('fx');
+    _ck.stop().then((_) => _ck.setVolume(.5)).then((_) => _ck.play(AssetSource('audio/click.mp3'))).catchError((_) {});
   }
 
   /// تشغيل مؤثر وانتظار نهايته
   static Future<void> playWait(String name, {double volume = 1}) async {
-    if (fxOff && !_always.contains(name)) return;
-    _fxBegin();
+    if (fxOff && !_isAlways(name)) return;
     final c = Completer<void>();
     final sub = _fx.onPlayerComplete.listen((_) {
       if (!c.isCompleted) c.complete();
@@ -79,24 +65,18 @@ class Sfx {
       await c.future.timeout(const Duration(seconds: 40));
     } catch (_) {}
     await sub.cancel();
-    _fxEnd();
   }
 
   static Future<void> chain(List<String> names) async {
-    _fxBegin();
-    try {
-      for (final n in names) {
-        await playWait(n);
-      }
-    } finally {
-      _fxEnd();
+    for (final n in names) {
+      await playWait(n);
     }
   }
 
   /// مشغل مستقل (للعروض الطويلة)
   static Future<AudioPlayer> start(String name, {double volume = 1}) async {
     final p = AudioPlayer();
-    if (fxOff && !_always.contains(name)) return p;
+    if (fxOff && !_isAlways(name)) return p;
     try {
       await p.setVolume(volume);
       await p.play(AssetSource('audio/$name'));
@@ -133,39 +113,21 @@ class Sfx {
       if (_bgStarted) {
         await _bg.resume();
       } else {
-        await _bg.play(DeviceFileSource(f), volume: .15);
+        await _bg.play(DeviceFileSource(f), volume: bgVolPct / 100);
         _bgStarted = true;
-      }
-      if (_block.isNotEmpty) {
-        await _bg.setVolume(0);
-        await _bg.pause();
       }
     } catch (_) {}
   }
 
   /// إيقاف مؤقت للموسيقى لسبب معين (صوت/صورة/عرض/مغادرة التطبيق)
-  static int _showN = 0;
-
   static void block(String reason) {
-    if (reason == 'show') {
-      _showN++;
-      if (_showN > 1) return;
-    }
     if (_block.add(reason)) {
-      _bg.setVolume(0).catchError((_) {});
-      _bg.pause().catchError((_) {});
+      _bg.pause();
     }
   }
 
   static void unblock(String reason) {
-    if (reason == 'show') {
-      if (_showN > 0) _showN--;
-      if (_showN > 0) return;
-    }
-    if (_block.remove(reason) && _block.isEmpty && !bgDisabled) {
-      _bg.setVolume(.15).catchError((_) {});
-      _play();
-    }
+    if (_block.remove(reason) && _block.isEmpty && !bgDisabled) _play();
   }
 
   static Future<void> setBgmEnabled(bool on) async {

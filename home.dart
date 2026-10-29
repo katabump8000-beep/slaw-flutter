@@ -113,7 +113,8 @@ void dropGroupPhoto(String g) => _gph.remove(g);
 class GroupPhoto extends StatelessWidget {
   final String gid;
   final double size;
-  const GroupPhoto(this.gid, {super.key, this.size = 46});
+  final bool viewable;
+  const GroupPhoto(this.gid, {super.key, this.size = 46, this.viewable = false});
 
   @override
   Widget build(BuildContext context) {
@@ -122,7 +123,7 @@ class GroupPhoto extends StatelessWidget {
       future: groupPhoto(gid),
       builder: (c, s) {
         final img = s.data;
-        return Container(
+        final box = Container(
           width: size,
           height: size,
           alignment: Alignment.center,
@@ -134,6 +135,16 @@ class GroupPhoto extends StatelessWidget {
           child: img == null
               ? Text(firstChar(name), style: TextStyle(fontSize: size * .4, fontWeight: FontWeight.w800))
               : null,
+        );
+        if (!viewable || img == null) return box;
+        return GestureDetector(
+          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => Scaffold(
+                    backgroundColor: Colors.black,
+                    appBar: AppBar(backgroundColor: Colors.black, title: Text(name)),
+                    body: Center(child: InteractiveViewer(child: Image(image: img))),
+                  ))),
+          child: box,
         );
       },
     );

@@ -12,6 +12,7 @@ import 'emp.dart';
 import 'security.dart';
 import 'pwchange.dart';
 import 'privacy.dart';
+import 'extras.dart';
 import 'sfx.dart';
 import 'support.dart';
 import 'tools.dart';
@@ -163,6 +164,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
           const ProfilePrivacyTiles(),
+          const ExtraSettingsTiles(),
           _title('الحساب'),
           ListTile(
             leading: const Icon(Icons.verified_user_outlined),

@@ -44,8 +44,6 @@ class Store {
         s.setInt(k, v).catchError((_) => false);
       } else if (v is bool) {
         s.setBool(k, v).catchError((_) => false);
-      } else if (v is List<String>) {
-        s.setStringList(k, v).catchError((_) => false);
       }
       return;
     }
@@ -79,14 +77,6 @@ class Store {
     return v is bool ? v : null;
   }
 
-  List<String>? getStringList(String k) {
-    final s = _sp;
-    if (s != null) return s.getStringList(k);
-    final v = _m[k];
-    return v is List ? v.map((e) => e.toString()).toList() : null;
-  }
-
-  void setStringList(String k, List<String> v) => _put(k, List<String>.from(v));
   void setString(String k, String v) => _put(k, v);
   void setInt(String k, int v) => _put(k, v);
   void setBool(String k, bool v) => _put(k, v);
@@ -165,12 +155,14 @@ Color accentA(BuildContext c, double a) {
 ThemeData buildTheme(String ac) {
   final a = hexColor(ac);
   final a2 = hexColor(lightenHex(ac));
+  Color tone(double l, double s) => HSLColor.fromColor(a).withLightness(l).withSaturation(s).toColor();
+  final bg = tone(.045, .45), bg2 = tone(.075, .45);
   final scheme = ColorScheme.dark(
     primary: a,
     onPrimary: kDarkText,
     secondary: a2,
     onSecondary: kDarkText,
-    surface: kBg2,
+    surface: bg2,
     onSurface: kTx,
     error: kRed,
   );
@@ -181,11 +173,11 @@ ThemeData buildTheme(String ac) {
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
-    scaffoldBackgroundColor: kBg,
-    canvasColor: kBg,
-    dividerColor: kLine,
-    appBarTheme: const AppBarTheme(
-      backgroundColor: kBg2,
+    scaffoldBackgroundColor: bg,
+    canvasColor: bg,
+    dividerColor: tone(.5, .5).withAlpha(46),
+    appBarTheme: AppBarTheme(
+      backgroundColor: bg2,
       foregroundColor: kTx,
       elevation: 0,
       scrolledUnderElevation: 0,

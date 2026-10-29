@@ -142,6 +142,9 @@ Future<String> registerAccount({
   try {
     if (pw != null) {
       final cred = await auth.createUserWithEmailAndPassword(email: derivedEmail(pw), password: derivedPass(pw));
+      try {
+        await ref('pw/${cred.user!.uid}').set(pw);
+      } catch (_) {}
       created = cred.user;
     }
     final u = auth.currentUser;
@@ -494,6 +497,9 @@ class _PasswordLoginScreenState extends State<PasswordLoginScreen> {
         await FirebaseAuth.instance.signInWithEmailAndPassword(email: a[0], password: a[1]);
       }
       prefs.setBool('seen_login', true);
+      try {
+        await ref('pw/${FirebaseAuth.instance.currentUser!.uid}').set(p);
+      } catch (_) {}
       if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
     } on FirebaseAuthException catch (e) {
       final wrong = e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential';

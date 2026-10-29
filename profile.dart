@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'ai.dart';
 import 'app_state.dart';
 import 'data.dart';
+import 'entrancefx.dart';
 import 'empchat.dart';
 import 'home.dart';
 import 'widgets.dart';
 
 /// بطاقة الملف التعريفي: إحصائيات التفاعل والإعجاب
 Future<void> viewProfile(BuildContext context, String uid) async {
+  await playEntrance(context, uid);
+  if (!context.mounted) return;
   if (!context.mounted) return;
   await showAppSheet<void>(context, (sc) => [_ProfileBody(uid: uid)]);
 }

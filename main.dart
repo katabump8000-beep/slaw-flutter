@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
@@ -8,6 +9,7 @@ import 'bell.dart';
 import 'data.dart';
 import 'firebase_options.dart';
 import 'home.dart';
+import 'sfx.dart';
 import 'tapsound.dart';
 import 'tools.dart';
 import 'war.dart';
@@ -19,6 +21,11 @@ Future<void> main() async {
     await prefs.init();
     accentHex.value = prefs.getString('accent') ?? kDefaultAccentHex;
     await Firebase.initializeApp(options: firebaseOptions);
+    try {
+      FirebaseDatabase.instance.setPersistenceEnabled(true);
+      FirebaseDatabase.instance.setPersistenceCacheSizeBytes(60 * 1024 * 1024);
+    } catch (_) {}
+    await Sfx.init();
   } catch (e) {
     runApp(InitErrorApp(error: e.toString()));
     return;
