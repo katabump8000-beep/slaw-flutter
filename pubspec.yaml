@@ -26,6 +26,7 @@ dependencies:
   file_picker: any
   flutter_local_notifications: ^17.2.4
   workmanager: any
+  url_launcher: any
 
 flutter:
   uses-material-design: true

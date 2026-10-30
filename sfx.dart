@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/widgets.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -25,6 +26,7 @@ class Sfx {
 
   /// يمنع النقر وغيره من إيقاف الموسيقى (لا يطلب تركيز الصوت من النظام)
   static Future<void> init() async {
+    WidgetsBinding.instance.addObserver(_LifeObs());
     try {
       await AudioPlayer.global.setAudioContext(AudioContextConfig(focus: AudioContextConfigFocus.mixWithOthers).build());
     } catch (_) {}
@@ -136,6 +138,19 @@ class Sfx {
       await _bg.pause();
     } else if (_block.isEmpty) {
       await _play();
+    }
+  }
+}
+
+
+/// يوقف موسيقى الخلفية فور مغادرة التطبيق ويعيدها عند الرجوع
+class _LifeObs with WidgetsBindingObserver {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      Sfx.unblock('app');
+    } else {
+      Sfx.block('app');
     }
   }
 }
