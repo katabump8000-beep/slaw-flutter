@@ -112,7 +112,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
         ]),
       ),
       const SizedBox(height: 6),
-      Center(child: Wrap(spacing: 6, runSpacing: 6, children: [if (role == 'dev' || role == 'emp') const DevBadge(), if (tag != null) tag, ageTag(p!), Tag(p!.gender == 'f' ? 'أنثى' : 'ذكر'), if (pubs > 10) const Tag('رتبة عالية 🌟')])),
+      Center(child: Wrap(spacing: 6, runSpacing: 6, children: [if (role == 'dev' || role == 'emp') const DevBadge(), if (tag != null) tag, ageTag(p!, role: role), Tag(p!.gender == 'f' ? 'أنثى' : 'ذكر'), if (pubs > 10) const Tag('رتبة عالية 🌟')])),
       if (pid.isNotEmpty) Center(child: Text('ID: $pid', style: const TextStyle(color: kMu, letterSpacing: 1.5))),
       const SizedBox(height: 8),
       if (note.isNotEmpty)

@@ -21,7 +21,7 @@ class Sfx {
   static bool get bgDisabled => prefs.getBool('bgm_off') ?? false;
   static bool get fxOff => prefs.getBool('fx_off') ?? false;
   static const Set<String> _always = {'emp_in.wav', 'dev_in.wav'};
-  static bool _isAlways(String n) => _always.contains(n) || n.startsWith('fx') || n.startsWith('kool');
+  static bool _isAlways(String n) => _always.contains(n) || n.startsWith('fx') || n.startsWith('kool') || n.startsWith('dhol');
   static int get bgVolPct => prefs.getInt('bgm_vol') ?? 15;
 
   /// يمنع النقر وغيره من إيقاف الموسيقى (لا يطلب تركيز الصوت من النظام)

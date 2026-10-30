@@ -2,7 +2,6 @@ import 'dart:math' as m;
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'data.dart';
 import 'sfx.dart';
@@ -31,7 +30,6 @@ class FxScreen extends StatefulWidget {
 }
 
 class _FxState extends State<FxScreen> with SingleTickerProviderStateMixin {
-  static AudioPlayer? _keep;
   AudioPlayer? _own;
   late final double secs = widget.kind == 9 ? 12 : 6;
   late final AnimationController c = AnimationController(vsync: this, duration: Duration(milliseconds: (secs * 1000).toInt()));
@@ -47,24 +45,8 @@ class _FxState extends State<FxScreen> with SingleTickerProviderStateMixin {
   }
 
   Future<void> _audio() async {
-    var f = 'fx${widget.kind}.wav';
-    if (widget.kind == 9) {
-      try {
-        await rootBundle.load('assets/audio/kool.mp3');
-        f = 'kool.mp3';
-      } catch (_) {
-        f = 'kool.wav';
-      }
-    }
-    final p = await Sfx.start(f);
-    if (widget.kind == 9) {
-      try {
-        await _keep?.stop();
-      } catch (_) {}
-      _keep = p;
-    } else {
-      _own = p;
-    }
+    final p = await Sfx.start(widget.kind == 9 ? 'dhol.mp3' : 'fx${widget.kind}.wav');
+    _own = p;
   }
 
   @override
@@ -94,7 +76,7 @@ class _FxState extends State<FxScreen> with SingleTickerProviderStateMixin {
               builder: (_, __) {
                 final s = c.value * secs;
                 final k9 = widget.kind == 9;
-                final a0 = k9 ? .6 : .5, a1 = k9 ? 1.4 : 1.2, b0 = k9 ? 2.6 : 4.4, b1 = k9 ? 3.4 : 5.2;
+                final a0 = k9 ? 7.4 : .5, a1 = k9 ? 8.2 : 1.2, b0 = k9 ? 10.6 : 4.4, b1 = k9 ? 11.3 : 5.2;
                 final o = (((s - a0) / (a1 - a0)).clamp(0.0, 1.0)) * (1 - ((s - b0) / (b1 - b0)).clamp(0.0, 1.0));
                 return Center(
                   child: Opacity(
@@ -153,48 +135,76 @@ class _FxPainter extends CustomPainter {
     ..color = c
     ..maskFilter = MaskFilter.blur(BlurStyle.normal, blur);
 
+  // عينان حمراوان رفيعتان حادتان (ثم شق ممزق أحمر متوهج بحواف شظايا)
   void _kool(Canvas cv, Size sz, double s) {
-    final w = sz.width, h = sz.height, cx = w / 2, cy = h * .45;
-    if (s > 3.6 && s < 7.6) {
-      final open = s < 4.6 ? Curves.easeOut.transform(s - 3.6) : (s > 7.0 ? (1 - (s - 7.0) / .6).clamp(0.0, 1.0) : 1.0);
-      final gl = .6 + .4 * m.sin(s * 6);
+    final w = sz.width, h = sz.height, cx = w / 2, cy = h * .46;
+    final op = Curves.easeOut.transform(((s - 0.8) / 1.4).clamp(0.0, 1.0));
+    final cl = ((s - 6.2) / .5).clamp(0.0, 1.0);
+    final vis = op * (1 - cl);
+    if (vis > 0) {
+      final gl = .7 + .3 * m.sin(s * 5);
+      final ew = w * .16, eh = ew * .30 * vis;
       for (final side in [-1.0, 1.0]) {
         cv.save();
-        cv.translate(cx + side * w * .2, cy);
-        cv.rotate(-side * .32);
-        final aw = w * .18, bh = h * .075 * open;
+        cv.translate(cx + side * w * .22, cy);
         final p = Path()
-          ..moveTo(-aw, 0)
-          ..quadraticBezierTo(0, -bh * 2, aw, 0)
-          ..quadraticBezierTo(0, bh * 1.2, -aw, 0)
+          ..moveTo(side * ew, -eh * .9)
+          ..quadraticBezierTo(side * ew * .15, -eh * 2.3, -side * ew, eh * .9)
+          ..quadraticBezierTo(side * ew * .1, eh * .2, side * ew, -eh * .9)
           ..close();
-        cv.drawPath(p, Paint()..color = Color.fromRGBO(255, 20, 20, .55 * gl)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 30));
-        cv.drawPath(p, Paint()..shader = const RadialGradient(colors: [Color(0xFFFF3A2A), Color(0xFF8A0000)]).createShader(Rect.fromCircle(center: Offset.zero, radius: aw)));
-        cv.drawOval(Rect.fromCenter(center: Offset.zero, width: aw * .12, height: bh * 1.5), Paint()..color = Colors.black);
+        cv.drawPath(p, Paint()..color = Color.fromRGBO(255, 20, 20, .6 * gl * vis)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24));
+        cv.drawPath(p, Paint()..shader = const RadialGradient(colors: [Color(0xFFFF4A3A), Color(0xFFD40000)]).createShader(Rect.fromCenter(center: Offset.zero, width: ew * 2, height: eh * 4 + 1)));
         cv.restore();
       }
     }
-    const lines = [
-      [.05, .1, .95, .8, 7.4],
-      [.95, .15, .1, .7, 8.2],
-      [.2, .95, .85, .05, 9.0],
-    ];
-    for (var i = 0; i < lines.length; i++) {
-      final l = lines[i];
-      final st = l[4];
-      if (s < st) continue;
-      final p = ((s - st) / .22).clamp(0.0, 1.0);
-      final a0 = Offset(l[0] * w, l[1] * h), a1 = Offset(l[2] * w, l[3] * h);
-      final e = Offset.lerp(a0, a1, p)!;
-      final fade = (1 - ((s - st - .4) / 2.0)).clamp(.25, 1.0);
-      final col = i == 2 ? const Color(0xFFFF2A2A) : const Color(0xFFDDE6FF);
-      cv.drawLine(a0, e, _glow(Color.fromRGBO(col.red, col.green, col.blue, .8 * fade), i == 2 ? 20 : 12, 14));
-      cv.drawLine(a0, e, Paint()..color = Colors.white..strokeWidth = i == 2 ? 5 : 3..strokeCap = StrokeCap.round);
-      final fl = 1 - (s - st) / .3;
-      if (fl > 0) cv.drawRect(Offset.zero & sz, Paint()..color = Color.fromRGBO(255, 255, 255, .45 * fl));
-      if (i == 2 && s > st + .2) {
-        cv.drawCircle(Offset(cx, cy), (s - st - .2).clamp(0.0, 1.5) * w * .18, Paint()..color = Colors.black);
-        cv.drawCircle(Offset(cx, cy), (s - st - .2).clamp(0.0, 1.5) * w * .18, _glow(const Color(0xCCFF1A1A), 6, 10));
+    if (s < 6.4) return;
+    final g = Curves.easeOut.transform(((s - 6.4) / 1.0).clamp(0.0, 1.0));
+    final a0 = Offset(w * .10, h * .93), a1 = Offset(w * .90, h * .06);
+    final d = a1 - a0;
+    final len = d.distance;
+    final dir = Offset(d.dx / len, d.dy / len);
+    final nrm = Offset(-dir.dy, dir.dx);
+    final r = m.Random(42);
+    final ea = <Offset>[], eb = <Offset>[];
+    const n = 28;
+    for (var i = 0; i <= n; i++) {
+      final t = i / n;
+      if (t > g) break;
+      final hw = w * .075 * m.pow(m.sin(m.pi * t), .7).toDouble();
+      final base = a0 + d * t;
+      ea.add(base + nrm * (hw + (r.nextDouble() - .5) * w * .018));
+      eb.add(base - nrm * (hw + (r.nextDouble() - .5) * w * .018));
+    }
+    if (ea.length < 2) return;
+    final pulse = .75 + .25 * m.sin(s * 5);
+    final fl = 1 - (s - 6.4) / .35;
+    if (fl > 0) cv.drawRect(Offset.zero & sz, Paint()..color = Color.fromRGBO(255, 80, 60, .5 * fl));
+    final gap = Path()..moveTo(ea.first.dx, ea.first.dy);
+    for (final q in ea) {
+      gap.lineTo(q.dx, q.dy);
+    }
+    for (final q in eb.reversed) {
+      gap.lineTo(q.dx, q.dy);
+    }
+    gap.close();
+    cv.drawPath(gap, Paint()..color = Colors.black);
+    for (final edge in [ea, eb]) {
+      final pa = Path()..moveTo(edge.first.dx, edge.first.dy);
+      for (final q in edge) {
+        pa.lineTo(q.dx, q.dy);
+      }
+      cv.drawPath(pa, _glow(Color.fromRGBO(255, 20, 20, .85 * pulse), 9, 10));
+      cv.drawPath(pa, Paint()..style = PaintingStyle.stroke..strokeWidth = 2.2..strokeJoin = StrokeJoin.round..color = const Color(0xFFFF4A38));
+      // شظايا تتفرع من الحواف
+      for (var k = 0; k < edge.length; k++) {
+        if (k % 2 == 1) continue;
+        final q = edge[k];
+        final sgn = identical(edge, ea) ? 1.0 : -1.0;
+        final ang = m.atan2(nrm.dy * sgn, nrm.dx * sgn) + (r.nextDouble() - .5) * 1.4;
+        final l = 14 + r.nextDouble() * 46;
+        final tip = q + Offset(m.cos(ang), m.sin(ang)) * l;
+        cv.drawLine(q, tip, Paint()..color = Color.fromRGBO(255, 40, 30, .8 * pulse)..strokeWidth = 1.4..strokeCap = StrokeCap.round);
+        cv.drawCircle(tip, 1.6, Paint()..color = const Color(0xFFFF5A44)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2));
       }
     }
   }

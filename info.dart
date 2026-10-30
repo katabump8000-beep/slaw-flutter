@@ -339,7 +339,7 @@ class _MemberRow extends StatelessWidget {
             if (r == 'emp') const InfinityMark(size: 15),
             if (tag != null) tag,
             if (admin && r == null) const Tag('مشرف'),
-            ageTag(p),
+            ageTag(p, role: r),
             if (v == 'v') const Tag('زائر'),
             if (multi) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: const Color(0x33FF3B3B), borderRadius: BorderRadius.circular(8)), child: const Text('تعدد', style: TextStyle(color: kRed, fontSize: 10, fontWeight: FontWeight.w800))),
           ]),

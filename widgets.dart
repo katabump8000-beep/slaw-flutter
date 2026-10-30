@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
@@ -132,31 +134,31 @@ Widget? rankTag(String? r) {
   return null;
 }
 
-/// وسم عمر العضو في التطبيق
-Widget ageTag(Prof p) {
+/// وسم عمر العضو: عضو (أقل من 3 أيام) / مخضرم (3) / نخبة (10) / أسطورة (50). الرتب العليا أسطورة دائماً
+Widget ageTag(Prof p, {String? role}) {
   final now = DateTime.now().millisecondsSinceEpoch;
   final ts = p.ts == 0 ? now : p.ts;
   final d = (now - ts) / 86400000;
   String t;
   String c;
-  if (d < 3) {
-    t = 'جديد';
-    c = '#5de0e6';
-  } else if (d < 30) {
-    t = 'عضو';
-    c = '#6ee787';
-  } else if (d < 90) {
-    t = 'قديم';
-    c = '#ffb04a';
-  } else {
+  if (role == 'dev' || role == 'emp' || d >= 50) {
     t = 'أسطورة';
-    c = '#ff7eb6';
+    c = '#b46bff';
+  } else if (d >= 10) {
+    t = 'نخبة';
+    c = '#ffb04a';
+  } else if (d >= 3) {
+    t = 'مخضرم';
+    c = '#6ee787';
+  } else {
+    t = 'عضو';
+    c = '#8fa3bf';
   }
   final rgb = rgbOf(c);
   return Tag(
     t,
     fg: hexColor(c),
-    bg: Color.fromRGBO(rgb[0], rgb[1], rgb[2], .13),
+    bg: Color.fromRGBO(rgb[0], rgb[1], rgb[2], .15),
   );
 }
 
@@ -316,42 +318,111 @@ class DevBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ShaderMask(
-      blendMode: BlendMode.srcIn,
-      shaderCallback: (r) => const LinearGradient(
-        colors: [Color(0xFF2EA8FF), Color(0xFF8A3DFF)],
-      ).createShader(r),
-      child: const Text(
-        'مطور',
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          color: Colors.white,
-          shadows: [
-            Shadow(color: Color(0x992EA8FF), blurRadius: 4),
-            Shadow(color: Color(0x668A3DFF), blurRadius: 6),
-          ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(8)),
+      child: ShaderMask(
+        blendMode: BlendMode.srcIn,
+        shaderCallback: (r) => const LinearGradient(
+          colors: [Color(0xFF2EA8FF), Color(0xFF8A3DFF)],
+        ).createShader(r),
+        child: const Text(
+          'مطور',
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white),
         ),
       ),
     );
   }
 }
 
-/// علامة اللانهاية للإمبراطور (أحمر خمري / أسود / ذهبي)
-class InfinityMark extends StatelessWidget {
+/// علامة اللانهاية للإمبراطور: رسم برمجي (ليست إيموجي) تتدرج فيه كل الألوان
+class InfinityMark extends StatefulWidget {
   final double size;
   const InfinityMark({super.key, this.size = 18});
 
   @override
+  State<InfinityMark> createState() => _InfinityMarkState();
+}
+
+class _InfinityMarkState extends State<InfinityMark> with SingleTickerProviderStateMixin {
+  late final AnimationController c = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
+
+  @override
+  void dispose() {
+    c.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ShaderMask(
-      blendMode: BlendMode.srcIn,
-      shaderCallback: (r) => const LinearGradient(
-        colors: [Color(0xFF8A1030), Color(0xFF1A1A1A), Color(0xFFD4AF37)],
-      ).createShader(r),
-      child: Text('∞', style: TextStyle(fontSize: size, fontWeight: FontWeight.w900, color: Colors.white)),
+    return RepaintBoundary(
+      child: SizedBox(
+        width: widget.size * 1.9,
+        height: widget.size,
+        child: CustomPaint(painter: _InfPainter(c)),
+      ),
     );
   }
+}
+
+class _InfPainter extends CustomPainter {
+  final Animation<double> a;
+  _InfPainter(this.a) : super(repaint: a);
+
+  static const List<Color> _cols = [
+    Color(0xFFFF3B3B),
+    Color(0xFFFF9A1F),
+    Color(0xFFFFE04A),
+    Color(0xFF4CE07A),
+    Color(0xFF2EC8FF),
+    Color(0xFF6A5BFF),
+    Color(0xFFD65BFF),
+    Color(0xFFFF3B3B),
+  ];
+
+  @override
+  void paint(Canvas cv, Size s) {
+    final sw = s.height * .17;
+    final kx = s.width / 2 - sw;
+    final ky = (s.height / 2 - sw) / .35355;
+    final path = Path();
+    const n = 96;
+    for (var i = 0; i <= n; i++) {
+      final t = i / n * 2 * math.pi;
+      final d = 1 + math.sin(t) * math.sin(t);
+      final x = s.width / 2 + kx * math.cos(t) / d;
+      final y = s.height / 2 + ky * math.sin(t) * math.cos(t) / d;
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    final shader = SweepGradient(colors: _cols, transform: GradientRotation(a.value * 2 * math.pi)).createShader(Offset.zero & s);
+    cv.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = sw * 2.2
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5)
+        ..shader = shader
+        ..color = const Color(0x55FFFFFF),
+    );
+    cv.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = sw
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..shader = shader,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _InfPainter old) => false;
 }
 
 /// بطاقة قسم بعنوان (للشاشة الرئيسية)

@@ -36,7 +36,7 @@ class EntranceScreen extends StatefulWidget {
 }
 
 class _EntranceState extends State<EntranceScreen> with SingleTickerProviderStateMixin {
-  late final AnimationController c = AnimationController(vsync: this, duration: Duration(milliseconds: widget.emperor ? 6800 : 4500))..forward();
+  late final AnimationController c = AnimationController(vsync: this, duration: Duration(milliseconds: widget.emperor ? 4000 : 4500))..forward();
 
   @override
   void initState() {
@@ -65,7 +65,7 @@ class _EntranceState extends State<EntranceScreen> with SingleTickerProviderStat
           body: AnimatedBuilder(
             animation: c,
             builder: (_, __) {
-              final t = c.value * (widget.emperor ? 6.8 : 4.5);
+              final t = c.value * (widget.emperor ? 4.0 : 4.5);
               return CustomPaint(
                 painter: widget.emperor ? _EmpPainter(t) : _DevPainter(t),
                 child: Center(child: _text(t)),
@@ -79,10 +79,26 @@ class _EntranceState extends State<EntranceScreen> with SingleTickerProviderStat
 
   Widget _text(double t) {
     if (widget.emperor) {
-      final o = _s(t, 5.4, 6.0);
+      final o = _s(t, 0.5, 1.3) * (1 - _s(t, 3.4, 3.95));
+      final p = (t / 4.0).clamp(0.0, 1.0);
       return Opacity(
         opacity: o,
-        child: const Text('دخول الإمبراطور إلى الشات', textAlign: TextAlign.center, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF1A1A1A), shadows: [Shadow(color: Colors.white, blurRadius: 16)])),
+        child: Transform.scale(
+          scale: 0.86 + 0.14 * _s(t, 0.5, 1.6),
+          child: ShaderMask(
+            blendMode: BlendMode.srcIn,
+            shaderCallback: (r) => LinearGradient(
+              begin: Alignment(-3 + 4 * p, 0),
+              end: Alignment(-1 + 4 * p, 0),
+              colors: const [Color(0xFFD4AF37), Color(0xFFFFFFFF), Color(0xFFD4AF37)],
+            ).createShader(r),
+            child: const Text(
+              'انضم الإمبراطور إلى الشات معكم !',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 27, height: 1.6, fontWeight: FontWeight.w900, color: Colors.white),
+            ),
+          ),
+        ),
       );
     }
     final full = 'دخول أحد المطورين: ${widget.name}';
@@ -94,68 +110,30 @@ class _EntranceState extends State<EntranceScreen> with SingleTickerProviderStat
 class _EmpPainter extends CustomPainter {
   final double t;
   _EmpPainter(this.t);
-  final List<double> seeds = List<double>.generate(120, (i) => (i * 97 % 360) + (i % 7) * .13);
 
   @override
   void paint(Canvas cv, Size s) {
-    final c = Offset(s.width / 2, s.height / 2);
     cv.drawRect(Offset.zero & s, Paint()..color = Colors.black);
-    // نجوم تندفع نحو الأطراف (انطلاق في الفضاء)
-    final speed = 0.15 + _s(t, 0, 3.8) * 1.6;
-    for (var i = 0; i < seeds.length; i++) {
-      final a = seeds[i] * pi / 180;
-      final r0 = ((i * 53 % 100) / 100) * 0.5;
-      final r = ((r0 + t * speed * 0.35 + i * 0.011) % 1.0) * s.longestSide * .75;
-      final p = c + Offset(cos(a), sin(a)) * r;
-      final len = 2 + r * .05 * _s(t, 0, 3.8);
-      cv.drawLine(p, p + Offset(cos(a), sin(a)) * len, Paint()..color = Colors.white.withAlpha((120 + (i % 5) * 25).clamp(0, 255))..strokeWidth = 1.4);
+    final c = Offset(s.width / 2, s.height / 2);
+    final glow = _s(t, 0.3, 1.5) * (1 - _s(t, 3.4, 4.0));
+    if (glow > 0) {
+      cv.drawCircle(c, s.width * .55, Paint()..color = Color.fromRGBO(140, 10, 30, .28 * glow)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60));
     }
-    // شق فضي قلبه أسود
-    final crack = _s(t, 3.0, 3.8);
-    if (crack > 0) {
-      final h = s.height * .45 * crack;
-      for (final dx in [-24.0, 24.0]) {
-        final path = Path()..moveTo(c.dx + dx, c.dy - h);
-        var y = c.dy - h;
-        var k = 0;
-        while (y < c.dy + h) {
-          y += 38;
-          path.lineTo(c.dx + dx + (k.isEven ? 10 : -10), y);
-          k++;
-        }
-        cv.drawPath(path, Paint()..color = const Color(0xFFC9D3DD)..style = PaintingStyle.stroke..strokeWidth = 4);
-      }
-      cv.drawRect(Rect.fromCenter(center: c, width: 40, height: h * 2), Paint()..color = Colors.black);
-      // عينان بحواف حادة داخل الشق
-      final eye = _s(t, 3.6, 4.2);
-      if (eye > 0) {
-        for (final ex in [-1.0, 1.0]) {
-          final cx = c.dx + ex * 62, cy = c.dy - 8;
-          final w = 44 * eye, hh = 12 * eye;
-          final e = Path()
-            ..moveTo(cx - w, cy + ex * 6)
-            ..lineTo(cx, cy - hh)
-            ..lineTo(cx + w, cy - ex * 6)
-            ..lineTo(cx, cy + hh)
-            ..close();
-          cv.drawPath(e, Paint()..color = const Color(0xFFFF2B2B).withAlpha(230)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6));
-          cv.drawPath(e, Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 1.5);
-        }
-      }
+    // جمرات ذهبية صاعدة
+    for (var i = 0; i < 36; i++) {
+      final f = (i * 37 % 100) / 100;
+      final life = (t * (0.18 + (i % 5) * .05) + f) % 1.0;
+      final x = s.width * f + sin(t * 2 + i) * 10;
+      final y = s.height * (1.05 - life * 1.1);
+      final a = ((1 - life) * 200 * glow).round().clamp(0, 255);
+      cv.drawCircle(Offset(x, y), 1.5 + (i % 3), Paint()..color = Color.lerp(const Color(0xFFFFE066), const Color(0xFFFF5A1F), life)!.withAlpha(a)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2));
     }
-    // نقطة بيضاء تكبر وتتحول إلى نجم يشع ثم يعمي الشاشة
-    final dot = _s(t, 4.1, 5.4);
-    if (dot > 0) {
-      final r = 4 + dot * dot * s.longestSide * 1.2;
-      cv.drawCircle(c, r, Paint()..color = Colors.white..maskFilter = MaskFilter.blur(BlurStyle.normal, 8 + dot * 30));
-      for (var i = 0; i < 12; i++) {
-        final a = i * pi / 6 + t;
-        cv.drawLine(c, c + Offset(cos(a), sin(a)) * r * 1.6, Paint()..color = Colors.white.withAlpha(120)..strokeWidth = 2);
-      }
+    // خط ذهبي رفيع يتمدد تحت النص
+    final ln = _s(t, 1.0, 2.0) * (1 - _s(t, 3.4, 4.0));
+    if (ln > 0) {
+      final w = s.width * .5 * ln;
+      cv.drawLine(Offset(c.dx - w, c.dy + 46), Offset(c.dx + w, c.dy + 46), Paint()..color = const Color(0xFFD4AF37).withAlpha(200)..strokeWidth = 2..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5));
     }
-    // يعود الأبيض إلى الظلام في النهاية
-    final fade = _s(t, 6.1, 6.8);
-    if (fade > 0 && dot >= 1) cv.drawRect(Offset.zero & s, Paint()..color = Colors.black.withAlpha((fade * 255).round()));
   }
 
   @override
