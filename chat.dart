@@ -911,14 +911,14 @@ class _StickerImg extends StatelessWidget {
   }
 }
 
-class _Voice extends StatefulWidget {
+class VoiceBubble extends StatefulWidget {
   final String src;
-  const _Voice({required this.src});
+  const VoiceBubble({required this.src});
   @override
-  State<_Voice> createState() => _VoiceState();
+  State<VoiceBubble> createState() => _VoiceState();
 }
 
-class _VoiceState extends State<_Voice> {
+class _VoiceState extends State<VoiceBubble> {
   final AudioPlayer p = AudioPlayer();
   bool playing = false;
 
@@ -1073,7 +1073,7 @@ class _MsgBubbleState extends State<MsgBubble> {
         } else if (type == 'sticker') {
           body.add(_StickerImg(sid: (m['sid'] ?? '').toString()));
         } else if (type == 'audio') {
-          body.add(_Voice(src: (m['au'] ?? '').toString()));
+          body.add(VoiceBubble(src: (m['au'] ?? '').toString()));
         } else {
           body.add(Text.rich(TextSpan(children: _spans((m['text'] ?? '').toString(), context.accent2)), style: const TextStyle(fontSize: 15, height: 1.5)));
         }

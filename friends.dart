@@ -9,7 +9,7 @@ import 'widgets.dart';
 
 const int kFriendCap = 10;
 
-List<String> _favs() => prefs.getStringList('fav_friends') ?? <String>[];
+List<String> _favs() => (prefs.getString('fav_friends') ?? '').split(',').where((e) => e.isNotEmpty).toList();
 
 bool get _unlimited => Session.isDev;
 
@@ -78,7 +78,7 @@ class _FriendRowState extends State<_FriendRow> {
             onPressed: () {
               final l = _favs();
               fav ? l.remove(widget.uid) : l.add(widget.uid);
-              prefs.setStringList('fav_friends', l);
+              prefs.setString('fav_friends', l.join(','));
               setState(() => fav = !fav);
             },
             icon: Icon(fav ? Icons.star_rounded : Icons.star_border_rounded, color: fav ? const Color(0xFFFFD54A) : kMu),
