@@ -68,22 +68,27 @@ class _BoardList extends StatelessWidget {
         if (s.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator());
         final l = s.data ?? <MapEntry<String, int>>[];
         if (l.isEmpty) return const Center(child: Text('لا توجد بيانات بعد', style: TextStyle(color: kMu)));
-        const medals = ['🥇', '🥈', '🥉'];
+        const ring = [Color(0xFFFFD54A), Color(0xFFD7DEE8), Color(0xFFCD7F32)];
         return ListView.builder(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(12),
           itemCount: l.length,
           itemBuilder: (c, i) => Container(
-            margin: const EdgeInsets.symmetric(vertical: 4),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: const Color.fromRGBO(0, 0, 0, .25), borderRadius: BorderRadius.circular(14), border: Border.all(color: i == 0 ? const Color(0xFFFFD54A) : kLine)),
+            margin: const EdgeInsets.symmetric(vertical: 6),
+            padding: EdgeInsets.all(i < 3 ? 14 : 12),
+            decoration: BoxDecoration(
+              color: const Color.fromRGBO(0, 0, 0, .28),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: i < 3 ? ring[i].withAlpha(160) : kLine),
+            ),
             child: Row(children: [
-              SizedBox(width: 34, child: Text(i < 3 ? medals[i] : '${i + 1}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900))),
-              UserAvatar(l[i].key, size: 42),
-              const SizedBox(width: 10),
+              SizedBox(width: 30, child: Text('${i + 1}', textAlign: TextAlign.center, style: TextStyle(fontSize: i < 3 ? 22 : 17, fontWeight: FontWeight.w900, color: i < 3 ? ring[i] : kMu))),
+              const SizedBox(width: 6),
+              i < 3 ? _GlowRing(color: ring[i], child: UserAvatar(l[i].key, size: 54)) : UserAvatar(l[i].key, size: 46),
+              const SizedBox(width: 12),
               Expanded(
                 child: FutureBuilder<Prof>(
                   future: prof(l[i].key),
-                  builder: (c, p) => Text(p.data?.name ?? '...', style: const TextStyle(fontWeight: FontWeight.w800)),
+                  builder: (c, p) => Text(p.data?.name ?? '...', style: TextStyle(fontWeight: FontWeight.w800, fontSize: i < 3 ? 16 : 14.5)),
                 ),
               ),
               Text('${fmtN(l[i].value)} $unit', style: TextStyle(fontWeight: FontWeight.w900, color: context.accent2)),
@@ -91,6 +96,45 @@ class _BoardList extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// إطار يشع حول صورة أصحاب المراكز الثلاثة الأولى (ذهبي / فضي / برونزي)
+class _GlowRing extends StatefulWidget {
+  final Color color;
+  final Widget child;
+  const _GlowRing({required this.color, required this.child});
+
+  @override
+  State<_GlowRing> createState() => _GlowRingState();
+}
+
+class _GlowRingState extends State<_GlowRing> with SingleTickerProviderStateMixin {
+  late final AnimationController c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600))..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: c,
+        builder: (_, child) => Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: widget.color, width: 2.5),
+            boxShadow: [BoxShadow(color: widget.color.withAlpha(150), blurRadius: 8 + 12 * c.value, spreadRadius: 1 + 2 * c.value)],
+          ),
+          child: child,
+        ),
+        child: widget.child,
+      ),
     );
   }
 }

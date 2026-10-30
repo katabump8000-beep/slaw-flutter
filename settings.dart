@@ -34,6 +34,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       final d = await cropImage(context, bytes, out: const [256, 192, 128, 96], limit: 29000, round: true, title: 'قص الصورة الشخصية');
       if (d == null) return;
+      if (!Session.isDev && await imageDataUnsafe(d) == true) {
+        toast('هذه الصورة غير لائقة ولن تُقبل', bad: true);
+        return;
+      }
       await ref('avatars/$myUid').set(d);
       setAvCache(myUid, d);
       avatarTick.value++;

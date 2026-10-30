@@ -213,8 +213,17 @@ class QuizHost {
   final String cat;
   final List<_Item> items;
   bool stopped = false;
+  Completer<String>? _cur;
   StreamSubscription<DatabaseEvent>? _sub;
   QuizHost(this.gid, this.cat, this.items);
+
+  static void cancel(String gid) {
+    final h = _active[gid];
+    if (h == null) return;
+    h.stopped = true;
+    final c = h._cur;
+    if (c != null && !c.isCompleted) c.complete('');
+  }
 
   static Future<void> start(BuildContext ctx, String gid, String cat) async {
     if (_active.containsKey(gid)) {
@@ -268,6 +277,7 @@ class QuizHost {
         break;
       }
       final done = Completer<String>();
+      _cur = done;
       final want = normAr(it.n);
       _sub?.cancel();
       _sub = ref('messages/$gid').orderByKey().startAfter(key).onChildAdded.listen((e) {
@@ -291,7 +301,7 @@ class QuizHost {
         final n = (await prof(winner)).name;
         await botSay(gid, '✅ الإجابة الصحيحة: ${it.n}\n🏆 $n — ${scores[winner]} من 10');
         if (scores[winner]! >= 10) {
-          await botSay(gid, '🎊 فاز $n بـ $title! 🏆', d: jsonEncode({'win': winner}));
+          await botSay(gid, '🎊 فاز $n بـ $title! 🏆', d: jsonEncode({'win': winner, 'amt': 40}));
           break;
         }
       } else {

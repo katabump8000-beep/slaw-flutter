@@ -21,6 +21,7 @@ import 'core.dart';
 import 'crop.dart';
 import 'data.dart';
 import 'entrance.dart';
+import 'events.dart';
 import 'extras.dart';
 import 'home.dart';
 import 'info.dart';
@@ -185,6 +186,8 @@ class _ChatScreenState extends State<ChatScreen> {
       final j = jsonDecode(m['d'] as String);
       if (j is Map && j['win'] == myUid && !(prefs.getBool('win_$id') ?? false)) {
         prefs.setBool('win_$id', true);
+        final amt = j['amt'] is num ? (j['amt'] as num).toInt().clamp(0, 100) : 0;
+        if (amt > 0) addBalRetry(amt).catchError((_) {});
         ref('wins/$myUid').get().then((s) {
           final n = s.value is num ? (s.value as num).toInt() : 0;
           ref('wins/$myUid').set(n + 1);
@@ -318,7 +321,13 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _sendText() async {
     final t = ctrl.text.trim();
     if (t.isEmpty || !_gate()) return;
-    if (spamHit()) {
+    if (!Session.isDev && badWord(t)) {
+      ctrl.clear();
+      final d = await strikeWord();
+      toast('رسالة مخالفة! تم تقييدك $d وخصم 5 من درجة الفخر', bad: true);
+      return;
+    }
+    if (!Session.isDev && spamHit()) {
       ctrl.clear();
       final d = await strike('spam');
       toast('تم رصد سبام. تم تقييدك من الشات لمدة $d', bad: true);
@@ -340,7 +349,7 @@ class _ChatScreenState extends State<ChatScreen> {
   /// فحص الصورة بالذكاء الاصطناعي قبل الإرسال
   Future<bool> _clean(Uint8List bytes) async {
     final bad = await imageUnsafe(bytes);
-    if (bad == true) {
+    if (bad == true && !Session.isDev) {
       final d = await strike('image');
       toast('تم رصد محتوى غير لائق. تم تقييدك من الشات لمدة $d', bad: true);
       return false;
@@ -1046,7 +1055,7 @@ class _MsgBubbleState extends State<MsgBubble> {
                 if (r == 'emp') const InfinityMark(size: 14),
                 if (tag != null) tag,
                 if (widget.admin && !isHigh) const Tag('مشرف'),
-                ageTag(p),
+                ageTag(p, role: r),
                 if (m['vis'] == true) const Tag('زائر'),
               ]),
             ),
@@ -1125,6 +1134,12 @@ class _MsgBubbleState extends State<MsgBubble> {
       try {
         final o = Map<String, dynamic>.from(jsonDecode((m['d'] ?? '{}').toString()) as Map);
         card = k == 'rank' ? RankCard(o: o) : WarCard(o: o);
+      } catch (_) {}
+    }
+    if (card == null && k == 'bot' && (m['d'] ?? '').toString().contains('"ev"')) {
+      try {
+        final o = Map<String, dynamic>.from(jsonDecode((m['d'] ?? '{}').toString()) as Map);
+        if (o['ev'] == 1) card = EvCard(text: (m['text'] ?? '').toString(), col: (o['col'] ?? '').toString());
       } catch (_) {}
     }
     if (card != null) {

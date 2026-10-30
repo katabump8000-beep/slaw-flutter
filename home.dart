@@ -22,6 +22,7 @@ import 'war.dart';
 import 'friends.dart';
 import 'board.dart';
 import 'update.dart';
+import 'roulette.dart';
 import 'widgets.dart';
 
 const Map<String, String> kKinds = {
@@ -367,7 +368,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       floatingActionButton: Session.isDev
           ? FloatingActionButton(onPressed: _newGroup, child: const Icon(Icons.add))
           : null,
-      body: SafeArea(
+      body: Stack(children: [
+      SafeArea(
         child: Column(
           children: [
             Container(
@@ -447,6 +449,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ],
         ),
       ),
+      const Positioned(left: 14, bottom: 12, child: RouletteFab()),
+      ]),
     );
   }
 

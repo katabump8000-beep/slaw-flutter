@@ -9,7 +9,9 @@ import 'app_state.dart';
 import 'core.dart';
 import 'data.dart';
 import 'home.dart';
+import 'events.dart';
 import 'quiz.dart';
+import 'sfx.dart';
 import 'shop.dart';
 import 'widgets.dart';
 
@@ -40,10 +42,10 @@ int _lev(String a, String b) {
 }
 
 const List<String> _cmds = [
-  'تفاصيلي', 'رصيدي', 'اوامر', 'العاب', 'كريستال', 'بالونات', 'اعلام', 'كتابه', 'الوان', 'تحويل',
+  'تفاصيلي', 'رصيدي', 'رصيد', 'معلوماته', 'تفاصيله', 'اوامر', 'العاب', 'كريستال', 'بالونات', 'اعلام', 'كتابه', 'تفكيك', 'الغاء', 'الوان',
   'المتصدرين', 'المتجر', 'حيوانات', 'شخصيات', 'فخر',
 ];
-const Set<String> _gameCmds = {'العاب', 'كريستال', 'بالونات', 'اعلام', 'كتابه', 'الوان', 'حيوانات', 'شخصيات'};
+const Set<String> _gameCmds = {'العاب', 'كريستال', 'بالونات', 'اعلام', 'كتابه', 'تفكيك', 'الوان', 'حيوانات', 'شخصيات'};
 
 bool isCommandText(String t) => RegExp(r'^\s*\.\s*[\u0600-\u06FFa-zA-Z]').hasMatch(t);
 
@@ -66,6 +68,10 @@ Future<void> runCommand(BuildContext ctx, String gid, String raw) async {
   if (m == null) return;
   final word = normAr(m.group(1)!);
   final args = (m.group(2) ?? '').trim();
+  if (word == 'تحويل') {
+    await botSay(gid, '🚫 تم إلغاء أمر التحويل');
+    return;
+  }
   String? cmd;
   var best = 99;
   for (final c in _cmds) {
@@ -75,7 +81,7 @@ Future<void> runCommand(BuildContext ctx, String gid, String raw) async {
       cmd = c;
     }
   }
-  if (cmd == null || best > 2) {
+  if (cmd == null || best > (word.length >= 5 ? 2 : 1)) {
     await botSay(gid, '❌ الأمر غير موجود. اكتب ‎.اوامر‎ لعرض القائمة');
     return;
   }
@@ -88,13 +94,24 @@ Future<void> runCommand(BuildContext ctx, String gid, String raw) async {
   switch (cmd) {
     case 'اوامر':
       await botSay(gid,
-          '╮─❖『 أوامر ALJESI 』❖─╭\n.تفاصيلي — بطاقتك\n.رصيدي — رصيدك\n.العاب — قائمة الألعاب\n.كريستال [مبلغ]\n.بالونات\n.اعلام\n.كتابة\n.الوان\n.حيوانات — فعالية الحيوانات\n.شخصيات — تخمين الشخصيات\n.تحويل — تحويل رصيد\n.المتصدرين — متصدرو اليوم\n.فخر — درجة الفخر\n.المتجر\n╰─❖『 ALJESI 』❖─╯');
+          '╮─❖『 أوامر ALJESI 』❖─╭\n.تفاصيلي — بطاقتك\n.رصيدي — رصيدك\n.العاب — قائمة الألعاب\n.معلوماته @اسم — ملف عضو (إن كان عاماً)\n.كريستال [مبلغ]\n.بالونات\n.اعلام\n.كتابة\n.تفكيك\n.الوان\n.حيوانات — فعالية الحيوانات\n.شخصيات — تخمين الشخصيات\n.الغاء — إلغاء الفعالية الجارية\n.المتصدرين — متصدرو اليوم\n.فخر — درجة الفخر\n.المتجر\n╰─❖『 ALJESI 』❖─╯');
       break;
     case 'رصيدي':
+    case 'رصيد':
       if (args.contains('@') && Session.isDev) {
         await _giveBalance(gid, args);
+      } else if (args.contains('@')) {
+        await botSay(gid, '🔒 هذا الأمر لرتب المطورين فقط');
       } else {
         await botSay(gid, '💰 رصيدك الحالي: ${fmtN(await balanceNow())}');
+      }
+      break;
+    case 'معلوماته':
+    case 'تفاصيله':
+      if (args.isEmpty) {
+        await botSay(gid, '❌ الصيغة: ‎.معلوماته @اسم');
+      } else {
+        await _detailsOf(gid, args);
       }
       break;
     case 'فخر':
@@ -111,7 +128,7 @@ Future<void> runCommand(BuildContext ctx, String gid, String raw) async {
       await _board(gid);
       break;
     case 'العاب':
-      await botSay(gid, '🎮 الألعاب:\n💎 .كريستال [مبلغ]\n🎈 .بالونات\n🏳️ .اعلام\n⌨️ .كتابة\n🎨 .الوان\n🐾 .حيوانات\n🎭 .شخصيات');
+      await botSay(gid, '🎮 الألعاب:\n💎 .كريستال [مبلغ]\n🎈 .بالونات\n🏳️ .اعلام\n⌨️ .كتابة\n🧩 .تفكيك\n🎨 .الوان\n🐾 .حيوانات\n🎭 .شخصيات');
       break;
     case 'كريستال':
       push(CrystalScreen(gid: gid, preset: int.tryParse(normDigits(args)) ?? 50));
@@ -123,13 +140,17 @@ Future<void> runCommand(BuildContext ctx, String gid, String raw) async {
       push(QuickQuizScreen(gid: gid, kind: 'flags'));
       break;
     case 'كتابه':
-      push(QuickQuizScreen(gid: gid, kind: 'typing'));
+      await EventsHost.start(gid, 'type');
+      break;
+    case 'تفكيك':
+      await EventsHost.start(gid, 'scramble');
       break;
     case 'الوان':
-      push(QuickQuizScreen(gid: gid, kind: 'colors'));
+      await EventsHost.start(gid, 'colors');
       break;
-    case 'تحويل':
-      await transferSheet(ctx, gid);
+    case 'الغاء':
+      EventsHost.cancel(gid);
+      QuizHost.cancel(gid);
       break;
     case 'المتجر':
       push(const ShopRoute());
@@ -182,15 +203,21 @@ Future<void> _details(String gid) async {
 Future<String?> _uidByName(String gid, String raw) async {
   final n = normAr(raw.replaceFirst('@', '').trim());
   if (n.isEmpty) return null;
-  try {
-    final v = (await ref('members/$gid').get()).value;
-    if (v is! Map) return null;
-    final ids = v.keys.map((e) => e.toString()).toList();
-    final ps = await Future.wait(ids.map(prof));
-    for (var i = 0; i < ids.length; i++) {
-      if (normAr(ps[i].name) == n) return ids[i];
-    }
-  } catch (_) {}
+  final tries = <String>[gid];
+  for (final g in mainGroups()) {
+    if (!tries.contains(g)) tries.add(g);
+  }
+  for (final g in tries) {
+    try {
+      final v = (await ref('members/$g').get()).value;
+      if (v is! Map) continue;
+      final ids = v.keys.map((e) => e.toString()).toList();
+      final ps = await Future.wait(ids.map(prof));
+      for (var i = 0; i < ids.length; i++) {
+        if (normAr(ps[i].name) == n) return ids[i];
+      }
+    } catch (_) {}
+  }
   return null;
 }
 
@@ -240,7 +267,7 @@ Future<void> _detailsOf(String gid, String raw) async {
     await botSay(gid, '🔒 الملف التعريفي لهذا العضو خاص');
     return;
   }
-  final r = await Future.wait<Object?>([g('msgTotal/$u'), g('wins/$u'), g('likeCount/$u'), g('groupAdmins/$mg/$u'), g('pdata/$u/note')]);
+  final r = await Future.wait<Object?>([g('msgTotal/$u'), g('wins/$u'), g('likeCount/$u'), g('groupAdmins/$mg/$u'), g('pdata/$u/note'), g('wallets/$u/bal')]);
   final p = await prof(u);
   final role = await roleOf(u);
   final pr = await prideOf(u);
@@ -250,6 +277,8 @@ Future<void> _detailsOf(String gid, String raw) async {
       [
         '╮─❖『 تفاصيل ${p.name} 』❖─╭',
         '🎖 الرتبة: $rank',
+        '🏰 النقابة: ${groupName(mg)}',
+        if (r[5] is num) '💰 الرصيد: ${fmtN(r[5] as num)}',
         '💬 الرسائل: ${r[0] ?? 0}',
         '🏆 الفوز بالفعاليات: ${r[1] ?? 0}',
         '👍 الإعجابات: ${r[2] ?? 0}',
@@ -423,6 +452,7 @@ class _CrystalScreenState extends State<CrystalScreen> {
       return;
     }
     await _bal();
+    Sfx.start('wheel.wav');
     final res = _pick();
     for (var i = 0; i < 4; i++) {
       done[i] = false;
