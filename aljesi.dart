@@ -9,6 +9,7 @@ import 'app_state.dart';
 import 'core.dart';
 import 'data.dart';
 import 'home.dart';
+import 'bets.dart';
 import 'events.dart';
 import 'quiz.dart';
 import 'sfx.dart';
@@ -42,10 +43,10 @@ int _lev(String a, String b) {
 }
 
 const List<String> _cmds = [
-  'تفاصيلي', 'رصيدي', 'رصيد', 'معلوماته', 'تفاصيله', 'اوامر', 'العاب', 'كريستال', 'بالونات', 'اعلام', 'كتابه', 'تفكيك', 'الغاء', 'الوان',
+  'تفاصيلي', 'رصيدي', 'رصيد', 'معلوماته', 'تفاصيله', 'اوامر', 'العاب', 'كريستال', 'بالونات', 'اعلام', 'كتابه', 'تفكيك', 'الغاء', 'الوان', 'رهانات', 'رهان',
   'المتصدرين', 'المتجر', 'حيوانات', 'شخصيات', 'فخر',
 ];
-const Set<String> _gameCmds = {'العاب', 'كريستال', 'بالونات', 'اعلام', 'كتابه', 'تفكيك', 'الوان', 'حيوانات', 'شخصيات'};
+const Set<String> _gameCmds = {'العاب', 'كريستال', 'بالونات', 'اعلام', 'كتابه', 'تفكيك', 'الوان', 'رهانات', 'حيوانات', 'شخصيات'};
 
 bool isCommandText(String t) => RegExp(r'^\s*\.\s*[\u0600-\u06FFa-zA-Z]').hasMatch(t);
 
@@ -128,7 +129,7 @@ Future<void> runCommand(BuildContext ctx, String gid, String raw) async {
       await _board(gid);
       break;
     case 'العاب':
-      await botSay(gid, '🎮 الألعاب:\n💎 .كريستال [مبلغ]\n🎈 .بالونات\n🏳️ .اعلام\n⌨️ .كتابة\n🧩 .تفكيك\n🎨 .الوان\n🐾 .حيوانات\n🎭 .شخصيات');
+      await botSay(gid, '🎮 الألعاب:\n💎 .كريستال [مبلغ]\n🎈 .بالونات\n🏳️ .اعلام\n⌨️ .كتابة\n🧩 .تفكيك\n🎨 .الوان\n🎈 .رهانات\n🐾 .حيوانات\n🎭 .شخصيات');
       break;
     case 'كريستال':
       push(CrystalScreen(gid: gid, preset: int.tryParse(normDigits(args)) ?? 50));
@@ -148,9 +149,21 @@ Future<void> runCommand(BuildContext ctx, String gid, String raw) async {
     case 'الوان':
       await EventsHost.start(gid, 'colors');
       break;
+    case 'رهانات':
+      await BetHost.start(gid);
+      break;
+    case 'رهان':
+      final n = int.tryParse(normDigits(args).replaceAll(RegExp(r'[^0-9]'), ''));
+      if (n == null || n <= 0) {
+        await botSay(gid, '❌ الصيغة: ‎.رهان 100');
+      } else {
+        await BetHost.join(gid, n);
+      }
+      break;
     case 'الغاء':
       EventsHost.cancel(gid);
       QuizHost.cancel(gid);
+      BetHost.cancel(gid);
       break;
     case 'المتجر':
       push(const ShopRoute());

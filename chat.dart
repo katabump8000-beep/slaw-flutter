@@ -21,6 +21,7 @@ import 'core.dart';
 import 'crop.dart';
 import 'data.dart';
 import 'entrance.dart';
+import 'bets.dart';
 import 'events.dart';
 import 'extras.dart';
 import 'home.dart';
@@ -186,12 +187,17 @@ class _ChatScreenState extends State<ChatScreen> {
       final j = jsonDecode(m['d'] as String);
       if (j is Map && j['win'] == myUid && !(prefs.getBool('win_$id') ?? false)) {
         prefs.setBool('win_$id', true);
-        final amt = j['amt'] is num ? (j['amt'] as num).toInt().clamp(0, 100) : 0;
-        if (amt > 0) addBalRetry(amt).catchError((_) {});
+        final amt = j['amt'] is num ? (j['amt'] as num).toInt().clamp(0, 100000) : 0;
+        if (amt > 0) creditChunks(amt);
         ref('wins/$myUid').get().then((s) {
           final n = s.value is num ? (s.value as num).toInt() : 0;
           ref('wins/$myUid').set(n + 1);
         });
+      }
+      if (j is Map && j['rf'] is Map && (j['rf'] as Map)[myUid] is num && !(prefs.getBool('rf_$id') ?? false)) {
+        prefs.setBool('rf_$id', true);
+        final a = ((j['rf'] as Map)[myUid] as num).toInt().clamp(0, 100000);
+        if (a > 0) creditChunks(a);
       }
     } catch (_) {}
   }
@@ -869,6 +875,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 onLong: () => _menu(id),
                 onAvatar: () => _avatarTap(from),
                 onReply: type == 'sys' ? null : () => _startReply(m),
+                gid: gid,
               );
             },
           ),
@@ -982,8 +989,9 @@ class MsgBubble extends StatefulWidget {
   final VoidCallback onLong;
   final VoidCallback onAvatar;
   final VoidCallback? onReply;
+  final String gid;
 
-  const MsgBubble({super.key, required this.id, required this.m, required this.mine, required this.admin, required this.bio, required this.cache, required this.onLong, required this.onAvatar, this.onReply});
+  const MsgBubble({super.key, required this.id, required this.m, required this.mine, required this.admin, required this.bio, required this.cache, required this.onLong, required this.onAvatar, this.onReply, this.gid = ''});
 
   @override
   State<MsgBubble> createState() => _MsgBubbleState();
@@ -1135,6 +1143,9 @@ class _MsgBubbleState extends State<MsgBubble> {
         final o = Map<String, dynamic>.from(jsonDecode((m['d'] ?? '{}').toString()) as Map);
         card = k == 'rank' ? RankCard(o: o) : WarCard(o: o);
       } catch (_) {}
+    }
+    if (card == null && k == 'bot' && (m['d'] ?? '').toString().contains('"bet"')) {
+      card = BetCard(gid: widget.gid, text: (m['text'] ?? '').toString());
     }
     if (card == null && k == 'bot' && (m['d'] ?? '').toString().contains('"ev"')) {
       try {

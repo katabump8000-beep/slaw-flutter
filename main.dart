@@ -1,3 +1,4 @@
+import 'uiprefs.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -67,9 +68,15 @@ class FirApp extends StatelessWidget {
         scaffoldMessengerKey: messengerKey,
         navigatorKey: WarWatcher.navKey,
         theme: buildTheme(ac),
-        builder: (context, child) => Directionality(
-          textDirection: TextDirection.rtl,
-          child: TapSound(child: Stack(children: [child ?? const SizedBox(), const EdgeGlow()])),
+        builder: (context, child) => ValueListenableBuilder<int>(
+          valueListenable: fontStep,
+          builder: (c2, fs, _) => MediaQuery(
+            data: MediaQuery.of(c2).copyWith(textScaler: TextScaler.linear(fontScale(fs))),
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: TapSound(child: Stack(children: [child ?? const SizedBox(), const EdgeGlow()])),
+            ),
+          ),
         ),
         home: const AuthGate(),
       ),

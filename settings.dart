@@ -1,3 +1,4 @@
+import 'uiprefs.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -186,6 +187,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leading: const Icon(Icons.lock_outline),
             title: const Text('تأمين الحساب'),
             onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SecurityScreen())),
+          ),
+          ListTile(
+            leading: const Icon(Icons.text_fields_rounded),
+            title: const Text('مقاس الخط'),
+            subtitle: const Text('12 مقاساً للنص في كل التطبيق', style: TextStyle(color: kMu, fontSize: 12)),
+            onTap: () => showFontSheet(context),
           ),
           ListTile(
             leading: const Icon(Icons.key_rounded),

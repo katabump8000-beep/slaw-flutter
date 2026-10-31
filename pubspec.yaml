@@ -19,6 +19,7 @@ dependencies:
   app_links: any
   android_id: any
   http: any
+  battery_plus: any
   audioplayers: any
   record: any
   video_player: any

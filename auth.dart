@@ -1,3 +1,4 @@
+import 'sorter.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -168,6 +169,11 @@ Future<String> registerAccount({
       }
     }
 
+    if (pw != null && await nameTaken(name, refG, uid)) {
+      await _rollback(created);
+      return 'هذا اللقب مستخدم، اختر لقباً آخر';
+    }
+
     final h = await deviceHash();
     final dv = await ref('devices/$h').get();
     if (dv.exists && dv.value.toString() != uid) {
@@ -191,6 +197,9 @@ Future<String> registerAccount({
       'ts': DateTime.now().millisecondsSinceEpoch,
       'color': '#ff7a1a',
     });
+    try {
+      await ref('nameIdx/${refG.isEmpty ? '_' : refG}/${nameKey(name)}').set(uid);
+    } catch (_) {}
     await db.ref().update(<String, Object?>{
       'wallets/$uid/bal': 100,
       'wallets/$uid/ts': ServerValue.timestamp,

@@ -13,6 +13,7 @@ import 'home.dart';
 import 'media.dart';
 import 'quiz.dart';
 import 'sfx.dart';
+import 'sorter.dart';
 import 'tally.dart';
 import 'widgets.dart';
 
@@ -197,6 +198,7 @@ class _ToolsState extends State<ToolsScreen> {
       body: ListView(children: [
         _t(Icons.casino_outlined, 'الفعاليات ⚙️', () => go(const QuizAdminScreen()), sub: 'صور الحيوانات والشخصيات'),
         _t(Icons.bar_chart, 'الإحصائيات', () => go(const StatsScreen())),
+        _t(Icons.people_alt_outlined, 'الفرز', () => go(const SorterScreen()), sub: 'كل المستخدمين، النسخة، آخر ظهور، حذف'),
         _t(Icons.shield_outlined, 'درجة الفخر (بالـID)', _pride),
         _t(Icons.badge_outlined, 'تعديل معرّفات', () => go(EmpScreen(canAppoint: emp)), sub: 'ابحث عن أي مستخدم وعدّل معرّفه'),
         _t(Icons.edit_outlined, 'تعديل معرّفي', () => editPidDialog(context, myUid)),

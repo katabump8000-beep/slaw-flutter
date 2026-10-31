@@ -23,6 +23,8 @@ import 'friends.dart';
 import 'board.dart';
 import 'update.dart';
 import 'roulette.dart';
+import 'sorter.dart';
+import 'status.dart';
 import 'widgets.dart';
 
 const Map<String, String> kKinds = {
@@ -208,6 +210,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         final p = ref('presence/$myUid');
         p.onDisconnect().remove();
         p.set(true);
+        markSeen();
       }
     }, onError: (_) {});
     if (Session.isDev) {
@@ -391,7 +394,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           if (Session.isEmp) ...[const SizedBox(width: 6), const InfinityMark()],
                         ]),
                         const SizedBox(height: 3),
-                        const BalanceChip(),
+                        const Row(children: [BalanceChip(), SizedBox(width: 10), StatusBadge()]),
                       ],
                     ),
                   ),
