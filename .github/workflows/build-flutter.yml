@@ -117,6 +117,28 @@ jobs:
               open(p, 'w', encoding='utf-8').write(kt)
           PY
 
+      - name: Firebase push (google-services)
+        run: |
+          cd build_app
+          cp ../google-services.json android/app/google-services.json
+          python3 - <<'PY'
+          import re, os
+          st = 'android/settings.gradle.kts' if os.path.exists('android/settings.gradle.kts') else 'android/settings.gradle'
+          s = open(st, encoding='utf-8').read()
+          if 'com.google.gms.google-services' not in s:
+              if st.endswith('.kts'):
+                  s = re.sub(r'(id\("com\.android\.application"\) version "[^"]+" apply false)', r'\1\n    id("com.google.gms.google-services") version "4.4.2" apply false', s, count=1)
+              else:
+                  s = re.sub(r"(id \"com\.android\.application\" version \"[^\"]+\" apply false)", r'\1\n    id "com.google.gms.google-services" version "4.4.2" apply false', s, count=1)
+              open(st, 'w', encoding='utf-8').write(s)
+          for ap in ['android/app/build.gradle.kts', 'android/app/build.gradle']:
+              if os.path.exists(ap):
+                  a = open(ap, encoding='utf-8').read()
+                  if 'google-services' not in a:
+                      a = a.replace('id("com.android.application")', 'id("com.android.application")\n    id("com.google.gms.google-services")', 1) if ap.endswith('.kts') else a.replace('id "com.android.application"', 'id "com.android.application"\n    id "com.google.gms.google-services"', 1)
+                      open(ap, 'w', encoding='utf-8').write(a)
+          PY
+
       - name: Analyze (shows errors)
         continue-on-error: true
         run: |
