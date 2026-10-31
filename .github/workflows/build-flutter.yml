@@ -32,6 +32,19 @@ jobs:
           cp *.mp3 *.wav build_app/assets/audio/ 2>/dev/null || true
           ls build_app/assets/audio
 
+      - name: App icon
+        run: |
+          if [ -f icon.png ]; then
+            pip install pillow >/dev/null 2>&1 || true
+            python3 - <<'PY'
+          from PIL import Image
+          im = Image.open('icon.png').convert('RGBA')
+          sizes = {'mdpi': 48, 'hdpi': 72, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192}
+          for k, v in sizes.items():
+              im.resize((v, v), Image.LANCZOS).save('build_app/android/app/src/main/res/mipmap-%s/ic_launcher.png' % k)
+          PY
+          fi
+
       - name: Android settings
         run: |
           cd build_app
@@ -130,6 +143,7 @@ jobs:
           "$BT/apksigner" sign --ks signing.keystore --ks-key-alias my-key-alias \
             --ks-pass env:KS_PASS --key-pass env:KEY_PASS --out SLAW.apk aligned.apk
           rm -f signing.keystore aligned.apk
+          "$BT/aapt2" dump badging SLAW.apk 2>/dev/null | grep -E "^package|sdkVersion|targetSdkVersion|uses-permission" | head -30 | while IFS= read -r l; do echo "::notice::$l"; done || true
 
       - uses: actions/upload-artifact@v4
         with:
