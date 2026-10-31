@@ -31,7 +31,7 @@ class FxScreen extends StatefulWidget {
 
 class _FxState extends State<FxScreen> with SingleTickerProviderStateMixin {
   AudioPlayer? _own;
-  late final double secs = widget.kind == 9 ? 12 : 6;
+  late final double secs = widget.kind == 9 ? 9 : 6;
   late final AnimationController c = AnimationController(vsync: this, duration: Duration(milliseconds: (secs * 1000).toInt()));
 
   @override
@@ -45,8 +45,8 @@ class _FxState extends State<FxScreen> with SingleTickerProviderStateMixin {
   }
 
   Future<void> _audio() async {
-    final p = await Sfx.start(widget.kind == 9 ? 'dhol.mp3' : 'fx${widget.kind}.wav');
-    _own = p;
+    if (widget.kind != 9) return;
+    _own = await Sfx.start('dhol.mp3');
   }
 
   @override
@@ -76,7 +76,7 @@ class _FxState extends State<FxScreen> with SingleTickerProviderStateMixin {
               builder: (_, __) {
                 final s = c.value * secs;
                 final k9 = widget.kind == 9;
-                final a0 = k9 ? 7.4 : .5, a1 = k9 ? 8.2 : 1.2, b0 = k9 ? 10.6 : 4.4, b1 = k9 ? 11.3 : 5.2;
+                final a0 = k9 ? 6.3 : .5, a1 = k9 ? 7.1 : 1.2, b0 = k9 ? 8.0 : 4.4, b1 = k9 ? 8.5 : 5.2;
                 final o = (((s - a0) / (a1 - a0)).clamp(0.0, 1.0)) * (1 - ((s - b0) / (b1 - b0)).clamp(0.0, 1.0));
                 return Center(
                   child: Opacity(
@@ -135,11 +135,83 @@ class _FxPainter extends CustomPainter {
     ..color = c
     ..maskFilter = MaskFilter.blur(BlurStyle.normal, blur);
 
+  // شرار ناعم صاعد
+  void _sparks(Canvas cv, Size sz, double s) {
+    if (s > 8.5) return;
+    final r = m.Random(11);
+    for (var i = 0; i < 34; i++) {
+      final x0 = r.nextDouble() * sz.width;
+      final sp = .05 + r.nextDouble() * .09;
+      final ph = r.nextDouble();
+      final rad = 1.2 + r.nextDouble() * 1.8;
+      final gn = 70 + r.nextInt(70);
+      final life = (s * sp + ph) % 1.0;
+      final y = sz.height * (1.02 - life * 1.05);
+      final x = x0 + m.sin(s * 1.3 + i) * 14;
+      final a = (m.sin(life * m.pi) * (s < 1 ? s : 1.0)).clamp(0.0, 1.0);
+      cv.drawCircle(Offset(x, y), rad, Paint()..color = Color.fromRGBO(255, gn, 40, .75 * a)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.8));
+    }
+  }
+
+  // شقوق متفرعة تنتشر من المركز
+  void _cracks(Canvas cv, Size sz, double s, double cx, double cy) {
+    final r = m.Random(5);
+    final pulse = .7 + .3 * m.sin(s * 6);
+    final fade = 1 - ((s - 5.6) / .8).clamp(0.0, 1.0);
+    if (fade <= 0) return;
+    for (var i = 0; i < 9; i++) {
+      final g = ((s - 2.0 - i * .12) / 1.1).clamp(0.0, 1.0);
+      final ang = r.nextDouble() * 2 * m.pi;
+      final len = sz.width * (.35 + r.nextDouble() * .55) * g;
+      if (g <= 0) continue;
+      var p = Offset(cx, cy + sz.height * .02);
+      final path = Path()..moveTo(p.dx, p.dy);
+      const steps = 9;
+      for (var k = 1; k <= steps; k++) {
+        final a = ang + (r.nextDouble() - .5) * .9;
+        p = p + Offset(m.cos(a), m.sin(a)) * (len / steps);
+        path.lineTo(p.dx, p.dy);
+        if (k % 3 == 0) {
+          final b = a + (r.nextBool() ? 1 : -1) * (.6 + r.nextDouble() * .6);
+          final q = p + Offset(m.cos(b), m.sin(b)) * (len / 5);
+          cv.drawLine(p, q, Paint()..color = Color.fromRGBO(255, 40, 30, .6 * pulse * fade)..strokeWidth = 1);
+        }
+      }
+      cv.drawPath(path, _glow(Color.fromRGBO(255, 20, 20, .55 * pulse * fade), 6, 7));
+      cv.drawPath(path, Paint()..style = PaintingStyle.stroke..strokeWidth = 1.6..color = Color.fromRGBO(255, 74, 56, fade));
+    }
+  }
+
+  // رعد أحمر خاطف
+  void _lightning(Canvas cv, Size sz, double s) {
+    const hits = [2.9, 3.6, 4.1, 4.9, 5.5, 6.1];
+    for (var i = 0; i < hits.length; i++) {
+      final d = s - hits[i];
+      if (d < 0 || d > .22) continue;
+      final a = 1 - d / .22;
+      final r = m.Random(100 + i);
+      var x = sz.width * (.15 + r.nextDouble() * .7);
+      var y = 0.0;
+      final p = Path()..moveTo(x, y);
+      while (y < sz.height * .8) {
+        y += 40 + r.nextDouble() * 50;
+        x += (r.nextDouble() - .5) * 90;
+        p.lineTo(x, y);
+      }
+      cv.drawRect(Offset.zero & sz, Paint()..color = Color.fromRGBO(255, 30, 30, .16 * a));
+      cv.drawPath(p, _glow(Color.fromRGBO(255, 30, 30, .9 * a), 10, 10));
+      cv.drawPath(p, Paint()..style = PaintingStyle.stroke..strokeWidth = 2.2..strokeJoin = StrokeJoin.round..color = Color.fromRGBO(255, 190, 170, a));
+    }
+  }
+
   // عينان حمراوان رفيعتان حادتان (ثم شق ممزق أحمر متوهج بحواف شظايا)
   void _kool(Canvas cv, Size sz, double s) {
     final w = sz.width, h = sz.height, cx = w / 2, cy = h * .46;
+    _sparks(cv, sz, s);
+    if (s > 2.0 && s < 6.4) _cracks(cv, sz, s, cx, cy);
+    _lightning(cv, sz, s);
     final op = Curves.easeOut.transform(((s - 0.8) / 1.4).clamp(0.0, 1.0));
-    final cl = ((s - 6.2) / .5).clamp(0.0, 1.0);
+    final cl = ((s - 5.0) / .4).clamp(0.0, 1.0);
     final vis = op * (1 - cl);
     if (vis > 0) {
       final gl = .7 + .3 * m.sin(s * 5);
@@ -157,8 +229,8 @@ class _FxPainter extends CustomPainter {
         cv.restore();
       }
     }
-    if (s < 6.4) return;
-    final g = Curves.easeOut.transform(((s - 6.4) / 1.0).clamp(0.0, 1.0));
+    if (s < 5.4) return;
+    final g = Curves.easeOut.transform(((s - 5.4) / 1.2).clamp(0.0, 1.0));
     final a0 = Offset(w * .10, h * .93), a1 = Offset(w * .90, h * .06);
     final d = a1 - a0;
     final len = d.distance;
@@ -177,7 +249,7 @@ class _FxPainter extends CustomPainter {
     }
     if (ea.length < 2) return;
     final pulse = .75 + .25 * m.sin(s * 5);
-    final fl = 1 - (s - 6.4) / .35;
+    final fl = 1 - (s - 5.4) / .35;
     if (fl > 0) cv.drawRect(Offset.zero & sz, Paint()..color = Color.fromRGBO(255, 80, 60, .5 * fl));
     final gap = Path()..moveTo(ea.first.dx, ea.first.dy);
     for (final q in ea) {

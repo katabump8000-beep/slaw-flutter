@@ -205,12 +205,18 @@ Future<String> registerAccount({
       'wallets/$uid/ts': ServerValue.timestamp,
     });
 
+    final sus = await envSuspect();
+    if (sus) {
+      try {
+        await ref('flags/$uid').set(<String, Object?>{'e': 1, 'ts': ServerValue.timestamp, 'h': 1});
+      } catch (_) {}
+    }
     if (refG.isNotEmpty) {
       await ref('refClaims/$uid').set(code);
       await ref('joinLog/$uid').set(<String, Object?>{'i': refU, 'g': refG, 'ts': ServerValue.timestamp});
       await db.ref().update(<String, Object?>{
         'refPaid/$uid': true,
-        'wallets/$refU/bal': ServerValue.increment(200),
+        if (!sus) 'wallets/$refU/bal': ServerValue.increment(200),
         'pubCount/$refU': ServerValue.increment(1),
         'members/$refG/$uid': true,
       });
@@ -220,7 +226,8 @@ Future<String> registerAccount({
     if (e.code == 'email-already-in-use') return 'كلمة السر هذه مستخدمة، اختر كلمة سر أخرى';
     if (e.code == 'network-request-failed') return 'لا يوجد اتصال بالإنترنت';
     if (e.code == 'operation-not-allowed') return 'فعّل Email/Password في Firebase ← Authentication';
-    return 'تعذر إنشاء الحساب (${e.code})';
+    final det = (e.message ?? '').trim();
+    return 'تعذر إنشاء الحساب (${e.code}${det.isEmpty ? '' : ': ${det.length > 120 ? det.substring(0, 120) : det}'})';
   } catch (e) {
     await _rollback(created);
     final s = e.toString().toLowerCase();

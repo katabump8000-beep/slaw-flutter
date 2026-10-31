@@ -1,3 +1,4 @@
+import 'vip.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -182,7 +183,9 @@ class AppButton extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(valueListenable: vipOn, builder: (c, vip, _) => _b(c, vip));
+
+  Widget _b(BuildContext context, bool vip) {
     final radius = BorderRadius.circular(12);
     BoxDecoration deco;
     Color fg;
@@ -207,6 +210,16 @@ class AppButton extends StatelessWidget {
       );
       fg = kDarkText;
       w = FontWeight.w800;
+    }
+    if (vip) {
+      final edge = kind == 'r' ? kRed : context.accent2;
+      deco = BoxDecoration(
+        color: const Color(0xFF0A0A10),
+        borderRadius: radius,
+        border: Border.all(color: edge, width: 1.6),
+        boxShadow: [BoxShadow(color: edge.withAlpha(80), blurRadius: 10)],
+      );
+      fg = edge;
     }
     return Opacity(
       opacity: onPressed == null ? .5 : 1,
@@ -314,7 +327,8 @@ Future<T?> showAppSheet<T>(BuildContext context, List<Widget> Function(BuildCont
 
 /// شارة «مطور» ثابتة: تدرج أزرق كهربائي إلى بنفسجي مع توهج خفيف، بدون أي حركة
 class DevBadge extends StatelessWidget {
-  const DevBadge({super.key});
+  final bool founder;
+  const DevBadge({super.key, this.founder = false});
 
   @override
   Widget build(BuildContext context) {
@@ -326,8 +340,8 @@ class DevBadge extends StatelessWidget {
         shaderCallback: (r) => const LinearGradient(
           colors: [Color(0xFF2EA8FF), Color(0xFF8A3DFF)],
         ).createShader(r),
-        child: const Text(
-          'مطور',
+        child: Text(
+          founder ? 'المؤسس' : 'مطور',
           style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white),
         ),
       ),
@@ -432,14 +446,17 @@ class SecCard extends StatelessWidget {
   const SecCard({super.key, required this.title, required this.children});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(valueListenable: vipOn, builder: (c, vip, _) => _card(c, vip));
+
+  Widget _card(BuildContext context, bool vip) {
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: accentA(context, .55)),
-        color: const Color.fromRGBO(0, 0, 0, .25),
+        border: Border.all(color: vip ? context.accent2 : accentA(context, .55), width: vip ? 1.6 : 1),
+        color: vip ? const Color(0xFF08080D) : const Color.fromRGBO(0, 0, 0, .25),
+        boxShadow: vip ? [BoxShadow(color: accentA(context, .3), blurRadius: 10)] : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

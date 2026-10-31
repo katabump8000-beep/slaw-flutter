@@ -108,11 +108,10 @@ class _ProfileBodyState extends State<_ProfileBody> {
       Center(
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Text(p!.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-          if (role == 'emp') ...[const SizedBox(width: 6), const InfinityMark(size: 22)],
         ]),
       ),
       const SizedBox(height: 6),
-      Center(child: Wrap(spacing: 6, runSpacing: 6, children: [if (role == 'dev' || role == 'emp') const DevBadge(), if (tag != null) tag, ageTag(p!, role: role), Tag(p!.gender == 'f' ? 'أنثى' : 'ذكر'), if (pubs > 10) const Tag('رتبة عالية 🌟')])),
+      Center(child: Wrap(spacing: 6, runSpacing: 6, children: [if (role == 'dev' || role == 'emp') DevBadge(founder: role == 'emp'), if (tag != null) tag, ageTag(p!, role: role), FutureBuilder<DataSnapshot>(future: ref('pdata/${widget.uid}/elite').get(), builder: (c, es) => es.data?.value == true ? const Tag('نخبة 🏅', fg: Color(0xFFFFB04A)) : const SizedBox.shrink()), Tag(p!.gender == 'f' ? 'أنثى' : 'ذكر'), if (pubs > 10) const Tag('رتبة عالية 🌟')])),
       if (pid.isNotEmpty) Center(child: Text('ID: $pid', style: const TextStyle(color: kMu, letterSpacing: 1.5))),
       const SizedBox(height: 8),
       if (note.isNotEmpty)
@@ -125,8 +124,8 @@ class _ProfileBodyState extends State<_ProfileBody> {
       if (priv && widget.uid != myUid && !Session.isDev)
         const Padding(padding: EdgeInsets.all(14), child: Center(child: Text('🔒 هذا الملف التعريفي خاص', style: TextStyle(color: kMu))))
       else ...[
-        Row(children: [_stat('رسائل', '$msgs'), _stat('فوز بالفعاليات', '$wins'), _stat('مساهمة الترقية', '$contrib')]),
-        Row(children: [_stat('النشر', '$pubs'), _stat('درجة الفخر', '$pride%'), _stat('الإعجابات', '$likes')]),
+        Row(children: [_stat('رسائل', role == 'emp' ? '99M' : '$msgs'), _stat('فوز بالفعاليات', role == 'emp' ? '99M' : '$wins'), _stat('مساهمة الترقية', role == 'emp' ? '99M' : '$contrib')]),
+        Row(children: [_stat('النشر', '$pubs'), _stat('درجة الفخر', '$pride%'), _stat('الإعجابات', role == 'emp' ? '99M' : '$likes')]),
       ],
       const SizedBox(height: 8),
       if (widget.uid != myUid)

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:firebase_database/firebase_database.dart';
@@ -81,16 +82,22 @@ class _RouletteScreenState extends State<RouletteScreen> with SingleTickerProvid
   double from = 0, to = 0;
   bool busy = false;
   String info = 'لفّة واحدة كل 12 ساعة';
-  int left = 0;
+  int nextAt = 0;
+  Timer? tk;
+  int get left => nextAt - DateTime.now().millisecondsSinceEpoch;
 
   @override
   void initState() {
     super.initState();
     _check();
+    tk = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && left > -1000) setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    tk?.cancel();
     c.dispose();
     super.dispose();
   }
@@ -102,12 +109,17 @@ class _RouletteScreenState extends State<RouletteScreen> with SingleTickerProvid
         final l = 43200000 - (DateTime.now().millisecondsSinceEpoch - v.toInt());
         if (l > 0 && mounted) {
           setState(() {
-            left = l;
-            info = 'اللفة القادمة بعد ${_fmt(l)}';
+            nextAt = DateTime.now().millisecondsSinceEpoch + l;
           });
         }
       }
     } catch (_) {}
+  }
+
+  String _hms(int ms) {
+    final s = (ms / 1000).ceil();
+    String p(int x) => x.toString().padLeft(2, '0');
+    return '${p(s ~/ 3600)}:${p((s % 3600) ~/ 60)}:${p(s % 60)}';
   }
 
   String _fmt(int ms) {
@@ -155,7 +167,7 @@ class _RouletteScreenState extends State<RouletteScreen> with SingleTickerProvid
     } catch (_) {
       toast('تعذر إضافة الجائزة، تواصل مع مطور', bad: true);
     }
-    left = 43200000;
+    nextAt = DateTime.now().millisecondsSinceEpoch + 43200000;
     if (mounted) setState(() => busy = false);
   }
 
@@ -183,7 +195,12 @@ class _RouletteScreenState extends State<RouletteScreen> with SingleTickerProvid
             ),
           ),
           const SizedBox(height: 22),
-          Text(info, style: TextStyle(color: context.accent2, fontWeight: FontWeight.w800, fontSize: 15)),
+          if (left > 0 && !busy) ...[
+            const Text('اللفة القادمة بعد', style: TextStyle(color: kMu)),
+            const SizedBox(height: 4),
+            Text(_hms(left), style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: 2)),
+          ] else
+            Text(info, style: TextStyle(color: context.accent2, fontWeight: FontWeight.w800, fontSize: 15)),
           const SizedBox(height: 14),
           SizedBox(width: 220, child: AppButton(busy ? '...' : 'لف 🎡', glow: true, onPressed: busy || left > 0 ? null : _spin)),
         ]),

@@ -115,7 +115,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(Session.me.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-                  if (Session.isEmp) ...[const SizedBox(width: 6), const InfinityMark(size: 22)],
                 ],
               ),
             ),
@@ -209,7 +208,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (Session.isEmp) ...[
             _title('الإمبراطور'),
             ListTile(
-              leading: const InfinityMark(size: 26),
+              leading: const Icon(Icons.workspace_premium_outlined),
               title: const Text('إدارة المستخدمين'),
               subtitle: const Text('بحث بالـID وتعيين المطورين', style: TextStyle(color: kMu, fontSize: 12)),
               onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const EmpScreen())),

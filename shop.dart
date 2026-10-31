@@ -25,6 +25,55 @@ const List<_Item> _items = [
   _Item('war', '⚔️', 'إعلان حرب', 10000, 'للمشرفين فقط', staff: true),
 ];
 
+final Map<String, int> _ovr = {};
+int _pr(_Item it) => _ovr[it.id] ?? it.p;
+
+Future<void> loadShopPrices() async {
+  try {
+    final v = (await ref('shopPrices').get()).value;
+    _ovr.clear();
+    if (v is Map) {
+      v.forEach((k, x) {
+        if (x is num) _ovr[k.toString()] = x.toInt();
+      });
+    }
+  } catch (_) {}
+}
+
+Future<void> editShopPrices(BuildContext context) async {
+  await loadShopPrices();
+  final cs = <String, TextEditingController>{for (final it in _items) it.id: TextEditingController(text: '${_pr(it)}')};
+  if (!context.mounted) return;
+  await showAppSheet<void>(context, (sc) => [
+        const Text('أسعار المتجر', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 8),
+        for (final it in _items)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(children: [
+              Expanded(child: Text('${it.e} ${it.n}')),
+              SizedBox(width: 110, child: TextField(controller: cs[it.id], keyboardType: TextInputType.number, textAlign: TextAlign.center)),
+            ]),
+          ),
+        const SizedBox(height: 10),
+        AppButton('حفظ', onPressed: () async {
+          final up = <String, Object?>{};
+          for (final it in _items) {
+            final n = int.tryParse(normDigits(cs[it.id]!.text));
+            if (n != null && n >= 0) up['shopPrices/${it.id}'] = n;
+          }
+          try {
+            await db.ref().update(up);
+            await loadShopPrices();
+            toast('تم حفظ الأسعار ✅');
+            if (sc.mounted) Navigator.of(sc).pop();
+          } catch (e) {
+            err(e);
+          }
+        }),
+      ]);
+}
+
 class ShopRoute extends StatelessWidget {
   const ShopRoute({super.key});
   @override
@@ -44,6 +93,9 @@ class _ShopScreenState extends State<ShopScreen> {
   void initState() {
     super.initState();
     _staff();
+    loadShopPrices().then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   Future<void> _staff() async {
@@ -60,7 +112,7 @@ class _ShopScreenState extends State<ShopScreen> {
 
   Future<void> _buy(_Item it) async {
     try {
-      if ((await balanceNow()) < it.p) {
+      if ((await balanceNow()) < _pr(it)) {
         toast('رصيدك لا يكفي', bad: true);
         return;
       }
@@ -68,7 +120,7 @@ class _ShopScreenState extends State<ShopScreen> {
       final W = '$w/$myUid/bal';
       switch (it.id) {
         case 'upg':
-          await db.ref().update(<String, Object?>{'inv/$myUid/upg': ServerValue.increment(1), W: ServerValue.increment(-it.p)});
+          await db.ref().update(<String, Object?>{'inv/$myUid/upg': ServerValue.increment(1), W: ServerValue.increment(-_pr(it))});
           toast('تم شراء بطاقة ترقية ✅');
           break;
         case 'x2':
@@ -76,7 +128,7 @@ class _ShopScreenState extends State<ShopScreen> {
             toast('المضاعفة مفعّلة بالفعل', bad: true);
             return;
           }
-          await db.ref().update(<String, Object?>{'boost/$myUid': true, W: ServerValue.increment(-it.p)});
+          await db.ref().update(<String, Object?>{'boost/$myUid': true, W: ServerValue.increment(-_pr(it))});
           toast('تم تفعيل مضاعفة الرسائل، اذهب وتفاعل ✅');
           break;
         case 'nick':
@@ -119,7 +171,7 @@ class _ShopScreenState extends State<ShopScreen> {
 
   void _nick(_Item it) => _nameSheet('🏷 تغيير لقبك', (n) async {
         try {
-          await db.ref().update(<String, Object?>{'profiles/$myUid/name': n, 'wallets/$myUid/bal': ServerValue.increment(-it.p)});
+          await db.ref().update(<String, Object?>{'profiles/$myUid/name': n, 'wallets/$myUid/bal': ServerValue.increment(-_pr(it))});
           Session.me = Prof(n, Session.me.color, Session.me.gender, Session.me.ts);
           setProfCache(myUid, Session.me);
           toast('تم تغيير لقبك ✅');
@@ -160,7 +212,7 @@ class _ShopScreenState extends State<ShopScreen> {
                 Navigator.of(sc).pop();
                 _nameSheet('اللقب الجديد لـ ${ps[i].name}', (n) async {
                   try {
-                    await db.ref().update(<String, Object?>{'profiles/${ok[i]}/name': n, 'wallets/$myUid/bal': ServerValue.increment(-it.p)});
+                    await db.ref().update(<String, Object?>{'profiles/${ok[i]}/name': n, 'wallets/$myUid/bal': ServerValue.increment(-_pr(it))});
                     dropProf(ok[i]);
                     toast('تم ✅');
                     await feedNote('shop', '💥 ${Session.me.name} خرّب لقب ${ps[i].name}', k: 'buy');
@@ -191,7 +243,7 @@ class _ShopScreenState extends State<ShopScreen> {
                   await db.ref().update(<String, Object?>{
                     'members/$g/$myUid': 'v',
                     'visit/$myUid': <String, Object?>{'g': g, 'home': home.first, 'until': DateTime.now().millisecondsSinceEpoch + 3 * 86400000},
-                    'wallets/$myUid/bal': ServerValue.increment(-it.p),
+                    'wallets/$myUid/bal': ServerValue.increment(-_pr(it)),
                   });
                   memCache[g] = 'v';
                   await ref('messages/$g').push().set(<String, Object?>{
@@ -211,7 +263,17 @@ class _ShopScreenState extends State<ShopScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('🛒 المتجر'), actions: const [Padding(padding: EdgeInsets.all(10), child: BalanceChip())]),
+      appBar: AppBar(title: const Text('🛒 المتجر'), actions: [
+        if (Session.isDev)
+          IconButton(
+            icon: const Icon(Icons.edit_note),
+            onPressed: () async {
+              await editShopPrices(context);
+              if (mounted) setState(() {});
+            },
+          ),
+        const Padding(padding: EdgeInsets.all(10), child: BalanceChip()),
+      ]),
       body: ListView(children: [
         for (final it in _items)
           if (!it.staff || staff)
@@ -219,7 +281,7 @@ class _ShopScreenState extends State<ShopScreen> {
               leading: CircleAvatar(backgroundColor: accentA(context, .18), child: Text(it.e, style: const TextStyle(fontSize: 18))),
               title: Text(it.n, style: const TextStyle(fontWeight: FontWeight.w800)),
               subtitle: Text(it.d, style: const TextStyle(color: kMu, fontSize: 12)),
-              trailing: SizedBox(width: 92, child: AppButton(fmtN(it.p), compact: true, onPressed: () => _buy(it))),
+              trailing: SizedBox(width: 92, child: AppButton(fmtN(_pr(it)), compact: true, onPressed: () => _buy(it))),
             ),
       ]),
     );

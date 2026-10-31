@@ -1,3 +1,5 @@
+import 'shop.dart';
+import 'kingdoms.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -202,7 +204,14 @@ class _ToolsState extends State<ToolsScreen> {
         _t(Icons.shield_outlined, 'درجة الفخر (بالـID)', _pride),
         _t(Icons.badge_outlined, 'تعديل معرّفات', () => go(EmpScreen(canAppoint: emp)), sub: 'ابحث عن أي مستخدم وعدّل معرّفه'),
         _t(Icons.edit_outlined, 'تعديل معرّفي', () => editPidDialog(context, myUid)),
+        _t(Icons.tune, 'تعديل مستوى النقابة', () => editGuildLevels(context), sub: 'الهجوم والدفاع'),
+        _t(Icons.science_outlined, 'تجارب', () => warTrial(context), sub: 'عرض الحرب عندك فقط'),
+        _t(Icons.library_music_outlined, 'تعيين موسيقى بالخلفية', () => uploadBgm(), sub: 'مستوى الصوت 15%'),
+        _t(Icons.castle_outlined, 'الممالك', () => go(const KingdomsScreen()), sub: 'عرض الممالك ونقاباتها'),
+        _t(Icons.admin_panel_settings_outlined, 'إنشاء جروب ADMINS', createAdminsGroup, sub: 'يضم كل المشرفين والمطورين والإمبراطور'),
+        _t(Icons.sell_outlined, 'أسعار المتجر', () => editShopPrices(context), sub: 'تعديل سعر أي عنصر'),
         if (emp) ...[
+          _t(Icons.merge, 'دمج أو إنشاء مملكة', () => go(const KingdomMakeScreen()), sub: 'اجمع عدة نقابات تحت مملكة واحدة'),
           const Divider(),
           _t(Icons.block, 'المقيدون', () => go(const RestrictedScreen()), sub: 'من ظهرت له رسالة «لا يمكن إنشاء حساب آخر»'),
           _t(Icons.restart_alt, 'تصفير المتصدرين', () async {
@@ -215,11 +224,8 @@ class _ToolsState extends State<ToolsScreen> {
           }),
           _t(Icons.schedule, 'ساعة الحسبة اليومية', _hour),
           _t(Icons.merge_type, 'دمج نقابات', () => mergeGuilds(context), sub: 'نقل الأعضاء إلى نقابة واحدة باسم جديد'),
-          _t(Icons.tune, 'تعديل مستوى النقابة', () => editGuildLevels(context), sub: 'الهجوم والدفاع'),
-          _t(Icons.science_outlined, 'تجارب', () => warTrial(context), sub: 'عرض الحرب عندك فقط'),
           _t(Icons.system_update, 'نشر تحديث', () => publishUpdateSheet(context), sub: 'يظهر للأعضاء عند فتح التطبيق'),
           _t(Icons.support_agent, 'تعيين مسؤول الدعم', _support, sub: 'يصله إشعار البلاغات'),
-          _t(Icons.library_music_outlined, 'تعيين موسيقى بالخلفية', () => uploadBgm(), sub: 'مستوى الصوت 15%'),
           _t(Icons.help_outline, 'التعليمات (فيديو)', () => uploadVideo('guide'), sub: 'يظهر عند الضغط على 🔽'),
           _t(Icons.slideshow, 'حالة الإمبراطور (فيديو)', () => uploadVideo('status'), sub: 'يظهر عند الضغط على صورتك'),
           _t(Icons.verified_user_outlined, 'اعتماد هذه النسخة', approveSig, sub: 'يقفل أي نسخة معدّلة على الأعضاء'),

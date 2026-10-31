@@ -1,3 +1,4 @@
+import 'core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 
@@ -136,6 +137,12 @@ class _FriendsScreenState extends State<FriendsScreen> {
         return;
       }
       await ref('friendReq/$u/$myUid').set(ServerValue.timestamp);
+      for (final g in mainGroups()) {
+        try {
+          await ref('notifs/$u').push().set(<String, Object?>{'t': 'frq', 'from': myUid, 'g': g, 'tx': 'هناك من أرسل لك طلب صداقة', 'ts': ServerValue.timestamp});
+          break;
+        } catch (_) {}
+      }
       toast('تم إرسال الطلب ✅');
     } catch (e) {
       toast('الطلب مرسل مسبقاً أو غير متاح', bad: true);

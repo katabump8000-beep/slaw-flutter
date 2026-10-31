@@ -67,7 +67,7 @@ void callbackDispatcher() {
           if (ts > mx) mx = ts;
           final t = (x['t'] ?? '').toString();
           final tx = (x['tx'] ?? '').toString();
-          final title = t == 'men' ? 'هناك من ذكر اسمك' : (t == 'sup' ? 'رسالة ابلاغ من احد الاعضاء' : 'FIR');
+          final title = t == 'men' ? 'هناك من ذكر اسمك' : (t == 'sup' ? 'رسالة ابلاغ من احد الاعضاء' : (t == 'frq' ? 'طلب صداقة 👥' : 'FIR'));
           showLocal(id++, title, tx.isNotEmpty ? tx : 'لديك إشعار جديد');
         });
       }

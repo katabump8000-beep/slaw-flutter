@@ -1,3 +1,5 @@
+import 'sorter.dart';
+import 'kingdoms.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -206,7 +208,10 @@ class _InfoState extends State<GroupInfoScreen> {
         b('🔊 إلغاء الكتم', () => ref('bans/$gid/$u').remove()),
         if (kind == 'main') b(gp ? '🎮 سحب صلاحية الألعاب' : '🎮 منح صلاحية الألعاب', () => gp ? ref('gamePerm/$gid/$u').remove() : ref('gamePerm/$gid/$u').set(true)),
         if (Session.isDev) b(admins[u] == true ? '⬇️ إزالة الإشراف' : '⬆️ تعيين مشرف', () => admins[u] == true ? ref('groupAdmins/$gid/$u').remove() : ref('groupAdmins/$gid/$u').set(true), note: 'role'),
-        b('🚪 طرد من القروب', () => ref('members/$gid/$u').remove(), kind: 'r', note: 'kick'),
+        b('🚪 طرد من القروب', () async {
+          await ref('members/$gid/$u').remove();
+          await syncMulti(u);
+        }, kind: 'r', note: 'kick'),
         if (Session.isDev && !high) b('⛔ حظر من التطبيق', () => ref('banned/$u').set(true), kind: 'r'),
         if (Session.isDev) b('✅ رفع الحظر من التطبيق', () => ref('banned/$u').remove()),
       ];
@@ -264,6 +269,7 @@ class _InfoState extends State<GroupInfoScreen> {
               if (staff) const Center(child: Padding(padding: EdgeInsets.only(top: 4), child: Text('اضغط الصورة لتغييرها', style: TextStyle(color: kMu, fontSize: 12)))),
               Center(child: Padding(padding: const EdgeInsets.only(top: 8), child: Text(groupName(gid), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)))),
               Center(child: Tag(kKinds[kind] ?? '')),
+              KingdomLine(gid: gid),
               Padding(padding: const EdgeInsets.all(16), child: Text((g['desc'] ?? '').toString().isEmpty ? 'لا يوجد وصف' : g['desc'].toString(), style: const TextStyle(color: kMu, height: 1.8))),
               if (status.isNotEmpty) Container(margin: const EdgeInsets.symmetric(horizontal: 16), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: accentA(context, .1), borderRadius: BorderRadius.circular(12)), child: Text('📌 $status')),
               if (staff) ...[
@@ -336,7 +342,6 @@ class _MemberRow extends StatelessWidget {
           leading: UserAvatar(u, size: 42),
           title: Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
             Text(p.name, style: const TextStyle(fontWeight: FontWeight.w800)),
-            if (r == 'emp') const InfinityMark(size: 15),
             if (tag != null) tag,
             if (admin && r == null) const Tag('مشرف'),
             ageTag(p, role: r),

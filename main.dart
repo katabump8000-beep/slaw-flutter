@@ -1,3 +1,4 @@
+import 'vip.dart';
 import 'uiprefs.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -74,7 +75,13 @@ class FirApp extends StatelessWidget {
             data: MediaQuery.of(c2).copyWith(textScaler: TextScaler.linear(fontScale(fs))),
             child: Directionality(
               textDirection: TextDirection.rtl,
-              child: TapSound(child: Stack(children: [child ?? const SizedBox(), const EdgeGlow()])),
+              child: TapSound(
+                child: Stack(children: [
+                  child ?? const SizedBox(),
+                  const EdgeGlow(),
+                  ValueListenableBuilder<bool>(valueListenable: vipOn, builder: (c3, v, _) => v ? const VipLayers() : const SizedBox.shrink()),
+                ]),
+              ),
             ),
           ),
         ),

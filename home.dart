@@ -22,7 +22,11 @@ import 'war.dart';
 import 'friends.dart';
 import 'board.dart';
 import 'update.dart';
+import 'empcard.dart';
+import 'gift.dart';
+import 'unread.dart';
 import 'roulette.dart';
+import 'vip.dart';
 import 'sorter.dart';
 import 'status.dart';
 import 'widgets.dart';
@@ -172,7 +176,9 @@ class BalanceChip extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: neg ? kRed : kLine),
           ),
-          child: Text('💰 ${fmtN(n)}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: neg ? kRed : kTx)),
+          child: Session.isEmp
+              ? const Row(mainAxisSize: MainAxisSize.min, children: [Text('💰 ', style: TextStyle(fontSize: 12)), InfinityMark(size: 15)])
+              : Text('💰 ${fmtN(n)}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: neg ? kRed : kTx)),
         );
       },
     );
@@ -274,25 +280,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                    decoration: BoxDecoration(color: tint(col, .38), borderRadius: BorderRadius.circular(9)),
-                    child: Text(groupName(g),
-                        maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                  ),
+                  Row(children: [
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                        decoration: BoxDecoration(color: tint(col, .38), borderRadius: BorderRadius.circular(9)),
+                        child: Text(groupName(g),
+                            maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                      ),
+                    ),
+                    if (dot)
+                      Container(
+                        margin: const EdgeInsetsDirectional.only(start: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                        decoration: BoxDecoration(color: context.accent, borderRadius: BorderRadius.circular(10)),
+                        child: const Text('@', style: TextStyle(color: kDarkText, fontWeight: FontWeight.w900, fontSize: 13)),
+                      ),
+                    UnreadBadge(gid: g),
+                  ]),
                   const SizedBox(height: 3),
                   Text(kKinds[kind] ?? '', style: const TextStyle(fontSize: 12, color: kMu)),
                 ],
               ),
             ),
             if (memCache[g] == 'v') const Tag('زائر'),
-            if (dot)
-              Container(
-                width: 12,
-                height: 12,
-                margin: const EdgeInsetsDirectional.only(start: 8),
-                decoration: BoxDecoration(shape: BoxShape.circle, color: context.accent),
-              ),
           ],
         ),
       ),
@@ -391,10 +402,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             child: Text(Session.me.name,
                                 maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
                           ),
-                          if (Session.isEmp) ...[const SizedBox(width: 6), const InfinityMark()],
-                        ]),
+                                        ]),
                         const SizedBox(height: 3),
-                        const Row(children: [BalanceChip(), SizedBox(width: 10), StatusBadge()]),
+                        const Wrap(spacing: 10, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [BalanceChip(), StatusBadge(), VipChip()]),
                       ],
                     ),
                   ),
@@ -424,7 +434,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         builder: (c, _, __) => ListView(
                           physics: const AlwaysScrollableScrollPhysics(),
                           children: [
-                            const EmpChatCard(),
+                            const EmperorCard(),
                             const FriendsSection(),
                             if (!hasMain && !Session.isDev)
                               Container(
@@ -452,7 +462,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ],
         ),
       ),
-      const Positioned(left: 14, bottom: 12, child: RouletteFab()),
+      Positioned(right: 14, bottom: Session.isDev ? 90 : 12, child: const GiftBox()),
+      Positioned(right: 14, bottom: Session.isDev ? 166 : 88, child: const RouletteFab()),
       ]),
     );
   }

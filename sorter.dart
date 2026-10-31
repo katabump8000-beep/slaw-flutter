@@ -1,10 +1,12 @@
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'aljesi.dart';
 import 'app_state.dart';
 import 'config.dart';
 import 'core.dart';
+import 'home.dart';
 import 'data.dart';
 import 'widgets.dart';
 
@@ -25,8 +27,54 @@ String nameKey(String raw) {
 }
 
 /// يسجّل آخر ظهور ونسخة التطبيق، ويحجز لقب العضو في فهرس الألقاب
+/// هل التطبيق يعمل داخل بيئة مستنسخة/افتراضية؟ (كشف تقريبي لا يحظر أحداً)
+Future<bool> envSuspect() async {
+  try {
+    final d = (await getApplicationSupportDirectory()).path;
+    if (!(d.startsWith('/data/user/0/') || d.startsWith('/data/data/'))) return true;
+    final low = d.toLowerCase();
+    return low.contains('virtual') || low.contains('parallel') || low.contains('clone') || low.contains('dualspace') || low.contains('multi');
+  } catch (_) {
+    return false;
+  }
+}
+
+/// بعد إزالة عضو من نقابة: يحدّث علامة «تعدد» (تبقى فقط لمن هو في نقابتين أو أكثر)
+Future<void> syncMulti(String u) async {
+  try {
+    var n = 0;
+    for (final x in groupsCache.keys.where((x) => groupKind(x) == 'main')) {
+      if ((await ref('members/$x/$u').get()).value == true) n++;
+    }
+    if (n >= 2) {
+      await ref('multi/$u').set(true);
+    } else {
+      await ref('multi/$u').remove();
+    }
+  } catch (_) {}
+}
+
+Future<void> prideRegen() async {
+  try {
+    final p = await ref('pride/$myUid').get();
+    if (!p.exists || p.value is! num) return;
+    final cur = (p.value as num).toInt();
+    if (cur >= 100) return;
+    final t = (await ref('prideTs/$myUid').get()).value;
+    if (t is num && DateTime.now().millisecondsSinceEpoch - t.toInt() < 10800000) return;
+    await db.ref().update(<String, Object?>{'pride/$myUid': cur + 1, 'prideTs/$myUid': ServerValue.timestamp});
+  } catch (_) {}
+}
+
 Future<void> markSeen() async {
   if (myUid.isEmpty) return;
+  prideRegen();
+  envSuspect().then((s) async {
+    if (!s) return;
+    try {
+      await ref('flags/$myUid').set(<String, Object?>{'e': 1, 'ts': ServerValue.timestamp});
+    } catch (_) {}
+  });
   try {
     await ref('seen/$myUid').set(<String, Object?>{'t': ServerValue.timestamp, 'b': kBuild});
   } catch (_) {}
@@ -67,6 +115,7 @@ class _SorterScreenState extends State<SorterScreen> {
   List<MapEntry<String, Prof>> users = [];
   Map<String, dynamic> seen = {};
   Set<String> online = {};
+  Set<String> flagged = {};
 
   @override
   void initState() {
@@ -83,10 +132,12 @@ class _SorterScreenState extends State<SorterScreen> {
   Future<void> _load() async {
     setState(() => loading = true);
     try {
-      final r = await Future.wait<DataSnapshot>([ref('profiles').get(), ref('seen').get(), ref('presence').get()]);
+      final r = await Future.wait<DataSnapshot>([ref('profiles').get(), ref('seen').get(), ref('presence').get(), ref('flags').get()]);
       final pv = r[0].value;
       final sv = r[1].value;
       final ov = r[2].value;
+      final fv = r[3].value;
+      flagged = fv is Map ? fv.keys.map((e) => e.toString()).toSet() : {};
       final l = <MapEntry<String, Prof>>[];
       if (pv is Map) {
         pv.forEach((k, v) {
@@ -151,7 +202,7 @@ class _SorterScreenState extends State<SorterScreen> {
         if (s.exists && s.value.toString() == uid) await ref('nameIdx/$g/$key').remove();
       } catch (_) {}
     }
-    for (final path in ['avatars/$uid', 'seen/$uid', 'profiles/$uid']) {
+    for (final path in ['avatars/$uid', 'seen/$uid', 'flags/$uid', 'profiles/$uid']) {
       try {
         await ref(path).remove();
       } catch (_) {}
@@ -183,7 +234,7 @@ class _SorterScreenState extends State<SorterScreen> {
                     final e = shown[i];
                     return ListTile(
                       leading: UserAvatar(e.key, size: 42),
-                      title: Text(e.value.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                      title: Text('${e.value.name}${flagged.contains(e.key) ? '  ⚠️' : ''}', style: const TextStyle(fontWeight: FontWeight.w800)),
                       subtitle: Row(children: [_ver(e.key), const SizedBox(width: 10), Flexible(child: Text(_lastSeen(e.key), style: const TextStyle(color: kMu, fontSize: 11.5)))]),
                       trailing: IconButton(icon: const Icon(Icons.delete_outline, color: Color(0xFFFF6B6B)), onPressed: () => _delete(e.key, e.value)),
                     );

@@ -1,3 +1,6 @@
+import 'unread.dart';
+import 'stickers.dart';
+import 'vip.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -100,6 +103,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    markGroupRead(gid);
     locked = groupsCache[gid]?['locked'] == true;
     final q = ref('messages/$gid').orderByKey().limitToLast(30);
     subs.add(q.onChildAdded.listen((e) => _put(e.snapshot), onError: (_) {}));
@@ -164,6 +168,7 @@ class _ChatScreenState extends State<ChatScreen> {
     rec.dispose();
     scroll.dispose();
     ctrl.dispose();
+    markGroupRead(gid);
     super.dispose();
   }
 
@@ -298,7 +303,7 @@ class _ChatScreenState extends State<ChatScreen> {
         'from': myUid,
         'type': type,
         'ts': ServerValue.timestamp,
-        'color': Session.me.color,
+        'color': (prefs.getString('txtc') ?? '').isNotEmpty ? prefs.getString('txtc')! : Session.me.color,
         if (visitor) 'vis': true,
         if (_reply != null) 'rpn': _reply!['n'],
         if (_reply != null) 'rpt': _reply!['t'],
@@ -446,6 +451,14 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // ---------- الملصقات ----------
+  List<String> _recent() => (prefs.getString('rstk') ?? '').split(',').where((e) => e.isNotEmpty).toList();
+
+  void _pushRecent(String sid) {
+    final l = _recent()..remove(sid);
+    l.insert(0, sid);
+    prefs.setString('rstk', l.take(10).join(','));
+  }
+
   Future<void> _stickers() async {
     if (!_gate()) return;
     List<String> mine = [];
@@ -454,8 +467,39 @@ class _ChatScreenState extends State<ChatScreen> {
       if (v is Map) mine = v.keys.map((e) => e.toString()).toList();
     } catch (_) {}
     if (!mounted) return;
+    final rec = _recent().where((s) => mine.contains(s)).toList();
+    Future<void> sendSticker(String sid) async {
+      try {
+        final m = _base('sticker');
+        m['sid'] = sid;
+        await _post(m, count: false);
+        _pushRecent(sid);
+      } catch (e) {
+        err(e);
+      }
+    }
     showAppSheet<void>(context, (sc) => [
           const Text('الملصقات', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+          if (rec.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(border: Border.all(color: kLine), borderRadius: BorderRadius.circular(14)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('آخر 10 ملصقات استخدمتها', style: TextStyle(color: kMu, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (final sid in rec)
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.of(sc).pop();
+                        sendSticker(sid);
+                      },
+                      child: _StickerImg(sid: sid, size: 60),
+                    ),
+                ]),
+              ]),
+            ),
           Wrap(spacing: 8, runSpacing: 8, children: [
             GestureDetector(
               onTap: () {
@@ -466,15 +510,9 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             for (final sid in mine)
               GestureDetector(
-                onTap: () async {
+                onTap: () {
                   Navigator.of(sc).pop();
-                  try {
-                    final m = _base('sticker');
-                    m['sid'] = sid;
-                    await _post(m, count: false);
-                  } catch (e) {
-                    err(e);
-                  }
+                  sendSticker(sid);
                 },
                 child: _StickerImg(sid: sid, size: 76),
               ),
@@ -630,15 +668,7 @@ class _ChatScreenState extends State<ChatScreen> {
               toast('تم النسخ');
             }),
           if (type == 'sticker' && (m['sid'] ?? '').toString().isNotEmpty)
-            AppButton('⭐ حفظ الملصق في ملصقاتي', kind: 'g', onPressed: () async {
-              Navigator.of(sc).pop();
-              try {
-                await ref('myStickers/$myUid/${m['sid']}').set(true);
-                toast('تم حفظ الملصق ✅');
-              } catch (e) {
-                err(e);
-              }
-            }),
+            StealStickerButton(sid: (m['sid'] ?? '').toString(), close: () => Navigator.of(sc).pop()),
           if (own && type == 'text')
             AppButton('✏️ تعديل', kind: 'g', onPressed: () {
               Navigator.of(sc).pop();
@@ -751,6 +781,83 @@ class _ChatScreenState extends State<ChatScreen> {
     ]);
   }
 
+  void _cmdsSheet() {
+    const cmds = [
+      ['.اوامر', 'قائمة الأوامر', ''],
+      ['.العاب', 'قائمة الألعاب', ''],
+      ['.رصيدي', 'رصيدك الحالي', ''],
+      ['.تفاصيلي', 'ملفك وإحصائياتك', ''],
+      ['.معلوماته', 'ملف عضو: اذكره بـ @', '1'],
+      ['.تحويل', 'حوّل رصيداً: .تحويل @اسم 50', '1'],
+      ['.كريستال', 'لعبة الكريستال', ''],
+      ['.اعلام', 'فعالية الأعلام', ''],
+      ['.كتابة', 'فعالية الكتابة', ''],
+      ['.تفكيك', 'فعالية التفكيك', ''],
+      ['.الوان', 'فعالية الألوان', ''],
+      ['.رهانات', 'فعالية الرهانات', ''],
+      ['.المتصدرين', 'قائمة المتصدرين', ''],
+      ['.الغاء', 'إلغاء الفعالية الجارية', ''],
+    ];
+    showAppSheet<void>(context, (sc) => [
+          const Text('📋 الأوامر', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+          for (final cm in cmds)
+            ListTile(
+              dense: true,
+              title: Text(cm[0], style: const TextStyle(fontWeight: FontWeight.w800)),
+              subtitle: Text(cm[1], style: const TextStyle(color: kMu, fontSize: 12)),
+              onTap: () {
+                Navigator.of(sc).pop();
+                if (cm[2] == '1') {
+                  ctrl.text = '${cm[0]} ';
+                  ctrl.selection = TextSelection.collapsed(offset: ctrl.text.length);
+                } else {
+                  ctrl.text = cm[0];
+                  _sendText();
+                }
+              },
+            ),
+        ]);
+  }
+
+  void _plusMenu() {
+    const cols = ['#ff7a1a', '#ff4d4d', '#ff4fa0', '#a64bff', '#5b7bff', '#2ec8ff', '#19c7b0', '#2ee07a', '#ffd83b', '#9aa4b2'];
+    showAppSheet<void>(context, (sc) => [
+          const Text('➕ المزيد', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 8),
+          AppButton('📋 الأوامر', onPressed: () {
+            Navigator.of(sc).pop();
+            _cmdsSheet();
+          }),
+          const SizedBox(height: 8),
+          AppButton('🖼️ إرسال صورة', kind: 'g', onPressed: () {
+            Navigator.of(sc).pop();
+            _sendImage();
+          }),
+          const SizedBox(height: 12),
+          const Text('لون رسائلك (يبقى ثابتاً)', style: TextStyle(color: kMu, fontSize: 12.5)),
+          const SizedBox(height: 8),
+          Wrap(spacing: 10, runSpacing: 10, children: [
+            for (final cl in cols)
+              GestureDetector(
+                onTap: () {
+                  prefs.setString('txtc', cl);
+                  Navigator.of(sc).pop();
+                  toast('تم تغيير لون رسائلك');
+                },
+                child: Container(width: 38, height: 38, decoration: BoxDecoration(color: hexColor(cl), shape: BoxShape.circle, border: Border.all(color: Colors.white24))),
+              ),
+            GestureDetector(
+              onTap: () {
+                prefs.setString('txtc', '');
+                Navigator.of(sc).pop();
+                toast('عاد اللون الافتراضي');
+              },
+              child: Container(width: 38, height: 38, alignment: Alignment.center, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white38)), child: const Icon(Icons.restart_alt, size: 20)),
+            ),
+          ]),
+        ]);
+  }
+
   Widget _composerBody() {
     if (!canWrite) {
       return Container(
@@ -774,6 +881,7 @@ class _ChatScreenState extends State<ChatScreen> {
       child: SafeArea(
         top: false,
         child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          IconButton(visualDensity: VisualDensity.compact, onPressed: _plusMenu, icon: const Icon(Icons.add_circle_outline)),
           IconButton(visualDensity: VisualDensity.compact, onPressed: _sendImage, icon: const Icon(Icons.photo_outlined)),
           IconButton(visualDensity: VisualDensity.compact, onPressed: _stickers, icon: const Icon(Icons.emoji_emotions_outlined)),
           IconButton(visualDensity: VisualDensity.compact, onPressed: _mentionPicker, icon: const Icon(Icons.alternate_email)),
@@ -1054,13 +1162,12 @@ class _MsgBubbleState extends State<MsgBubble> {
         final tag = rankTag(r);
         final bio = widget.bio;
         final body = <Widget>[
-          if (isHigh) const Padding(padding: EdgeInsets.only(bottom: 2), child: DevBadge()),
+          if (isHigh) Padding(padding: const EdgeInsets.only(bottom: 2), child: DevBadge(founder: r == 'emp')),
           if (!mine)
             Padding(
               padding: const EdgeInsets.only(bottom: 2),
               child: Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
                 Text(p.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-                if (r == 'emp') const InfinityMark(size: 14),
                 if (tag != null) tag,
                 if (widget.admin && !isHigh) const Tag('مشرف'),
                 ageTag(p, role: r),
@@ -1104,10 +1211,11 @@ class _MsgBubbleState extends State<MsgBubble> {
         ));
         return GestureDetector(
           onLongPress: widget.onLong,
-          child: Container(
+          child: VipBubble(
             constraints: BoxConstraints(maxWidth: maxW, minWidth: 64),
             padding: const EdgeInsets.fromLTRB(11, 7, 11, 5),
-            decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hexColor(col), hexColor(darkHex(col))]), borderRadius: BorderRadius.circular(16)),
+            color: hexColor(col),
+            dark: hexColor(darkHex(col)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: body),
           ),
         );

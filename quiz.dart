@@ -15,25 +15,10 @@ import 'data.dart';
 import 'home.dart';
 import 'widgets.dart';
 
-// ---------- سقف الأرباح اليومي للألعاب السريعة ----------
-Future<int> quizRoom() async {
-  try {
-    final s = await ref('qDaily/$myUid').get();
-    final v = s.value;
-    if (v is Map && v['d'] == dayKey()) return max(0, 300 - ((v['n'] as num?)?.toInt() ?? 0));
-  } catch (_) {}
-  return 300;
-}
+// لا يوجد سقف يومي: اللعب مفتوح للجميع
+Future<int> quizRoom() async => 1 << 30;
 
-Future<void> _quizPaid(int amount) async {
-  try {
-    final s = await ref('qDaily/$myUid').get();
-    final v = s.value;
-    var n = 0;
-    if (v is Map && v['d'] == dayKey()) n = (v['n'] as num?)?.toInt() ?? 0;
-    await ref('qDaily/$myUid').set(<String, Object?>{'d': dayKey(), 'n': min(300, n + amount)});
-  } catch (_) {}
-}
+Future<void> _quizPaid(int amount) async {}
 
 const List<List<String>> _flags = [
   ['🇸🇦', 'السعودية'], ['🇪🇬', 'مصر'], ['🇯🇵', 'اليابان'], ['🇫🇷', 'فرنسا'], ['🇩🇪', 'ألمانيا'],
@@ -51,7 +36,7 @@ const List<List<Object>> _colors = [
   ['أصفر', Color(0xFFFFE04D)], ['بنفسجي', Color(0xFFB34DFF)],
 ];
 
-/// الألعاب السريعة: أعلام / كتابة / ألوان (مكافآت صغيرة + انتظار 3 دقائق + سقف يومي 300)
+/// الألعاب السريعة: أعلام / كتابة / ألوان (مكافآت صغيرة + انتظار 3 دقائق)
 class QuickQuizScreen extends StatefulWidget {
   final String gid;
   final String kind;

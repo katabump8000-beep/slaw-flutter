@@ -43,7 +43,7 @@ int _lev(String a, String b) {
 }
 
 const List<String> _cmds = [
-  'تفاصيلي', 'رصيدي', 'رصيد', 'معلوماته', 'تفاصيله', 'اوامر', 'العاب', 'كريستال', 'بالونات', 'اعلام', 'كتابه', 'تفكيك', 'الغاء', 'الوان', 'رهانات', 'رهان',
+  'تفاصيلي', 'رصيدي', 'رصيد', 'معلوماته', 'تفاصيله', 'اوامر', 'العاب', 'كريستال', 'بالونات', 'اعلام', 'كتابه', 'تفكيك', 'الغاء', 'الوان', 'رهانات', 'رهان', 'تحويل',
   'المتصدرين', 'المتجر', 'حيوانات', 'شخصيات', 'فخر',
 ];
 const Set<String> _gameCmds = {'العاب', 'كريستال', 'بالونات', 'اعلام', 'كتابه', 'تفكيك', 'الوان', 'رهانات', 'حيوانات', 'شخصيات'};
@@ -69,10 +69,6 @@ Future<void> runCommand(BuildContext ctx, String gid, String raw) async {
   if (m == null) return;
   final word = normAr(m.group(1)!);
   final args = (m.group(2) ?? '').trim();
-  if (word == 'تحويل') {
-    await botSay(gid, '🚫 تم إلغاء أمر التحويل');
-    return;
-  }
   String? cmd;
   var best = 99;
   for (final c in _cmds) {
@@ -95,7 +91,7 @@ Future<void> runCommand(BuildContext ctx, String gid, String raw) async {
   switch (cmd) {
     case 'اوامر':
       await botSay(gid,
-          '╮─❖『 أوامر ALJESI 』❖─╭\n.تفاصيلي — بطاقتك\n.رصيدي — رصيدك\n.العاب — قائمة الألعاب\n.معلوماته @اسم — ملف عضو (إن كان عاماً)\n.كريستال [مبلغ]\n.بالونات\n.اعلام\n.كتابة\n.تفكيك\n.الوان\n.حيوانات — فعالية الحيوانات\n.شخصيات — تخمين الشخصيات\n.الغاء — إلغاء الفعالية الجارية\n.المتصدرين — متصدرو اليوم\n.فخر — درجة الفخر\n.المتجر\n╰─❖『 ALJESI 』❖─╯');
+          '╮─❖『 أوامر ALJESI 』❖─╭\n.تفاصيلي — بطاقتك\n.رصيدي — رصيدك\n.العاب — قائمة الألعاب\n.معلوماته @اسم — ملف عضو (إن كان عاماً)\n.تحويل @اسم 50 — تحويل رصيد\n.كريستال [مبلغ]\n.بالونات\n.اعلام\n.كتابة\n.تفكيك\n.الوان\n.حيوانات — فعالية الحيوانات\n.شخصيات — تخمين الشخصيات\n.الغاء — إلغاء الفعالية الجارية\n.المتصدرين — متصدرو اليوم\n.فخر — درجة الفخر\n.المتجر\n╰─❖『 ALJESI 』❖─╯');
       break;
     case 'رصيدي':
     case 'رصيد':
@@ -148,6 +144,13 @@ Future<void> runCommand(BuildContext ctx, String gid, String raw) async {
       break;
     case 'الوان':
       await EventsHost.start(gid, 'colors');
+      break;
+    case 'تحويل':
+      if (args.contains('@')) {
+        await _transferDirect(gid, args);
+      } else {
+        await transferSheet(ctx, gid);
+      }
       break;
     case 'رهانات':
       await BetHost.start(gid);
@@ -321,6 +324,52 @@ Future<void> _board(String gid) async {
 }
 
 // ---------- التحويل ----------
+/// .تحويل @اسم 50
+Future<void> _transferDirect(String gid, String args) async {
+  final m = RegExp(r'@\s*(.+?)\s+([0-9٠-٩][0-9٠-٩,]*)\s*$').firstMatch(args.trim());
+  if (m == null) {
+    await botSay(gid, '❌ الصيغة: ‎.تحويل @اسم 50');
+    return;
+  }
+  final n = int.tryParse(normDigits(m.group(2)!).replaceAll(',', '')) ?? 0;
+  if (n < 1) {
+    toast('اكتب مبلغاً صحيحاً', bad: true);
+    return;
+  }
+  final mg = groupKind(gid) == 'main' ? gid : (mainGroups().isNotEmpty ? mainGroups().first : '');
+  if (mg.isEmpty || memCache[mg] != true) {
+    toast('التحويل داخل النقابة فقط', bad: true);
+    return;
+  }
+  final u = await _uidByName(gid, m.group(1)!);
+  if (u == null) {
+    await botSay(gid, '❌ لم أجد هذا العضو');
+    return;
+  }
+  if (u == myUid) {
+    toast('لا يمكنك التحويل لنفسك', bad: true);
+    return;
+  }
+  if ((await balanceNow()) < n) {
+    toast('رصيدك لا يكفي', bad: true);
+    return;
+  }
+  try {
+    await db.ref().update(<String, Object?>{
+      'wallets/$myUid/bal': ServerValue.increment(-n),
+      'wallets/$u/bal': ServerValue.increment(n),
+    });
+    final nm = (await prof(u)).name;
+    final txt = '💸 ${Session.me.name} حوّل ${fmtN(n)} رصيد إلى $nm';
+    toast('تم التحويل ✅');
+    await botSay(gid, txt);
+    await feedNote('ads', txt, k: 'tr');
+    await sendNotif(u, {'t': 'tr', 'a': n, 'g': mg, 'm': groupName(mg)});
+  } catch (e) {
+    err(e);
+  }
+}
+
 Future<void> transferSheet(BuildContext ctx, String gid) async {
   final mg = groupKind(gid) == 'main' ? gid : (mainGroups().isNotEmpty ? mainGroups().first : '');
   if (mg.isEmpty || memCache[mg] != true) {
