@@ -29,6 +29,7 @@ jobs:
           mkdir -p build_app/lib build_app/assets/audio
           cp *.dart build_app/lib/
           cp pubspec.yaml build_app/pubspec.yaml
+          (cd build_app && flutter pub add ota_update)
           cp *.mp3 *.wav build_app/assets/audio/ 2>/dev/null || true
           ls build_app/assets/audio
 
@@ -62,7 +63,7 @@ jobs:
               open(p, 'w', encoding='utf-8').write(s)
           p = 'android/app/src/main/AndroidManifest.xml'
           s = open(p, encoding='utf-8').read()
-          names = ['INTERNET', 'VIBRATE', 'ACCESS_NETWORK_STATE', 'POST_NOTIFICATIONS', 'RECORD_AUDIO', 'WAKE_LOCK', 'RECEIVE_BOOT_COMPLETED']
+          names = ['INTERNET', 'VIBRATE', 'ACCESS_NETWORK_STATE', 'POST_NOTIFICATIONS', 'RECORD_AUDIO', 'WAKE_LOCK', 'RECEIVE_BOOT_COMPLETED', 'REQUEST_INSTALL_PACKAGES']
           perms = ''.join('    <uses-permission android:name="android.permission.%s"/>\n' % n for n in names)
           s = s.replace('<application', perms + '    <application', 1)
           link = ('            <intent-filter>\n'
