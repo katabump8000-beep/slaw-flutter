@@ -195,7 +195,7 @@ class BetHost {
         'k': 'bot',
         'f': Session.me.name,
         'text': '🎈 ${Session.me.name} شارك برهان ${fmtN(amt)}',
-        'd': jsonEncode(<String, Object?>{'bj': amt}),
+        'd': jsonEncode(<String, Object?>{'bj': amt, 'eid': c.key}),
         'ts': ServerValue.timestamp,
       });
       toast('تمت المشاركة 🎈');
@@ -225,7 +225,7 @@ class BetHost {
   }
 
   Future<void> _refundOne(String uid, int amt) async {
-    await botSay(gid, '↩️ تم استرجاع ${fmtN(amt)} رصيد', d: jsonEncode(<String, Object?>{'rf': <String, Object?>{uid: amt}}));
+    await botSay(gid, '↩️ تم استرجاع ${fmtN(amt)} رصيد', d: jsonEncode(<String, Object?>{'rf': <String, Object?>{uid: amt}, 'eid': key}));
   }
 
   void _onMsg(Map<dynamic, dynamic> v) {
@@ -265,14 +265,12 @@ class BetHost {
     await _sub?.cancel();
     if (refund && st.players.isNotEmpty) {
       final m = <String, Object?>{for (final p in st.players) p.uid: p.bet};
-      await botSay(gid, '🛑 أُلغيت فعالية الرهانات وأُعيدت الرهانات لأصحابها.', d: jsonEncode(<String, Object?>{'rf': m}));
+      await botSay(gid, '🛑 أُلغيت فعالية الرهانات وأُعيدت الرهانات لأصحابها.', d: jsonEncode(<String, Object?>{'rf': m, 'eid': key}));
     } else if (refund) {
-      await botSay(gid, '🛑 أُلغيت فعالية الرهانات.');
+      await botSay(gid, '🛑 أُلغيت فعالية الرهانات.', d: jsonEncode(<String, Object?>{'eid': key}));
     }
-    try {
-      await Future<void>.delayed(const Duration(seconds: 2));
-      await ref('messages/$gid/$key').remove();
-    } catch (_) {}
+    // لا نحذف البطاقة فوراً: تختفي رسائل الفعالية كلها بعد 3 دقائق من نهايتها (evEnd)
+    await markEventEnd(gid, key);
     _active.remove(gid);
   }
 
@@ -285,7 +283,7 @@ class BetHost {
         'k': 'bot',
         'f': Session.me.name,
         'text': st.encode(),
-        'd': jsonEncode(<String, Object?>{'bet': 1}),
+        'd': jsonEncode(<String, Object?>{'bet': 1, 'eid': key}),
         'ts': ServerValue.timestamp,
       });
     } catch (e) {
@@ -353,7 +351,7 @@ class BetHost {
     st.outName = '';
     await _push();
     final n = (await prof(w.uid)).name;
-    await botSay(gid, '🏆 فاز $n بفعالية الرهانات!\n💰 ${fmtN(st.pot)} رصيد أُضيفت إلى رصيده', d: jsonEncode(<String, Object?>{'win': w.uid, 'amt': st.pot}));
+    await botSay(gid, '🏆 فاز $n بفعالية الرهانات!\n💰 ${fmtN(st.pot)} رصيد أُضيفت إلى رصيده', d: jsonEncode(<String, Object?>{'win': w.uid, 'amt': st.pot, 'eid': key}));
     await Future<void>.delayed(const Duration(seconds: 8));
     await _close();
   }

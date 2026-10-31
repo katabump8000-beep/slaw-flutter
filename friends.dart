@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'app_state.dart';
 import 'data.dart';
 import 'empchat.dart';
+import 'lastseen.dart';
 import 'tools.dart';
 import 'widgets.dart';
 
@@ -13,6 +14,27 @@ const int kFriendCap = 10;
 List<String> _favs() => (prefs.getString('fav_friends') ?? '').split(',').where((e) => e.isNotEmpty).toList();
 
 bool get _unlimited => Session.isDev;
+
+/// حذف صديق (من الطرفين) بعد تأكيد
+Future<void> removeFriend(BuildContext context, String uid) async {
+  final nm = (await prof(uid)).name;
+  if (!context.mounted) return;
+  final ok = await showAppSheet<bool>(context, (sc) => [
+        Text('حذف $nm من أصدقائك؟', textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        const Text('سيُحذف من قائمتك ومن قائمته، ويمكنكما إعادة إرسال طلب صداقة لاحقاً.', textAlign: TextAlign.center, style: TextStyle(color: kMu, fontSize: 12.5, height: 1.6)),
+        AppButton('نعم، احذف', kind: 'r', onPressed: () => Navigator.of(sc).pop(true)),
+        AppButton('إلغاء', kind: 'g', onPressed: () => Navigator.of(sc).pop(false)),
+      ]);
+  if (ok != true) return;
+  try {
+    await db.ref().update(<String, Object?>{'friends/$myUid/$uid': null, 'friends/$uid/$myUid': null});
+    final l = (prefs.getString('fav_friends') ?? '').split(',').where((e) => e.isNotEmpty && e != uid).toList();
+    prefs.setString('fav_friends', l.join(','));
+    toast('تم حذف الصديق');
+  } catch (e) {
+    err(e);
+  }
+}
 
 /// قسم «الأصدقاء» في الشاشة الرئيسية
 class FriendsSection extends StatelessWidget {
@@ -70,10 +92,19 @@ class _FriendRowState extends State<_FriendRow> {
           UserAvatar(widget.uid, size: 42),
           const SizedBox(width: 12),
           Expanded(
-            child: FutureBuilder<Prof>(
-              future: prof(widget.uid),
-              builder: (c, s) => Text(s.data?.name ?? '...', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              FutureBuilder<Prof>(
+                future: prof(widget.uid),
+                builder: (c, s) => Text(s.data?.name ?? '...', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+              ),
+              const SizedBox(height: 2),
+              LastSeenLine(widget.uid, size: 11),
+            ]),
+          ),
+          IconButton(
+            tooltip: 'حذف الصديق',
+            onPressed: () => removeFriend(context, widget.uid),
+            icon: const Icon(Icons.person_remove_alt_1_outlined, color: Color(0xFFFF6B6B), size: 22),
           ),
           IconButton(
             onPressed: () {
@@ -160,6 +191,9 @@ class _FriendsScreenState extends State<FriendsScreen> {
         'friends/$from/$myUid': true,
         'friendReq/$myUid/$from': null,
       });
+      try {
+        await ref('notifs/$from').push().set(<String, Object?>{'t': 'fok', 'from': myUid, 'tx': 'قبل طلب صداقتك', 'ts': ServerValue.timestamp});
+      } catch (_) {}
       toast('تمت الإضافة ✅');
     } catch (e) {
       err(e);

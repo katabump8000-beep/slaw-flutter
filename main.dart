@@ -11,6 +11,7 @@ import 'bell.dart';
 import 'data.dart';
 import 'firebase_options.dart';
 import 'home.dart';
+import 'notif.dart';
 import 'sfx.dart';
 import 'tapsound.dart';
 import 'tools.dart';
@@ -170,6 +171,7 @@ class _HomeLoaderState extends State<HomeLoader> {
 
   Future<void> _out() async {
     BellService.stop();
+    dropPushToken();
     Session.reset();
     await FirebaseAuth.instance.signOut();
   }

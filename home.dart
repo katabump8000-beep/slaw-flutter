@@ -210,12 +210,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (mounted) checkUpdate(context);
     });
     Sfx.syncBgm();
-    initLocalNotifs(ask: true).then((_) => startBackgroundPolling());
+    initPush().then((_) => startBackgroundPolling());
+    clearBadge();
     presenceSub = FirebaseDatabase.instance.ref('.info/connected').onValue.listen((e) {
       if (e.snapshot.value == true && myUid.isNotEmpty) {
         final p = ref('presence/$myUid');
         p.onDisconnect().remove();
         p.set(true);
+        ref('seen/$myUid/t').onDisconnect().set(ServerValue.timestamp);
         markSeen();
       }
     }, onError: (_) {});
@@ -234,6 +236,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState st) {
     if (st == AppLifecycleState.resumed) {
+      clearBadge();
       Sfx.unblock('bg');
       Board.sync();
       if (mounted) checkUpdate(context);

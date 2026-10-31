@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'aljesi.dart';
 import 'app_state.dart';
+import 'lastseen.dart';
 import 'config.dart';
 import 'core.dart';
 import 'home.dart';
@@ -159,19 +160,24 @@ class _SorterScreenState extends State<SorterScreen> {
   }
 
   String _lastSeen(String u) {
-    if (online.contains(u)) return 'متصل الآن';
-    final s = seen[u];
-    if (s is! Map || s['t'] is! num) return 'آخر ظهور: غير معروف';
-    final d = (DateTime.now().millisecondsSinceEpoch - (s['t'] as num).toInt()) ~/ 86400000;
-    return d <= 0 ? 'آخر ظهور: اليوم' : 'آخر ظهور: منذ $d يوم';
+    final sv = seen[u];
+    final st = sv is Map && sv['t'] is num ? (sv['t'] as num).toInt() : 0;
+    var join = 0;
+    for (final e in users) {
+      if (e.key == u) {
+        join = e.value.ts;
+        break;
+      }
+    }
+    return lastSeenText(online: online.contains(u), seenTs: st, joinTs: join);
   }
 
   Widget _ver(String u) {
     final s = seen[u];
     final b = s is Map && s['b'] is num ? (s['b'] as num).toInt() : null;
     final latest = b != null && b >= kBuild;
-    final txt = b == null ? 'غير معروف' : (latest ? 'أحدث نسخة' : 'نسخة قديمة');
-    final col = b == null ? kMu : (latest ? const Color(0xFF2EE07A) : const Color(0xFFFF6B6B));
+    final txt = b == null ? 'نسخة قديمة' : (latest ? 'أحدث نسخة' : 'نسخة قديمة');
+    final col = b == null ? const Color(0xFFFF6B6B) : (latest ? const Color(0xFF2EE07A) : const Color(0xFFFF6B6B));
     return Text(txt, style: TextStyle(color: col, fontSize: 11.5, fontWeight: FontWeight.w800));
   }
 

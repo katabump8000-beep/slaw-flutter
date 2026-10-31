@@ -19,6 +19,7 @@ class EmperorCard extends StatelessWidget {
       stream: ref('media/status/ts').onValue,
       builder: (c, s) {
         final has = s.data?.snapshot.value != null;
+        if (has) prefetchMedia('status');
         return Container(
           margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
           padding: const EdgeInsets.all(12),

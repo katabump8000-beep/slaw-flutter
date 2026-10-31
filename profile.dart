@@ -7,6 +7,7 @@ import 'data.dart';
 import 'entrancefx.dart';
 import 'empchat.dart';
 import 'home.dart';
+import 'lastseen.dart';
 import 'widgets.dart';
 
 /// بطاقة الملف التعريفي: إحصائيات التفاعل والإعجاب
@@ -113,6 +114,8 @@ class _ProfileBodyState extends State<_ProfileBody> {
       const SizedBox(height: 6),
       Center(child: Wrap(spacing: 6, runSpacing: 6, children: [if (role == 'dev' || role == 'emp') DevBadge(founder: role == 'emp'), if (tag != null) tag, ageTag(p!, role: role), FutureBuilder<DataSnapshot>(future: ref('pdata/${widget.uid}/elite').get(), builder: (c, es) => es.data?.value == true ? const Tag('نخبة 🏅', fg: Color(0xFFFFB04A)) : const SizedBox.shrink()), Tag(p!.gender == 'f' ? 'أنثى' : 'ذكر'), if (pubs > 10) const Tag('رتبة عالية 🌟')])),
       if (pid.isNotEmpty) Center(child: Text('ID: $pid', style: const TextStyle(color: kMu, letterSpacing: 1.5))),
+      const SizedBox(height: 4),
+      Center(child: LastSeenLine(widget.uid)),
       const SizedBox(height: 8),
       if (note.isNotEmpty)
         Container(

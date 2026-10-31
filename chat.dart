@@ -30,6 +30,7 @@ import 'extras.dart';
 import 'home.dart';
 import 'info.dart';
 import 'media.dart';
+import 'msgstyle.dart';
 import 'profile.dart';
 import 'sfx.dart';
 import 'tally.dart';
@@ -93,6 +94,9 @@ class _ChatScreenState extends State<ChatScreen> {
   final AudioRecorder rec = AudioRecorder();
   Map<String, String>? nameIdx;
   final Map<String, Uint8List> imgCache = {};
+  final Map<String, int> evEnds = {};
+  final Map<String, String> _eidOf = {};
+  Timer? _evTimer;
 
   String get kind => groupKind(gid);
   bool get visitor => memCache[gid] == 'v';
@@ -126,6 +130,21 @@ class _ChatScreenState extends State<ChatScreen> {
     subs.add(ref('groupStatus/$gid/t').onValue.listen((e) {
       if (mounted) setState(() => status = e.snapshot.value?.toString() ?? '');
     }, onError: (_) {}));
+    subs.add(ref('evEnd/$gid').onValue.listen((e) {
+      final v = e.snapshot.value;
+      evEnds.clear();
+      if (v is Map) {
+        v.forEach((k, x) {
+          if (x is num) evEnds[k.toString()] = x.toInt();
+        });
+      }
+      _evTimer?.cancel();
+      // أعد الرسم عند حلول وقت اختفاء أقرب فعالية منتهية
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final next = evEnds.values.map((t) => t + 180000 - now).where((d) => d > 0).fold<int>(1 << 30, (a, b) => b < a ? b : a);
+      if (next < (1 << 30)) _evTimer = Timer(Duration(milliseconds: next + 400), () => mounted ? setState(() {}) : null);
+      if (mounted) setState(() {});
+    }, onError: (_) {}));
     subs.add(ref('mod/$myUid/until').onValue.listen((e) {
       final v = e.snapshot.value;
       if (mounted) setState(() => muteUntil = v is num ? v.toInt() : 0);
@@ -158,6 +177,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _evTimer?.cancel();
     prefs.setInt('ls_$gid', DateTime.now().millisecondsSinceEpoch);
     for (final s in subs) {
       s.cancel();
@@ -182,6 +202,26 @@ class _ChatScreenState extends State<ChatScreen> {
       msgs[k] = m;
       if (oldest.isEmpty || k.compareTo(oldest) < 0) oldest = k;
     });
+  }
+
+  /// رسائل الفعالية (التي تحمل eid) تختفي بعد 3 دقائق من انتهاء الفعالية
+  bool _hiddenEv(String id, Map<String, dynamic> m) {
+    if (m['type'] != 'sys' || m['k'] != 'bot') return false;
+    final d = (m['d'] ?? '').toString();
+    if (!d.contains('"eid"')) return false;
+    var eid = _eidOf[id];
+    if (eid == null) {
+      try {
+        final j = jsonDecode(d);
+        eid = j is Map ? (j['eid'] ?? '').toString() : '';
+      } catch (_) {
+        eid = '';
+      }
+      _eidOf[id] = eid;
+    }
+    final end = evEnds[eid];
+    if (end == null) return false;
+    return DateTime.now().millisecondsSinceEpoch > end + 180000;
   }
 
   void _checkWin(String id, Map<String, dynamic> m) {
@@ -283,6 +323,14 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _startReply(Map<String, dynamic> m) async {
     final type = (m['type'] ?? 'text').toString();
     var t = '';
+    if (type == 'sys') {
+      var st = (m['text'] ?? '').toString().replaceAll(RegExp(r'[╮─❖『』╭╰]+'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+      if ((m['d'] ?? '').toString().contains('"bet"')) st = 'فعالية الرهانات 🎈';
+      if (st.isEmpty) return;
+      if (!mounted) return;
+      setState(() => _reply = {'n': (m['k'] ?? '') == 'welcome' ? 'رسالة الترحيب' : 'ALJESI', 't': st.length > 100 ? st.substring(0, 100) : st});
+      return;
+    }
     if (type == 'text') {
       t = (m['text'] ?? '').toString();
     } else if (type == 'image') {
@@ -305,6 +353,7 @@ class _ChatScreenState extends State<ChatScreen> {
         'ts': ServerValue.timestamp,
         'color': (prefs.getString('txtc') ?? '').isNotEmpty ? prefs.getString('txtc')! : Session.me.color,
         if (visitor) 'vis': true,
+        if (myMsgStyleCode() != null) 'ms': myMsgStyleCode(),
         if (_reply != null) 'rpn': _reply!['n'],
         if (_reply != null) 'rpt': _reply!['t'],
       };
@@ -350,6 +399,7 @@ class _ChatScreenState extends State<ChatScreen> {
       m['text'] = t;
       final k = await _post(m);
       _notifyMentions(k, t);
+      _notifyAll(k, t);
       if (isCommandText(t) && mounted) await runCommand(context, gid, t);
     } catch (e) {
       ctrl.text = t;
@@ -594,6 +644,35 @@ class _ChatScreenState extends State<ChatScreen> {
     return out;
   }
 
+  static final RegExp _allRe = RegExp(r'@(الكل|all)', caseSensitive: false);
+
+  /// @الكل: إشعار فوري لكل أعضاء القروب (للمطورين والإمبراطور فقط)
+  Future<void> _notifyAll(String mid, String text) async {
+    if (!_allRe.hasMatch(text)) return;
+    if (!Session.isDev) {
+      toast('الأمر @الكل للمطورين والإمبراطور فقط');
+      return;
+    }
+    try {
+      final v = (await ref('members/$gid').get()).value;
+      if (v is! Map) return;
+      final gname = groupName(gid).length > 40 ? groupName(gid).substring(0, 40) : groupName(gid);
+      final tx = text.length > 90 ? text.substring(0, 90) : text;
+      final ids = v.entries.where((e) => e.value == true && e.key.toString() != myUid).map((e) => e.key.toString()).toList();
+      for (var i = 0; i < ids.length; i += 150) {
+        final up = <String, Object?>{};
+        for (final u in ids.skip(i).take(150)) {
+          final k = ref('notifs/$u').push().key!;
+          up['notifs/$u/$k'] = <String, Object?>{'t': 'all', 'from': myUid, 'g': gid, 'm': gname, 'mid': mid, 'tx': tx, 'ts': ServerValue.timestamp};
+        }
+        await db.ref().update(up);
+      }
+      toast('تم إرسال إشعار للجميع 📣 (${ids.length})');
+    } catch (e) {
+      err(e);
+    }
+  }
+
   Future<void> _notifyMentions(String mid, String text) async {
     if (!text.contains('@')) return;
     final idx = await _names();
@@ -654,7 +733,25 @@ class _ChatScreenState extends State<ChatScreen> {
     final m = msgs[id];
     if (m == null) return;
     final type = (m['type'] ?? '').toString();
-    if (type == 'sys') return;
+    if (type == 'sys') {
+      // رسائل البوت والترحيب والفعاليات: الحذف للمطورين والإمبراطور فقط
+      if (!Session.isDev) return;
+      showAppSheet<void>(context, (sc) => [
+            AppButton('↩️ رد', kind: 'g', onPressed: () {
+              Navigator.of(sc).pop();
+              _startReply(m);
+            }),
+            AppButton('🗑 حذف رسالة البوت', kind: 'r', onPressed: () async {
+              Navigator.of(sc).pop();
+              try {
+                await ref('messages/$gid/$id').remove();
+              } catch (e) {
+                err(e);
+              }
+            }),
+          ]);
+      return;
+    }
     final own = (m['from'] ?? '').toString() == myUid;
     showAppSheet<void>(context, (sc) => [
           AppButton('👁 من شاهد الرسالة', kind: 'g', onPressed: () {
@@ -753,14 +850,9 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  void _avatarTap(String from) async {
-    final r = await roleOf(from);
-    if (r == 'emp' && await hasMedia('status')) {
-      if (!mounted) return;
-      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const VideoScreen(keyName: 'status', title: 'حالة الإمبراطور')));
-      return;
-    }
-    if (mounted) viewProfile(context, from);
+  void _avatarTap(String from) {
+    // الحالة لا تُعرض إلا من دائرة الإمبراطور في الواجهة الرئيسية؛ هنا يُعرض الملف التعريفي دائماً
+    viewProfile(context, from);
   }
 
   Widget _composer() {
@@ -885,6 +977,8 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(visualDensity: VisualDensity.compact, onPressed: _sendImage, icon: const Icon(Icons.photo_outlined)),
           IconButton(visualDensity: VisualDensity.compact, onPressed: _stickers, icon: const Icon(Icons.emoji_emotions_outlined)),
           IconButton(visualDensity: VisualDensity.compact, onPressed: _mentionPicker, icon: const Icon(Icons.alternate_email)),
+          if (Session.isDev)
+            IconButton(visualDensity: VisualDensity.compact, tooltip: 'تأثير رسائلي', onPressed: () => showMsgStyleSheet(context), icon: Icon(Icons.auto_awesome, color: context.accent2)),
           if (Session.me.gender == 'm')
             IconButton(visualDensity: VisualDensity.compact, onPressed: _toggleRec, icon: Icon(recording ? Icons.stop_circle : Icons.mic_none, color: recording ? kRed : null)),
           Expanded(
@@ -968,6 +1062,7 @@ class _ChatScreenState extends State<ChatScreen> {
               }
               final id = rows[i];
               final m = msgs[id]!;
+              if (_hiddenEv(id, m)) return const SizedBox.shrink();
               final from = (m['from'] ?? '').toString();
               final type = (m['type'] ?? 'text').toString();
               if (type != 'sys' && from != myUid) _queueSeen(id, m);
@@ -982,7 +1077,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 cache: imgCache,
                 onLong: () => _menu(id),
                 onAvatar: () => _avatarTap(from),
-                onReply: type == 'sys' ? null : () => _startReply(m),
+                onReply: (type == 'sys' && !((m['k'] ?? '') == 'bot' || (m['k'] ?? '') == 'welcome')) ? null : () => _startReply(m),
                 gid: gid,
               );
             },
@@ -1209,6 +1304,18 @@ class _MsgBubbleState extends State<MsgBubble> {
             if (mine && sc > 0) Text('   👁 $sc', style: const TextStyle(fontSize: 10.5, color: Color(0xB3FFFFFF))),
           ]),
         ));
+        final mst = isHigh ? MsgStyle.parse(m['ms']) : null;
+        if (mst != null && (!mst.royal || r == 'emp')) {
+          return GestureDetector(
+            onLongPress: widget.onLong,
+            child: StyledBubble(
+              st: mst,
+              constraints: BoxConstraints(maxWidth: maxW, minWidth: 64),
+              padding: const EdgeInsets.fromLTRB(11, 7, 11, 5),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: body),
+            ),
+          );
+        }
         return GestureDetector(
           onLongPress: widget.onLong,
           child: VipBubble(
@@ -1261,8 +1368,21 @@ class _MsgBubbleState extends State<MsgBubble> {
         if (o['ev'] == 1) card = EvCard(text: (m['text'] ?? '').toString(), col: (o['col'] ?? '').toString());
       } catch (_) {}
     }
+    final canReply = widget.onReply != null && (k == 'bot' || k == 'welcome');
+    Widget withReply(Widget box) => GestureDetector(
+          onLongPress: widget.onLong,
+          child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Flexible(child: box),
+            if (canReply)
+              GestureDetector(
+                onTap: widget.onReply,
+                behavior: HitTestBehavior.opaque,
+                child: const Padding(padding: EdgeInsets.fromLTRB(6, 0, 2, 6), child: Icon(Icons.reply_rounded, size: 20, color: kMu)),
+              ),
+          ]),
+        );
     if (card != null) {
-      return Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: Center(child: ConstrainedBox(constraints: BoxConstraints(maxWidth: w), child: card)));
+      return Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: Center(child: withReply(ConstrainedBox(constraints: BoxConstraints(maxWidth: w), child: card))));
     }
     final text = (m['text'] ?? '').toString();
     final pic = (m['pic'] ?? '').toString();
@@ -1296,12 +1416,12 @@ class _MsgBubbleState extends State<MsgBubble> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Center(
-        child: Container(
+        child: withReply(Container(
           constraints: BoxConstraints(maxWidth: w),
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(color: const Color.fromRGBO(0, 0, 0, .45), borderRadius: BorderRadius.circular(14), border: Border.all(color: kLine)),
           child: content,
-        ),
+        )),
       ),
     );
   }

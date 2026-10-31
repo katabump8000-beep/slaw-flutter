@@ -97,6 +97,7 @@ class EventsHost {
   final String gid;
   final String kind;
   final String starter;
+  final String eid = newEventId();
   bool stopped = false;
   Completer<String>? _cur;
   String _want = '';
@@ -132,7 +133,7 @@ class EventsHost {
         'k': 'bot',
         'f': Session.me.name,
         'text': text,
-        'd': jsonEncode(<String, Object?>{'ev': 1, if (col.isNotEmpty) 'col': col}),
+        'd': jsonEncode(<String, Object?>{'ev': 1, 'eid': eid, if (col.isNotEmpty) 'col': col}),
         'ts': ServerValue.timestamp,
       });
     } catch (_) {}
@@ -225,7 +226,7 @@ class EventsHost {
           await ref('messages/$gid/$key/text').set('$show\n✅ $n هو من أجاب — $sc/10');
         } catch (_) {}
         if (sc >= 10) {
-          await botSay(gid, '🎊 فاز $n بـ $title! 🏆\n💰 40 رصيد أُضيفت إلى رصيده', d: jsonEncode(<String, Object?>{'win': winner, 'amt': 40}));
+          await botSay(gid, '🎊 فاز $n بـ $title! 🏆\n💰 40 رصيد أُضيفت إلى رصيده', d: jsonEncode(<String, Object?>{'win': winner, 'amt': 40, 'eid': eid}));
           break;
         }
       } else {
@@ -234,13 +235,14 @@ class EventsHost {
           await ref('messages/$gid/$key/text').set('$show\n⌛ انتهى الوقت');
         } catch (_) {}
         if (idle >= 2) {
-          await botSay(gid, '🛑 تم إلغاء الفعالية لعدم التفاعل.');
+          await botSay(gid, '🛑 تم إلغاء الفعالية لعدم التفاعل.', d: jsonEncode(<String, Object?>{'eid': eid}));
           break;
         }
       }
       await Future<void>.delayed(const Duration(seconds: 3));
     }
-    if (stopped) await botSay(gid, '🛑 تم إلغاء الفعالية.');
+    if (stopped) await botSay(gid, '🛑 تم إلغاء الفعالية.', d: jsonEncode(<String, Object?>{'eid': eid}));
+    await markEventEnd(gid, eid);
     await _sub?.cancel();
     _active.remove(gid);
   }

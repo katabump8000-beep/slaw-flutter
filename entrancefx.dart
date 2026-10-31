@@ -21,6 +21,22 @@ Future<void> playEntrance(BuildContext context, String uid) async {
   } catch (_) {}
 }
 
+/// يترك مقطع الدهول يعمل حتى نهايته (لا يُوقف عند إغلاق الشاشة)، ثم يحرر المشغّل ويعيد موسيقى الخلفية
+void _letDholFinish(AudioPlayer p) {
+  Sfx.block('dhol');
+  var done = false;
+  void fin() {
+    if (done) return;
+    done = true;
+    try {
+      p.dispose();
+    } catch (_) {}
+    Sfx.unblock('dhol');
+  }
+
+  p.onPlayerComplete.first.timeout(const Duration(minutes: 4)).then((_) => fin()).catchError((_) => fin());
+}
+
 class FxScreen extends StatefulWidget {
   final int kind;
   final String name;
@@ -46,16 +62,21 @@ class _FxState extends State<FxScreen> with SingleTickerProviderStateMixin {
 
   Future<void> _audio() async {
     if (widget.kind != 9) return;
-    _own = await Sfx.start('dhol.mp3');
+    final p = await Sfx.start('dhol.mp3');
+    _own = p;
+    // الدهول تكمل للنهاية حتى بعد إغلاق شاشة المؤثر وظهور الملف التعريفي
+    _letDholFinish(p);
   }
 
   @override
   void dispose() {
     Sfx.unblock('show');
-    try {
-      _own?.stop();
-      _own?.dispose();
-    } catch (_) {}
+    if (widget.kind != 9) {
+      try {
+        _own?.stop();
+        _own?.dispose();
+      } catch (_) {}
+    }
     c.dispose();
     super.dispose();
   }

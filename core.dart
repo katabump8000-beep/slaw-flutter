@@ -81,3 +81,14 @@ List<String> mainGroups() => memCache.entries
     .where((e) => e.value == true && groupsCache[e.key]?['kind'] == 'main')
     .map((e) => e.key)
     .toList();
+
+/// معرّف فريد لفعالية (يُلحق برسائلها لتختفي بعد انتهائها بـ 3 دقائق)
+String newEventId() => ref('evEnd').push().key ?? DateTime.now().millisecondsSinceEpoch.toString();
+
+/// يسجّل نهاية الفعالية: كل رسائلها تختفي من الشات بعد 3 دقائق من هذه اللحظة
+Future<void> markEventEnd(String gid, String eid) async {
+  if (eid.isEmpty) return;
+  try {
+    await ref('evEnd/$gid/$eid').set(ServerValue.timestamp);
+  } catch (_) {}
+}

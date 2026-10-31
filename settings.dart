@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'app_state.dart';
+import 'notif.dart';
 import 'bell.dart';
 import 'crop.dart';
 import 'data.dart';
@@ -74,6 +75,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ]);
     if (ok != true) return;
     BellService.stop();
+    await dropPushToken();
     Session.reset();
     await FirebaseAuth.instance.signOut();
     if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);

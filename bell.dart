@@ -31,6 +31,14 @@ String notifText(NotifItem n, String who) {
   switch (n.t) {
     case 'men':
       return 'هناك من ذكر اسمك\n$who ذكرك في «${n.groupLabel}»';
+    case 'all':
+      return '📢 $who نادى الجميع في «${n.groupLabel}»\n${n.tx}';
+    case 'frq':
+      return '$who أرسل لك طلب صداقة';
+    case 'fok':
+      return '$who قبل طلب صداقتك 🎉';
+    case 'war':
+      return n.tx.isNotEmpty ? n.tx : '⚔️ أُعلنت حرب جديدة';
     case 'tr':
       return '$who حوّل لك ${fmtN(n.a)} رصيد';
     case 'add':
@@ -52,6 +60,11 @@ IconData notifIcon(String t) {
   switch (t) {
     case 'men':
       return Icons.alternate_email;
+    case 'all':
+      return Icons.campaign_outlined;
+    case 'frq':
+    case 'fok':
+      return Icons.person_add_alt_1;
     case 'tr':
       return Icons.payments_outlined;
     case 'add':
@@ -101,7 +114,7 @@ class BellService {
         prof(n.from).then((p) {
           final t = notifText(n, p.name);
           if (appInBackground()) {
-            showLocal(n.ts % 100000, n.t == 'men' ? 'هناك من ذكر اسمك' : 'FIR', t.replaceAll('\n', ' • '));
+            showLocal(n.ts % 100000, notifTitle(n.t), t.replaceAll('\n', ' • '), tag: n.mid.isNotEmpty ? n.mid : null);
           } else {
             toast(t.replaceAll('\n', ' • '), accent: true);
           }
@@ -282,6 +295,7 @@ class _BellScreenState extends State<BellScreen> {
               itemCount: l.length,
               itemBuilder: (c, i) {
                 final n = l[i];
+                if (n.t == 'frq' && !selecting) return _FriendReqCard(n: n, onDone: () => BellService.removeMany([n.k]));
                 return ListTile(
                   onTap: () => _open(n),
                   leading: selecting
@@ -312,6 +326,101 @@ class _BellScreenState extends State<BellScreen> {
               ),
             )
           : null,
+    );
+  }
+}
+
+/// بطاقة طلب صداقة داخل الجرس: أزرار قبول ورفض كبيرة
+class _FriendReqCard extends StatefulWidget {
+  final NotifItem n;
+  final VoidCallback onDone;
+  const _FriendReqCard({required this.n, required this.onDone});
+  @override
+  State<_FriendReqCard> createState() => _FriendReqCardState();
+}
+
+class _FriendReqCardState extends State<_FriendReqCard> {
+  bool busy = false;
+
+  Future<void> _accept() async {
+    if (busy) return;
+    setState(() => busy = true);
+    final from = widget.n.from;
+    try {
+      final cnt = (await ref('friends/$myUid').get()).value;
+      if (!Session.isDev && cnt is Map && cnt.length >= 10) {
+        toast('وصلت للحد الأقصى (10 أصدقاء)', bad: true);
+        setState(() => busy = false);
+        return;
+      }
+      await db.ref().update(<String, Object?>{'friends/$myUid/$from': true, 'friends/$from/$myUid': true, 'friendReq/$myUid/$from': null});
+      try {
+        await ref('notifs/$from').push().set(<String, Object?>{'t': 'fok', 'from': myUid, 'tx': 'قبل طلب صداقتك', 'ts': ServerValue.timestamp});
+      } catch (_) {}
+      toast('تمت الإضافة ✅');
+      widget.onDone();
+    } catch (e) {
+      err(e);
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> _decline() async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      await ref('friendReq/$myUid/${widget.n.from}').remove();
+      widget.onDone();
+    } catch (e) {
+      err(e);
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: context.accent.withAlpha(140)),
+        gradient: LinearGradient(colors: [accentA(context, .18), const Color.fromRGBO(0, 0, 0, .3)]),
+      ),
+      child: Column(children: [
+        Row(children: [
+          UserAvatar(widget.n.from, size: 54),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              FutureBuilder<Prof>(future: prof(widget.n.from), builder: (c, s) => Text(s.data?.name ?? '...', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16))),
+              const SizedBox(height: 3),
+              const Text('يريد أن يصبح صديقك 👥', style: TextStyle(color: kMu, fontSize: 12.5)),
+            ]),
+          ),
+          Text(hhmm(widget.n.ts), style: const TextStyle(fontSize: 11, color: kMu)),
+        ]),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(
+            child: SizedBox(height: 50, child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2EBF6B), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+              onPressed: busy ? null : _accept,
+              icon: const Icon(Icons.check_circle, size: 22),
+              label: const Text('قبول', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+            )),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: SizedBox(height: 50, child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD94452), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+              onPressed: busy ? null : _decline,
+              icon: const Icon(Icons.cancel, size: 22),
+              label: const Text('رفض', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+            )),
+          ),
+        ]),
+      ]),
     );
   }
 }
