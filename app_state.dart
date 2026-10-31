@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'data.dart' show Session;
 
 /// التخزين المحلي (مثل localStorage في التطبيق القديم).
 /// يجرّب مكتبة shared_preferences أولاً، وإذا تعطلت على الجهاز يستعمل ملفاً مؤقتاً،
@@ -254,8 +255,17 @@ void toast(String m, {bool bad = false, bool accent = false}) {
 /// رسالة خطأ مناسبة لنوع الخطأ
 void err(Object e) {
   final s = e.toString().toLowerCase();
-  toast(
-    s.contains('permission') ? 'غير مسموح لك بهذا الإجراء' : 'حدث خطأ، تأكد من الاتصال',
-    bad: true,
-  );
+  if (s.contains('permission')) {
+    // للمطورين فقط: نضيف اسم الملف الذي طلب العملية لنعرف أي إجراء رفضته قواعد Firebase
+    var where = '';
+    try {
+      if (Session.isDev) {
+        final fs = RegExp(r'package:twa/([a-z_0-9]+\.dart)').allMatches(StackTrace.current.toString()).map((x) => x.group(1)!).where((f) => f != 'app_state.dart').toList();
+        if (fs.isNotEmpty) where = ' [${fs.first}]';
+      }
+    } catch (_) {}
+    toast('غير مسموح لك بهذا الإجراء$where', bad: true);
+    return;
+  }
+  toast('حدث خطأ، تأكد من الاتصال', bad: true);
 }
