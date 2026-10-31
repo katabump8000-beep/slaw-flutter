@@ -133,3 +133,20 @@ exports.onEmpMsg = onValueCreated({ ...OPT, ref: '/emp/msg/{uid}/{mid}' }, async
   if (!to) return;
   await push(to, { title: '👑 رسالة من الإمبراطور', body: clip(m.text), tag: `emp_${e.params.uid}` });
 });
+
+// 7) بلاغات الأعضاء على الدردشات: إشعار فوري لكل المطورين والإمبراطور
+exports.onReport = onValueCreated({ ...OPT, ref: '/reports/{rid}' }, async (e) => {
+  const r = e.data.val();
+  if (!r) return;
+  const who = await nameOf(r.u);
+  const roles = (await val('roles')) || {};
+  const emp = await val('config/emperorUid');
+  const ids = new Set(Object.keys(roles).filter((u) => roles[u] === 'dev'));
+  if (emp) ids.add(emp);
+  ids.delete(r.u);
+  await Promise.all(
+    [...ids].map((u) =>
+      push(u, { title: '🚩 بلاغ جديد على دردشة', body: `${who}: ${clip(r.r, 90)}`, tag: `rep_${e.params.rid}` }).catch(() => {})
+    )
+  );
+});
