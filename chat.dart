@@ -32,6 +32,7 @@ import 'info.dart';
 import 'media.dart';
 import 'msgstyle.dart';
 import 'profile.dart';
+import 'reports.dart';
 import 'sfx.dart';
 import 'tally.dart';
 import 'war.dart';
@@ -97,6 +98,8 @@ class _ChatScreenState extends State<ChatScreen> {
   final Map<String, int> evEnds = {};
   final Map<String, String> _eidOf = {};
   Timer? _evTimer;
+  Timer? _expTimer;
+  final Map<String, List<int>> _myScore = {}; // eid -> [نقاطي, وقت التحديث]
 
   String get kind => groupKind(gid);
   bool get visitor => memCache[gid] == 'v';
@@ -158,6 +161,9 @@ class _ChatScreenState extends State<ChatScreen> {
     ref('boost/$myUid').get().then((s) {
       if (mounted) boostOn = s.exists;
     }).catchError((_) {});
+    _expTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted && (_eidOf.isNotEmpty || _myScore.isNotEmpty)) setState(() {});
+    });
     _welcome();
     _entranceTriggers();
     if (widget.focusMid.isNotEmpty) Future<void>.delayed(const Duration(milliseconds: 900), () => _focus(0));
@@ -178,6 +184,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _evTimer?.cancel();
+    _expTimer?.cancel();
     prefs.setInt('ls_$gid', DateTime.now().millisecondsSinceEpoch);
     for (final s in subs) {
       s.cancel();
@@ -198,6 +205,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (k == null || v is! Map || !mounted) return;
     final m = Map<String, dynamic>.from(v);
     _checkWin(k, m);
+    _trackScore(m);
     setState(() {
       msgs[k] = m;
       if (oldest.isEmpty || k.compareTo(oldest) < 0) oldest = k;
@@ -220,8 +228,50 @@ class _ChatScreenState extends State<ChatScreen> {
       _eidOf[id] = eid;
     }
     final end = evEnds[eid];
-    if (end == null) return false;
-    return DateTime.now().millisecondsSinceEpoch > end + 180000;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (end == null) {
+      // فعالية عالقة (أُغلق جهاز مشغّلها قبل أن تنتهي): تختفي بعد 25 دقيقة بدل أن تبقى معلّقة
+      final ts = (m['ts'] as num?)?.toInt() ?? 0;
+      return ts > 0 && now - ts > 25 * 60000;
+    }
+    return now > end + 180000;
+  }
+
+  /// نسبة تقدّم اللاعب (n/10) تظهر له وحده فوق صندوق الكتابة أثناء الفعالية
+  void _trackScore(Map<String, dynamic> m) {
+    if (m['k'] != 'bot') return;
+    final tx = (m['text'] ?? '').toString();
+    final mt = RegExp(r'✅ (.+?) هو من أجاب — (\d+)/10').firstMatch(tx);
+    if (mt == null) return;
+    if (mt.group(1)!.trim() != Session.me.name.trim()) return;
+    var eid = '';
+    try {
+      final j = jsonDecode((m['d'] ?? '{}').toString());
+      if (j is Map) eid = (j['eid'] ?? '').toString();
+    } catch (_) {}
+    if (eid.isEmpty) return;
+    _myScore[eid] = [int.tryParse(mt.group(2)!) ?? 0, DateTime.now().millisecondsSinceEpoch];
+  }
+
+  Widget _scoreChip() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    for (final e in _myScore.entries) {
+      if (evEnds[e.key] != null || now - e.value[1] > 25 * 60000) continue;
+      final sc = e.value[0].clamp(0, 10);
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
+        color: accentA(context, .12),
+        child: Row(children: [
+          const Text('🎯', style: TextStyle(fontSize: 14)),
+          const SizedBox(width: 8),
+          Text('تقدّمك في الفعالية: $sc/10', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
+          const SizedBox(width: 10),
+          Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(value: sc / 10, minHeight: 6, backgroundColor: Colors.white12, color: context.accent))),
+        ]),
+      );
+    }
+    return const SizedBox.shrink();
   }
 
   void _checkWin(String id, Map<String, dynamic> m) {
@@ -771,6 +821,13 @@ class _ChatScreenState extends State<ChatScreen> {
               Navigator.of(sc).pop();
               _edit(id, (m['text'] ?? '').toString());
             }),
+          if (!own)
+            AppButton('🚩 ابلاغ عن الرسالة', kind: 'g', onPressed: () async {
+              Navigator.of(sc).pop();
+              final ev = await _evidence(around: id);
+              if (!mounted) return;
+              reportChat(context, kind: 'msg', where: groupName(gid), gid: gid, peer: (m['from'] ?? '').toString(), lines: ev);
+            }),
           if (own || isStaff)
             AppButton('🗑 حذف', kind: 'r', onPressed: () async {
               Navigator.of(sc).pop();
@@ -781,6 +838,27 @@ class _ChatScreenState extends State<ChatScreen> {
               }
             }),
         ]);
+  }
+
+  /// آخر الرسائل (نصاً) لإرفاقها كدليل مع البلاغ
+  Future<List<String>> _evidence({String? around}) async {
+    final ks = msgs.keys.toList()..sort();
+    var end = ks.length;
+    if (around != null) {
+      final i = ks.indexOf(around);
+      if (i >= 0) end = i + 1;
+    }
+    final start = end - 12 < 0 ? 0 : end - 12;
+    final out = <String>[];
+    for (final k in ks.sublist(start, end)) {
+      final m = msgs[k]!;
+      final type = (m['type'] ?? 'text').toString();
+      if (type == 'sys') continue;
+      final nm = (await prof((m['from'] ?? '').toString())).name;
+      final t = type == 'text' ? (m['text'] ?? '').toString() : (type == 'image' ? '[صورة]' : (type == 'sticker' ? '[ملصق]' : '[تسجيل صوتي]'));
+      out.add('$nm: ${t.length > 120 ? t.substring(0, 120) : t}');
+    }
+    return out;
   }
 
   void _seenSheet(String id) {
@@ -1043,6 +1121,16 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         actions: [
           if (kind == 'main') IconButton(onPressed: () => showGamesSheet(context, gid), icon: const Icon(Icons.sports_esports_outlined)),
+          if (kind == 'main')
+            IconButton(
+              tooltip: 'ابلاغ عن الدردشة',
+              icon: const Icon(Icons.flag_outlined),
+              onPressed: () async {
+                final ev = await _evidence();
+                if (!mounted) return;
+                reportChat(context, kind: 'guild', where: groupName(gid), gid: gid, lines: ev);
+              },
+            ),
           IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => GroupInfoScreen(gid: gid))), icon: const Icon(Icons.info_outline)),
         ],
       ),
@@ -1056,6 +1144,13 @@ class _ChatScreenState extends State<ChatScreen> {
             reverse: true,
             padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
             itemCount: rows.length + (more ? 1 : 0),
+            findChildIndexCallback: (Key k) {
+              if (k is ValueKey<String>) {
+                final i = rows.indexOf(k.value);
+                return i < 0 ? null : i;
+              }
+              return null;
+            },
             itemBuilder: (c, i) {
               if (i == rows.length) {
                 return Padding(padding: const EdgeInsets.all(8), child: Center(child: TextButton(onPressed: _older, child: const Text('تحميل رسائل أقدم'))));
@@ -1068,7 +1163,8 @@ class _ChatScreenState extends State<ChatScreen> {
               if (type != 'sys' && from != myUid) _queueSeen(id, m);
               final bio = bios[from];
               return MsgBubble(
-                key: keys.putIfAbsent(id, () => GlobalKey()),
+                // مفتاح ثابت بالمعرّف: GlobalKey لكل رسالة كان يسبب تداخل الرسائل وتعلّق بطاقات البوت
+                key: id == widget.focusMid ? keys.putIfAbsent(id, () => GlobalKey()) : ValueKey<String>(id),
                 id: id,
                 m: m,
                 mine: from == myUid,
@@ -1083,6 +1179,7 @@ class _ChatScreenState extends State<ChatScreen> {
             },
           ),
         ),
+        _scoreChip(),
         _composer(),
       ])),
     );

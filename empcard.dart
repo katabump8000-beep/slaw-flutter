@@ -56,6 +56,25 @@ class EmperorCard extends StatelessWidget {
                 ),
               ),
             ),
+            if (Session.isEmp && has)
+              IconButton(
+                tooltip: 'حذف الحالة',
+                icon: const Icon(Icons.delete_outline, color: Color(0xFFFF6B6B)),
+                onPressed: () async {
+                  final ok = await showAppSheet<bool>(context, (sc) => [
+                        const Text('حذف حالتك؟', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                        AppButton('نعم، احذف', kind: 'r', onPressed: () => Navigator.of(sc).pop(true)),
+                        AppButton('إلغاء', kind: 'g', onPressed: () => Navigator.of(sc).pop(false)),
+                      ]);
+                  if (ok != true) return;
+                  try {
+                    await ref('media/status').remove();
+                    toast('تم حذف الحالة ✅');
+                  } catch (e) {
+                    err(e);
+                  }
+                },
+              ),
           ]),
         );
       },

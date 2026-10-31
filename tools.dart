@@ -14,6 +14,7 @@ import 'idedit.dart';
 import 'home.dart';
 import 'media.dart';
 import 'quiz.dart';
+import 'reports.dart';
 import 'sfx.dart';
 import 'sorter.dart';
 import 'tally.dart';
@@ -188,6 +189,21 @@ class _ToolsState extends State<ToolsScreen> {
         ]);
   }
 
+  Future<void> _deleteMedia(String key, String label) async {
+    final ok = await showAppSheet<bool>(context, (sc) => [
+          Text('حذف $label؟', textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          AppButton('نعم، احذف', kind: 'r', onPressed: () => Navigator.of(sc).pop(true)),
+          AppButton('إلغاء', kind: 'g', onPressed: () => Navigator.of(sc).pop(false)),
+        ]);
+    if (ok != true) return;
+    try {
+      await ref('media/$key').remove();
+      toast('تم الحذف ✅');
+    } catch (e) {
+      err(e);
+    }
+  }
+
   Widget _t(IconData i, String t, VoidCallback f, {String? sub}) =>
       ListTile(leading: Icon(i), title: Text(t), subtitle: sub == null ? null : Text(sub, style: const TextStyle(color: kMu, fontSize: 12)), onTap: f);
 
@@ -199,6 +215,7 @@ class _ToolsState extends State<ToolsScreen> {
       appBar: AppBar(title: Text(emp ? 'أدوات الإمبراطور' : 'أدوات المطورين')),
       body: ListView(children: [
         _t(Icons.casino_outlined, 'الفعاليات ⚙️', () => go(const QuizAdminScreen()), sub: 'صور الحيوانات والشخصيات'),
+        const ReportsTile(),
         _t(Icons.bar_chart, 'الإحصائيات', () => go(const StatsScreen())),
         _t(Icons.people_alt_outlined, 'الفرز', () => go(const SorterScreen()), sub: 'كل المستخدمين، النسخة، آخر ظهور، حذف'),
         _t(Icons.shield_outlined, 'درجة الفخر (بالـID)', _pride),
@@ -207,6 +224,7 @@ class _ToolsState extends State<ToolsScreen> {
         _t(Icons.tune, 'تعديل مستوى النقابة', () => editGuildLevels(context), sub: 'الهجوم والدفاع'),
         _t(Icons.science_outlined, 'تجارب', () => warTrial(context), sub: 'عرض الحرب عندك فقط'),
         _t(Icons.help_outline, 'وضع التعليمات (فيديو)', () => uploadVideo('guide'), sub: 'يظهر عند الضغط على زر «تعليمات»'),
+        _t(Icons.delete_sweep_outlined, 'حذف فيديو التعليمات', () => _deleteMedia('guide', 'فيديو التعليمات')),
         _t(Icons.library_music_outlined, 'تعيين موسيقى بالخلفية', () => uploadBgm(), sub: 'مستوى الصوت 15%'),
         _t(Icons.castle_outlined, 'الممالك', () => go(const KingdomsScreen()), sub: 'عرض الممالك ونقاباتها'),
         _t(Icons.admin_panel_settings_outlined, 'إنشاء جروب ADMINS', createAdminsGroup, sub: 'يضم كل المشرفين والمطورين والإمبراطور'),
@@ -228,6 +246,7 @@ class _ToolsState extends State<ToolsScreen> {
           _t(Icons.system_update, 'نشر تحديث', () => publishUpdateSheet(context), sub: 'يظهر للأعضاء عند فتح التطبيق'),
           _t(Icons.support_agent, 'تعيين مسؤول الدعم', _support, sub: 'يصله إشعار البلاغات'),
           _t(Icons.slideshow, 'حالة الإمبراطور (فيديو)', () => uploadVideo('status'), sub: 'يظهر عند الضغط على دائرتك في الرئيسية'),
+          _t(Icons.delete_outline, 'حذف حالة الإمبراطور', () => _deleteMedia('status', 'حالة الإمبراطور'), sub: 'تختفي الحلقة الخضراء فوراً'),
           _t(Icons.verified_user_outlined, 'اعتماد هذه النسخة', approveSig, sub: 'يقفل أي نسخة معدّلة على الأعضاء'),
         ],
       ]),

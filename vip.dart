@@ -25,22 +25,31 @@ class VipChip extends StatelessWidget {
       valueListenable: vipOn,
       builder: (c, on, _) => GestureDetector(
         onTap: () => showAppSheet<void>(context, (sc) => [
-              const Text('VIP 👑', textAlign: TextAlign.center, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFFFFD54A))),
-              const SizedBox(height: 10),
+              const Text('✨ VIP 👑 ✨', textAlign: TextAlign.center, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFFFFD54A), shadows: [Shadow(color: Color(0xAAFFB000), blurRadius: 14)])),
+              const Text('اجعل تطبيقك يلمع كسماء الليل', textAlign: TextAlign.center, style: TextStyle(color: kMu, fontSize: 12.5)),
+              const SizedBox(height: 4),
+              for (final f in const [
+                ['🌠', 'شهب متعددة تعبر الشاشة'],
+                ['⭐', 'نجوم خفيفة تلمع وتخبو'],
+                ['🌌', 'توهج شفقي ناعم على الأطراف'],
+                ['💬', 'رسائل بإطار متوهج وموجة دوّارة'],
+                ['🔔', 'أصوات نقر مميزة'],
+              ])
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(children: [Text(f[0], style: const TextStyle(fontSize: 18)), const SizedBox(width: 10), Expanded(child: Text(f[1], style: const TextStyle(fontSize: 13.5, height: 1.5)))]),
+                ),
+              const SizedBox(height: 4),
               Text(
-                on
-                    ? 'وضع VIP مفعّل الآن. هل تريد إيقافه؟'
-                    : 'عزيزي هذا يزيد من جمال التطبيق لكن قد يسبب حملاً وثقلاً وضعف حركة ولاقاً إذا كان هاتفك ضعيفاً.',
+                on ? 'وضع VIP مفعّل الآن. هل تريد إيقافه؟' : 'تنبيه: قد يسبب ثقلاً أو بطءاً إذا كان هاتفك ضعيفاً، ويمكنك إيقافه في أي وقت.',
                 textAlign: TextAlign.center,
-                style: const TextStyle(height: 1.8),
+                style: const TextStyle(height: 1.8, fontSize: 12.5, color: kMu),
               ),
-              const SizedBox(height: 14),
-              AppButton(on ? 'إيقاف VIP' : 'تأكيد', onPressed: () {
+              AppButton(on ? 'إيقاف VIP' : 'تفعيل VIP 👑', onPressed: () {
                 setVip(!on);
                 Navigator.of(sc).pop();
                 toast(on ? 'تم إيقاف VIP' : 'تم تفعيل VIP 👑');
               }),
-              const SizedBox(height: 8),
               AppButton('إلغاء', kind: 'g', onPressed: () => Navigator.of(sc).pop()),
             ]),
         child: Container(
@@ -100,32 +109,102 @@ class _StarsPainter extends CustomPainter {
   final Color col;
   _StarsPainter(this.el, this.col) : super(repaint: el);
 
-  @override
-  void paint(Canvas cv, Size s) {
-    final ms = el.value.inMilliseconds;
-    final cycle = ms ~/ 3000;
-    final t = (ms % 3000) / 3000;
-    if (t > .55) return;
-    final k = t / .55;
-    final r = math.Random(cycle * 7919 + 13);
-    final x0 = s.width * (.25 + r.nextDouble() * .75);
-    final y0 = s.height * (.02 + r.nextDouble() * .35);
-    final ang = math.pi * (r.nextBool() ? .72 : .28);
-    final dir = Offset(math.cos(ang), math.sin(ang));
-    final len = s.height * .45;
-    final head = Offset(x0, y0) + dir * (len * k);
-    final tail = head - dir * 110;
-    final a = (1 - (k - .5).abs() * 2).clamp(0.0, 1.0);
-    final p = Paint()
-      ..strokeWidth = 2.4
-      ..strokeCap = StrokeCap.round
-      ..shader = LinearGradient(colors: [col.withAlpha(0), Colors.white.withAlpha((230 * a).round())]).createShader(Rect.fromPoints(tail, head));
-    cv.drawLine(tail, head, p);
-    cv.drawCircle(head, 2.6, Paint()..color = Colors.white.withAlpha((240 * a).round())..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2));
+  static const int _nStars = 52;
+  static const int _nMeteors = 5;
+  static final List<List<double>> _stars = _mkStars();
+
+  // x, y (نسبة), طور، سرعة، حجم، نوع اللون
+  static List<List<double>> _mkStars() {
+    final r = math.Random(2026);
+    return List.generate(_nStars, (i) => [r.nextDouble(), r.nextDouble(), r.nextDouble(), .25 + r.nextDouble() * .6, .8 + r.nextDouble() * 1.7, r.nextInt(3).toDouble()]);
   }
 
   @override
-  bool shouldRepaint(covariant _StarsPainter old) => false;
+  void paint(Canvas cv, Size s) {
+    final sec = el.value.inMilliseconds / 1000.0;
+    _glow(cv, s, sec);
+    _twinkle(cv, s, sec);
+    for (var i = 0; i < _nMeteors; i++) {
+      _meteor(cv, s, sec, i);
+    }
+  }
+
+  // توهج ناعم على الأطراف (شفق) يتحرك ببطء
+  void _glow(Canvas cv, Size s, double sec) {
+    final k1 = (math.sin(sec * .55) + 1) / 2;
+    final k2 = (math.sin(sec * .43 + 2) + 1) / 2;
+    final top = Offset(s.width * (.2 + .6 * k1), -s.height * .02);
+    final bot = Offset(s.width * (.8 - .6 * k2), s.height * 1.02);
+    cv.drawRect(
+      Offset.zero & s,
+      Paint()..shader = RadialGradient(colors: [col.withAlpha(46), col.withAlpha(0)]).createShader(Rect.fromCircle(center: top, radius: s.width * .85)),
+    );
+    cv.drawRect(
+      Offset.zero & s,
+      Paint()..shader = RadialGradient(colors: [const Color(0xFFB57BFF).withAlpha(38), const Color(0xFFB57BFF).withAlpha(0)]).createShader(Rect.fromCircle(center: bot, radius: s.width * .9)),
+    );
+  }
+
+  // نجوم صغيرة تلمع وتخبو، والأكبر منها بشكل شرارة رباعية
+  void _twinkle(Canvas cv, Size s, double sec) {
+    final p = Paint();
+    for (var i = 0; i < _nStars; i++) {
+      final st = _stars[i];
+      final ph = (sec * st[3] * .35 + st[2]) % 1.0;
+      final a = math.pow((math.sin(ph * 2 * math.pi) + 1) / 2, 2.2).toDouble();
+      if (a < .04) continue;
+      final c = st[5] == 0 ? Colors.white : (st[5] == 1 ? col : const Color(0xFFFFE9A8));
+      final x = st[0] * s.width;
+      final y = st[1] * s.height;
+      final r = st[4];
+      p.color = c.withAlpha((a * 215).round());
+      cv.drawCircle(Offset(x, y), r * (.7 + .5 * a), p);
+      if (r > 1.9) {
+        final L = r * 3.6 * a;
+        final q = Paint()
+          ..strokeWidth = .9
+          ..strokeCap = StrokeCap.round
+          ..color = c.withAlpha((a * 170).round());
+        cv.drawLine(Offset(x - L, y), Offset(x + L, y), q);
+        cv.drawLine(Offset(x, y - L), Offset(x, y + L), q);
+      }
+    }
+  }
+
+  // عدة شهب تعبر الشاشة بتوقيتات مختلفة
+  void _meteor(Canvas cv, Size s, double sec, int i) {
+    final period = 2.3 + i * .55;
+    final off = i * 1.17;
+    final cycle = ((sec + off) / period).floor();
+    final t = ((sec + off) % period) / period;
+    const life = .42;
+    if (t > life) return;
+    final k = t / life;
+    final r = math.Random(cycle * 7919 + i * 131 + 13);
+    final fromRight = r.nextBool();
+    final x0 = s.width * (fromRight ? .35 + r.nextDouble() * .65 : r.nextDouble() * .65);
+    final y0 = s.height * (-.02 + r.nextDouble() * .5);
+    final ang = math.pi * (fromRight ? .74 + r.nextDouble() * .06 : .20 + r.nextDouble() * .06);
+    final dir = Offset(math.cos(ang), math.sin(ang));
+    final len = s.height * (.32 + r.nextDouble() * .25);
+    final head = Offset(x0, y0) + dir * (len * k);
+    final tail = head - dir * (90 + r.nextDouble() * 70);
+    final a = math.sin(k * math.pi).clamp(0.0, 1.0);
+    final warm = i.isEven ? Colors.white : const Color(0xFFFFE9A8);
+    cv.drawLine(
+      tail,
+      head,
+      Paint()
+        ..strokeWidth = 2.2
+        ..strokeCap = StrokeCap.round
+        ..shader = LinearGradient(colors: [col.withAlpha(0), warm.withAlpha((235 * a).round())]).createShader(Rect.fromPoints(tail, head)),
+    );
+    cv.drawCircle(head, 5.5, Paint()..color = col.withAlpha((70 * a).round()));
+    cv.drawCircle(head, 2.4, Paint()..color = Colors.white.withAlpha((245 * a).round()));
+  }
+
+  @override
+  bool shouldRepaint(covariant _StarsPainter old) => old.col != col;
 }
 
 /// فقاعة رسالة: عادية، أو داكنة بحافة فاقعة وموجة تدور كل 4 ثوانٍ في وضع VIP

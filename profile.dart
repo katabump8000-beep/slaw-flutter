@@ -6,6 +6,8 @@ import 'app_state.dart';
 import 'data.dart';
 import 'entrancefx.dart';
 import 'empchat.dart';
+import 'friends.dart' show removeFriend;
+import 'reports.dart';
 import 'home.dart';
 import 'lastseen.dart';
 import 'widgets.dart';
@@ -33,6 +35,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
   bool liked = false;
   bool loading = true;
   bool priv = false;
+  bool isFriend = false;
   String note = '';
 
   @override
@@ -68,6 +71,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
       final c = await _g('guildStats/${mg.first}/contrib/$u');
       contrib = _n(c);
     }
+    isFriend = u != myUid && (await _g('friends/$myUid/$u')) == true;
     final l = await _g('likes/$u/$myUid');
     liked = l is num && DateTime.now().millisecondsSinceEpoch - l < 43200000;
     if (mounted) setState(() => loading = false);
@@ -141,6 +145,25 @@ class _ProfileBodyState extends State<_ProfileBody> {
               child: Icon(Icons.thumb_up_alt_rounded, size: 30, color: liked ? kDarkText : kMu),
             ),
           ),
+        ),
+      if (widget.uid != myUid)
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Row(children: [
+            if (isFriend) ...[
+              Expanded(
+                child: AppButton('حذف الصديق', kind: 'r', compact: true, onPressed: () async {
+                  await removeFriend(context, widget.uid);
+                  try {
+                    final still = (await ref('friends/$myUid/${widget.uid}').get()).exists;
+                    if (mounted) setState(() => isFriend = still);
+                  } catch (_) {}
+                }),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Expanded(child: AppButton('🚩 ابلاغ', kind: 'g', compact: true, onPressed: () => reportChat(context, kind: 'user', where: p!.name, peer: widget.uid))),
+          ]),
         ),
       if (isDevPeer || (Session.isDev && (role == 'dev' || role == 'emp') && widget.uid != myUid))
         Padding(padding: const EdgeInsets.only(top: 10), child: AppButton('مراسلة', kind: 'g', onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => DevDmScreen(peer: widget.uid))))),

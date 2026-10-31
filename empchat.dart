@@ -11,7 +11,9 @@ import 'package:record/record.dart';
 import 'app_state.dart';
 import 'chat.dart' show VoiceBubble;
 import 'data.dart';
+import 'friends.dart' show removeFriend;
 import 'profile.dart';
+import 'reports.dart';
 import 'widgets.dart';
 
 /// بطاقة «دردشة الإمبراطور»: أول عنصر في الشاشة الرئيسية
@@ -216,6 +218,30 @@ class _ThreadState extends State<_Thread> {
     }
   }
 
+  bool get _isFriendDm => widget.path.startsWith('fdm/');
+
+  List<String> _evidence() {
+    final ks = msgs.keys.toList()..sort();
+    final last = ks.length > 14 ? ks.sublist(ks.length - 14) : ks;
+    final out = <String>[];
+    for (final k in last) {
+      final m = msgs[k]!;
+      final t = (m['au'] ?? '').toString().isNotEmpty ? '[تسجيل صوتي]' : (m['text'] ?? '').toString();
+      out.add('${m['from'] == myUid ? 'المبلِّغ' : 'الطرف الآخر'}: ${t.length > 120 ? t.substring(0, 120) : t}');
+    }
+    return out;
+  }
+
+  Future<void> _removeFriend() async {
+    final peer = widget.peer;
+    if (peer == null || peer.isEmpty) return;
+    await removeFriend(context, peer);
+    try {
+      final still = (await ref('friends/$myUid/$peer').get()).exists;
+      if (!still && mounted) Navigator.of(context).pop();
+    } catch (_) {}
+  }
+
   Widget _title() {
     final peer = widget.peer;
     if (peer == null || peer.isEmpty) return Text(widget.title);
@@ -233,7 +259,25 @@ class _ThreadState extends State<_Thread> {
   Widget build(BuildContext context) {
     final keys = msgs.keys.toList()..sort();
     return Scaffold(
-      appBar: AppBar(title: _title()),
+      appBar: AppBar(
+        title: _title(),
+        actions: [
+          if (_isFriendDm)
+            PopupMenuButton<String>(
+              onSelected: (v) {
+                if (v == 'rep') {
+                  reportChat(context, kind: 'fdm', where: 'دردشة صديق', peer: widget.peer ?? '', lines: _evidence());
+                } else if (v == 'del') {
+                  _removeFriend();
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem<String>(value: 'rep', child: Row(children: [Icon(Icons.flag_outlined, size: 20), SizedBox(width: 10), Text('ابلاغ عن الدردشة')])),
+                PopupMenuItem<String>(value: 'del', child: Row(children: [Icon(Icons.person_remove_alt_1_outlined, size: 20, color: Color(0xFFFF6B6B)), SizedBox(width: 10), Text('حذف الصديق')])),
+              ],
+            ),
+        ],
+      ),
       body: Column(children: [
         Expanded(
           child: ListView(reverse: true, padding: const EdgeInsets.all(10), children: [
