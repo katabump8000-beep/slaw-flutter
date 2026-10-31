@@ -236,6 +236,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (st == AppLifecycleState.resumed) {
       Sfx.unblock('bg');
       Board.sync();
+      if (mounted) checkUpdate(context);
     } else {
       Sfx.block('bg');
     }
