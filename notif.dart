@@ -200,6 +200,6 @@ void callbackDispatcher() {
 Future<void> startBackgroundPolling() async {
   try {
     await Workmanager().initialize(callbackDispatcher);
-    await Workmanager().registerPeriodicTask('fir_poll', 'fir_poll', frequency: const Duration(minutes: 15), existingWorkPolicy: ExistingWorkPolicy.update);
+    await Workmanager().registerPeriodicTask('fir_poll', 'fir_poll', frequency: const Duration(minutes: 15));
   } catch (_) {}
 }
