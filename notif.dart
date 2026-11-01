@@ -138,6 +138,16 @@ bool appInBackground() {
   return s != null && s != AppLifecycleState.resumed;
 }
 
+/// تهيئة Firebase بأمان: لا تفشل إذا كان التطبيق الافتراضي مهيّأً مسبقاً (core/duplicate-app)
+Future<void> ensureFirebase() async {
+  if (Firebase.apps.isNotEmpty) return;
+  try {
+    await Firebase.initializeApp(options: firebaseOptions);
+  } on FirebaseException catch (e) {
+    if (e.code != 'duplicate-app') rethrow;
+  }
+}
+
 /// مهمة الخلفية: تفحص الإشعارات وإعلانات الحرب كل ~15 دقيقة عندما يكون التطبيق مغلقاً
 @pragma('vm:entry-point')
 void callbackDispatcher() {
@@ -145,7 +155,7 @@ void callbackDispatcher() {
     try {
       WidgetsFlutterBinding.ensureInitialized();
       await prefs.init();
-      await Firebase.initializeApp(options: firebaseOptions);
+      await ensureFirebase();
       final auth = FirebaseAuth.instance;
       final u = auth.currentUser ?? await auth.authStateChanges().first.timeout(const Duration(seconds: 8));
       if (u == null || u.isAnonymous) return true;
@@ -190,6 +200,6 @@ void callbackDispatcher() {
 Future<void> startBackgroundPolling() async {
   try {
     await Workmanager().initialize(callbackDispatcher);
-    await Workmanager().registerPeriodicTask('fir_poll', 'fir_poll', frequency: const Duration(minutes: 15));
+    await Workmanager().registerPeriodicTask('fir_poll', 'fir_poll', frequency: const Duration(minutes: 15), existingWorkPolicy: ExistingWorkPolicy.update);
   } catch (_) {}
 }

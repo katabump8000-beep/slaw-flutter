@@ -24,7 +24,7 @@ Future<void> main() async {
   try {
     await prefs.init();
     accentHex.value = prefs.getString('accent') ?? kDefaultAccentHex;
-    await Firebase.initializeApp(options: firebaseOptions);
+    await ensureFirebase();
     try {
       FirebaseDatabase.instance.setPersistenceEnabled(true);
       FirebaseDatabase.instance.setPersistenceCacheSizeBytes(60 * 1024 * 1024);
