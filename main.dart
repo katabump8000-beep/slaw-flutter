@@ -13,6 +13,7 @@ import 'firebase_options.dart';
 import 'home.dart';
 import 'notif.dart';
 import 'sfx.dart';
+import 'support.dart';
 import 'tapsound.dart';
 import 'tools.dart';
 import 'war.dart';
@@ -192,8 +193,11 @@ class _Blocked extends StatelessWidget {
             children: [
               const Text('⛔', style: TextStyle(fontSize: 60)),
               const SizedBox(height: 10),
-              const Text('تم حظرك من التطبيق', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: kRed)),
+              const Text('تم حظرك من قبل أحد المطورين', textAlign: TextAlign.center, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: kRed)),
+              const SizedBox(height: 10),
+              const Text('إن كنت ترى أن الحظر خطأ، تواصل مع المطورين وأرفق ما يثبت ذلك.', textAlign: TextAlign.center, style: TextStyle(color: kMu, height: 1.7)),
               const SizedBox(height: 18),
+              AppButton('تواصل مع المطورين', onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SupportScreen()))),
               TextButton(onPressed: onOut, child: const Text('تسجيل الخروج')),
             ],
           ),

@@ -154,6 +154,14 @@ class BellService {
     tick.value++;
   }
 
+  /// يزيل إشعارات الذكر (@) لنقابة عند دخولها أو مغادرتها فتختفي علامة @ من الرئيسية
+  static void clearMentions(String gid) {
+    if (_uid.isEmpty || gid.isEmpty) return;
+    final ks = items.entries.where((e) => e.value.t == 'men' && e.value.g == gid).map((e) => e.key).toList();
+    if (ks.isEmpty) return;
+    removeMany(ks).catchError((Object _) {});
+  }
+
   static Future<void> removeMany(Iterable<String> ks) async {
     final up = <String, Object?>{};
     for (final k in ks) {

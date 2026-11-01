@@ -20,6 +20,7 @@ import 'package:record/record.dart';
 import 'ai.dart';
 import 'aljesi.dart';
 import 'app_state.dart';
+import 'bell.dart';
 import 'core.dart';
 import 'crop.dart';
 import 'data.dart';
@@ -99,6 +100,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final Map<String, String> _eidOf = {};
   Timer? _evTimer;
   Timer? _expTimer;
+  final Set<String> _warHidden = {};
   final Map<String, List<int>> _myScore = {}; // eid -> [نقاطي, وقت التحديث]
 
   String get kind => groupKind(gid);
@@ -111,6 +113,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     markGroupRead(gid);
+    BellService.clearMentions(gid);
     locked = groupsCache[gid]?['locked'] == true;
     final q = ref('messages/$gid').orderByKey().limitToLast(30);
     subs.add(q.onChildAdded.listen((e) => _put(e.snapshot), onError: (_) {}));
@@ -185,6 +188,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     _evTimer?.cancel();
     _expTimer?.cancel();
+    BellService.clearMentions(gid);
     prefs.setInt('ls_$gid', DateTime.now().millisecondsSinceEpoch);
     for (final s in subs) {
       s.cancel();
@@ -840,6 +844,68 @@ class _ChatScreenState extends State<ChatScreen> {
         ]);
   }
 
+  /// بحث عن كلمة في آخر 800 رسالة (للمطورين)
+  Future<void> _searchChat() async {
+    final c = TextEditingController();
+    final q = await showAppSheet<String>(context, (sc) => [
+          const Text('🔎 بحث في الشات', textAlign: TextAlign.center, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+          TextField(controller: c, autofocus: true, decoration: const InputDecoration(hintText: 'اكتب الكلمة')),
+          AppButton('بحث', onPressed: () => Navigator.of(sc).pop(c.text.trim())),
+        ]);
+    if (q == null || q.isEmpty || !mounted) return;
+    try {
+      final snap = await ref('messages/$gid').orderByKey().limitToLast(800).get();
+      final v = snap.value;
+      final hits = <MapEntry<String, Map<dynamic, dynamic>>>[];
+      if (v is Map) {
+        v.forEach((k, x) {
+          if (x is Map && (x['text'] ?? '').toString().contains(q)) hits.add(MapEntry(k.toString(), x));
+        });
+      }
+      hits.sort((a, b) => b.key.compareTo(a.key));
+      if (!mounted) return;
+      if (hits.isEmpty) {
+        toast('لا توجد نتائج');
+        return;
+      }
+      final shown = hits.take(40).toList();
+      final names = <String, String>{};
+      for (final h in shown) {
+        final u = (h.value['from'] ?? '').toString();
+        if (u.isNotEmpty && !names.containsKey(u)) names[u] = (await prof(u)).name;
+      }
+      if (!mounted) return;
+      showAppSheet<void>(context, (sc) => [
+            Text('النتائج (${hits.length})', textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            for (final h in shown)
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: const Color.fromRGBO(0, 0, 0, .25), borderRadius: BorderRadius.circular(12)),
+                child: Text('${names[(h.value['from'] ?? '').toString()] ?? 'النظام'}: ${(h.value['text'] ?? '').toString()}', style: const TextStyle(height: 1.6)),
+              ),
+          ]);
+    } catch (e) {
+      err(e);
+    }
+  }
+
+  /// حذف كل رسائل الشات (للمطورين)
+  Future<void> _clearChat() async {
+    final ok = await showAppSheet<bool>(context, (sc) => [
+          const Text('حذف كل رسائل هذا الشات نهائياً؟', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          AppButton('نعم، احذف الشات', kind: 'r', onPressed: () => Navigator.of(sc).pop(true)),
+          AppButton('إلغاء', kind: 'g', onPressed: () => Navigator.of(sc).pop(false)),
+        ]);
+    if (ok != true) return;
+    try {
+      await ref('messages/$gid').remove();
+      if (mounted) setState(() => msgs.clear());
+      toast('تم حذف الشات ✅');
+    } catch (e) {
+      err(e);
+    }
+  }
+
   /// آخر الرسائل (نصاً) لإرفاقها كدليل مع البلاغ
   Future<List<String>> _evidence({String? around}) async {
     final ks = msgs.keys.toList()..sort();
@@ -1084,8 +1150,9 @@ class _ChatScreenState extends State<ChatScreen> {
       stream: Stream<int>.periodic(const Duration(seconds: 1), (i) => i),
       builder: (c, _) {
         final now = DateTime.now().millisecondsSinceEpoch;
-        for (final f in WarWatcher.feeds.values) {
-          if (f['res'] != null) continue;
+        for (final en in WarWatcher.feeds.entries) {
+          final f = en.value;
+          if (f['res'] != null || _warHidden.contains(en.key)) continue;
           final at = f['ag'] == gid, df = f['dg'] == gid;
           if (!at && !df) continue;
           final st = (f['st'] as num?)?.toInt() ?? 0;
@@ -1095,11 +1162,27 @@ class _ChatScreenState extends State<ChatScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 8),
             color: at ? const Color(0xFF7A5200) : const Color(0xFF7A0A0A),
-            child: Text(
-              '${at ? '⚔️ تشنون حرباً على «${f['dn']}»' : '🚨 تتعرضون لهجوم من «${f['an']}»'}\n${s > 0 ? 'تبدأ المعركة بعد ${p(s ~/ 3600)}:${p((s % 3600) ~/ 60)}:${p(s % 60)}' : 'بانتظار الحسم…'}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, height: 1.6),
-            ),
+            child: Stack(children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 34),
+                child: Center(
+                  child: Text(
+                    '${at ? '⚔️ تشنون حرباً على «${f['dn']}»' : '🚨 تتعرضون لهجوم من «${f['an']}»'}\n${s > 0 ? 'تبدأ المعركة بعد ${p(s ~/ 3600)}:${p((s % 3600) ~/ 60)}:${p(s % 60)}' : 'بانتظار الحسم…'}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 13, height: 1.6),
+                  ),
+                ),
+              ),
+              if (Session.isDev)
+                PositionedDirectional(
+                  end: 4,
+                  top: -4,
+                  child: InkWell(
+                    onTap: () => setState(() => _warHidden.add(en.key)),
+                    child: const Padding(padding: EdgeInsets.all(6), child: Icon(Icons.close, size: 18)),
+                  ),
+                ),
+            ]),
           );
         }
         return const SizedBox();
@@ -1130,6 +1213,20 @@ class _ChatScreenState extends State<ChatScreen> {
                 if (!mounted) return;
                 reportChat(context, kind: 'guild', where: groupName(gid), gid: gid, lines: ev);
               },
+            ),
+          if (Session.isDev)
+            PopupMenuButton<String>(
+              onSelected: (v) {
+                if (v == 'find') {
+                  _searchChat();
+                } else if (v == 'clear') {
+                  _clearChat();
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem<String>(value: 'find', child: Row(children: [Icon(Icons.search, size: 20), SizedBox(width: 10), Text('بحث في الشات')])),
+                PopupMenuItem<String>(value: 'clear', child: Row(children: [Icon(Icons.delete_forever_outlined, size: 20, color: Color(0xFFFF6B6B)), SizedBox(width: 10), Text('حذف الشات')])),
+              ],
             ),
           IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => GroupInfoScreen(gid: gid))), icon: const Icon(Icons.info_outline)),
         ],

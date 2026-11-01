@@ -135,13 +135,13 @@ Future<void> runTally() async {
   }
 }
 
-/// تصفير المتصدرين (للإمبراطور فقط)
+/// تصفير المتصدرين (للمطورين والإمبراطور)
 Future<void> resetLeaderboard() async {
   try {
     for (final g in groupsCache.keys.where((g) => groupKind(g) == 'main')) {
       await ref('stats/$g').remove();
     }
-    await feedNote('ads', '♻️ تم تصفير المتصدرين بواسطة الإمبراطور');
+    await feedNote('ads', '♻️ تم تصفير المتصدرين');
     toast('تم تصفير المتصدرين ✅');
   } catch (e) {
     err(e);

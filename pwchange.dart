@@ -66,7 +66,8 @@ class _ChangePasswordState extends State<ChangePasswordScreen> {
         final k = aliasKey(n);
         final ex = (await ref('pwAlias/$k').get()).value;
         if (ex is Map && ex['u'] != myUid) {
-          if (mounted) setState(() => msg = 'كلمة السر هذه مستخدمة، اختر غيرها');
+          await lockPwOwner(n);
+          if (mounted) setState(() => msg = 'رجاءً قم باختيار كلمة سر أخرى');
         } else {
           if (ex == null) await ref('pwAlias/$k').set(<String, Object?>{'u': myUid, 'c': aliasEnc(n, '${creds[0]}|${creds[1]}')});
           if (current.isNotEmpty && current != n) {

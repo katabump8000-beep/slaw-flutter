@@ -150,3 +150,48 @@ exports.onReport = onValueCreated({ ...OPT, ref: '/reports/{rid}' }, async (e) =
     )
   );
 });
+
+// 8) حذف عضو نهائياً (من شاشة «حظر / حذف عضو»): يمسح الحساب وكل أثره
+exports.onDelMember = onValueCreated({ ...OPT, ref: '/delQueue/{uid}' }, async (e) => {
+  const uid = e.params.uid;
+  const q = db.ref(`delQueue/${uid}`);
+  try {
+    const by = (e.data.val() || {}).by;
+    const emp = await val('config/emperorUid');
+    const byRole = by ? await val(`roles/${by}`) : null;
+    const allowed = by && (by === emp || byRole === 'dev') && uid !== emp;
+    const targetDev = (await val(`roles/${uid}`)) === 'dev';
+    if (!allowed || (targetDev && by !== emp)) { await q.remove(); return; }
+
+    const up = {};
+    const own = ['profiles', 'wallets', 'pw', 'pdata', 'avatars', 'seen', 'flags', 'presence', 'tamper', 'pride', 'prideTs',
+      'likeCount', 'wins', 'msgTotal', 'fcmTokens', 'badge', 'notifs', 'friends', 'supportOpen', 'restricted', 'joinLog',
+      'refClaims', 'refPaid', 'pubCount', 'pwSwap', 'spin', 'gift', 'roles', 'devs', 'banned', 'mod', 'myStickers', 'welcomed'];
+    for (const k of own) up[`${k}/${uid}`] = null;
+    const pid = await val(`pdata/${uid}/pid`);
+    if (pid) up[`pids/${pid}`] = null;
+    const dev = await val(`deviceOf/${uid}`);
+    if (dev) up[`devices/${dev}`] = null;
+    up[`deviceOf/${uid}`] = null;
+
+    const members = (await val('members')) || {};
+    for (const g of Object.keys(members)) {
+      if (members[g] && members[g][uid] !== undefined) up[`members/${g}/${uid}`] = null;
+      up[`stats/${g}/${uid}`] = null;
+      up[`groupAdmins/${g}/${uid}`] = null;
+    }
+    const idx = (await val('nameIdx')) || {};
+    for (const g of Object.keys(idx)) for (const k of Object.keys(idx[g] || {})) if (idx[g][k] === uid) up[`nameIdx/${g}/${k}`] = null;
+    const al = (await val('pwAlias')) || {};
+    for (const k of Object.keys(al)) if (al[k] && al[k].u === uid) up[`pwAlias/${k}`] = null;
+    const fr = (await val(`friends/${uid}`)) || {};
+    for (const f of Object.keys(fr)) up[`friends/${f}/${uid}`] = null;
+
+    await db.ref().update(up);
+    try { await admin.auth().deleteUser(uid); } catch (_) {}
+  } catch (err) {
+    console.error('onDelMember', err);
+  } finally {
+    try { await q.remove(); } catch (_) {}
+  }
+});

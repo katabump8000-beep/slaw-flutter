@@ -14,6 +14,7 @@ import 'idedit.dart';
 import 'home.dart';
 import 'media.dart';
 import 'quiz.dart';
+import 'memberadmin.dart';
 import 'reports.dart';
 import 'sfx.dart';
 import 'sorter.dart';
@@ -216,6 +217,7 @@ class _ToolsState extends State<ToolsScreen> {
       body: ListView(children: [
         _t(Icons.casino_outlined, 'الفعاليات ⚙️', () => go(const QuizAdminScreen()), sub: 'صور الحيوانات والشخصيات'),
         const ReportsTile(),
+        _t(Icons.gavel_outlined, 'حظر / حذف عضو', () => go(const MemberAdminScreen()), sub: 'بالـID: حظر أو حذف نهائي'),
         _t(Icons.bar_chart, 'الإحصائيات', () => go(const StatsScreen())),
         _t(Icons.people_alt_outlined, 'الفرز', () => go(const SorterScreen()), sub: 'كل المستخدمين، النسخة، آخر ظهور، حذف'),
         _t(Icons.shield_outlined, 'درجة الفخر (بالـID)', _pride),
@@ -229,18 +231,18 @@ class _ToolsState extends State<ToolsScreen> {
         _t(Icons.castle_outlined, 'الممالك', () => go(const KingdomsScreen()), sub: 'عرض الممالك ونقاباتها'),
         _t(Icons.admin_panel_settings_outlined, 'إنشاء جروب ADMINS', createAdminsGroup, sub: 'يضم كل المشرفين والمطورين والإمبراطور'),
         _t(Icons.sell_outlined, 'أسعار المتجر', () => editShopPrices(context), sub: 'تعديل سعر أي عنصر'),
+        _t(Icons.block, 'المقيدون', () => go(const RestrictedScreen()), sub: 'من ظهرت له رسالة «لا يمكن إنشاء حساب آخر»'),
+        _t(Icons.restart_alt, 'تصفير المتصدرين', () async {
+          final ok = await showAppSheet<bool>(context, (sc) => [
+                const Text('هل أنت متأكد من تصفير المتصدرين؟', style: TextStyle(fontSize: 16)),
+                AppButton('نعم، صفّر', kind: 'r', onPressed: () => Navigator.of(sc).pop(true)),
+                AppButton('إلغاء', kind: 'g', onPressed: () => Navigator.of(sc).pop(false)),
+              ]);
+          if (ok == true) await resetLeaderboard();
+        }),
         if (emp) ...[
           _t(Icons.merge, 'دمج أو إنشاء مملكة', () => go(const KingdomMakeScreen()), sub: 'اجمع عدة نقابات تحت مملكة واحدة'),
           const Divider(),
-          _t(Icons.block, 'المقيدون', () => go(const RestrictedScreen()), sub: 'من ظهرت له رسالة «لا يمكن إنشاء حساب آخر»'),
-          _t(Icons.restart_alt, 'تصفير المتصدرين', () async {
-            final ok = await showAppSheet<bool>(context, (sc) => [
-                  const Text('هل أنت متأكد من تصفير المتصدرين؟', style: TextStyle(fontSize: 16)),
-                  AppButton('نعم، صفّر', kind: 'r', onPressed: () => Navigator.of(sc).pop(true)),
-                  AppButton('إلغاء', kind: 'g', onPressed: () => Navigator.of(sc).pop(false)),
-                ]);
-            if (ok == true) await resetLeaderboard();
-          }),
           _t(Icons.schedule, 'ساعة الحسبة اليومية', _hour),
           _t(Icons.merge_type, 'دمج نقابات', () => mergeGuilds(context), sub: 'نقل الأعضاء إلى نقابة واحدة باسم جديد'),
           _t(Icons.system_update, 'نشر تحديث', () => publishUpdateSheet(context), sub: 'يظهر للأعضاء عند فتح التطبيق'),

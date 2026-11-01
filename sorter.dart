@@ -93,7 +93,20 @@ Future<void> markSeen() async {
 /// هل اللقب مستخدم؟ (نقابة التسجيل + ألقاب المطورين في كل مكان)
 Future<bool> nameTaken(String name, String guild, String uid) async {
   final key = nameKey(name);
-  final paths = <String>['nameIdx/_dev/$key', if (guild.isNotEmpty) 'nameIdx/$guild/$key'];
+  // ألقاب المطورين: يُمنع المطابق والمتشابه (لقب جزئي أو أطول منه)
+  try {
+    final dv = (await ref('nameIdx/_dev').get()).value;
+    if (dv is Map) {
+      for (final e in dv.entries) {
+        if (e.value.toString() == uid) continue;
+        final dk = e.key.toString();
+        if (dk == key) return true;
+        if (key.length >= 2 && dk.length >= 2 && dk.contains(key)) return true;
+        if (dk.length >= 3 && key.contains(dk)) return true;
+      }
+    }
+  } catch (_) {}
+  final paths = <String>[if (guild.isNotEmpty) 'nameIdx/$guild/$key'];
   for (final p in paths) {
     try {
       final s = await ref(p).get();

@@ -108,6 +108,24 @@ String nameError(String raw) {
   return '';
 }
 
+/// حماية صاحب كلمة السر: إذا حاول أحد إنشاء حساب بكلمة سر مستخدمة يُقفل الدخول بها 24 ساعة
+Future<void> lockPwOwner(String pw) async {
+  try {
+    await ref('pwLock/${aliasKey(pw)}').set(<String, Object?>{'until': DateTime.now().millisecondsSinceEpoch + 86400000});
+  } catch (_) {}
+}
+
+Future<bool> pwLocked(String pw) async {
+  try {
+    final v = (await ref('pwLock/${aliasKey(pw)}/until').get()).value;
+    return v is num && v.toInt() > DateTime.now().millisecondsSinceEpoch;
+  } catch (_) {
+    return false;
+  }
+}
+
+const String _pwTaken = 'رجاءً قم باختيار كلمة سر أخرى';
+
 /// بصمة الجهاز (حساب واحد لكل جهاز)
 Future<String> deviceHash() async {
   var id = '';
@@ -142,6 +160,14 @@ Future<String> registerAccount({
   User? created;
   try {
     if (pw != null) {
+      var inUse = false;
+      try {
+        inUse = (await ref('pwAlias/${aliasKey(pw)}').get()).exists;
+      } catch (_) {}
+      if (inUse) {
+        await lockPwOwner(pw);
+        return _pwTaken;
+      }
       final cred = await auth.createUserWithEmailAndPassword(email: derivedEmail(pw), password: derivedPass(pw));
       try {
         await ref('pw/${cred.user!.uid}').set(pw);
@@ -223,7 +249,10 @@ Future<String> registerAccount({
     }
     return '';
   } on FirebaseAuthException catch (e) {
-    if (e.code == 'email-already-in-use') return 'كلمة السر هذه مستخدمة، اختر كلمة سر أخرى';
+    if (e.code == 'email-already-in-use') {
+      if (pw != null) await lockPwOwner(pw);
+      return _pwTaken;
+    }
     if (e.code == 'network-request-failed') return 'لا يوجد اتصال بالإنترنت';
     if (e.code == 'operation-not-allowed') return 'فعّل Email/Password في Firebase ← Authentication';
     final det = (e.message ?? '').trim();
@@ -305,8 +334,7 @@ class FirShell extends StatelessWidget {
                           height: 12,
                           decoration: const BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Color(0xFF39FF14),
-                            boxShadow: [BoxShadow(color: Color(0xFF39FF14), blurRadius: 8)],
+                            color: Color(0x40FF5A00),
                           ),
                         ),
                       ),
@@ -493,6 +521,15 @@ class _PasswordLoginScreenState extends State<PasswordLoginScreen> {
       busy = true;
       error = '';
     });
+    if (await pwLocked(p)) {
+      if (mounted) {
+        setState(() {
+          error = 'هذا الحساب محمي حالياً ولا يمكن الدخول إليه';
+          busy = false;
+        });
+      }
+      return;
+    }
     try {
       try {
         final cr = await FirebaseAuth.instance.signInWithEmailAndPassword(email: derivedEmail(p), password: derivedPass(p));
