@@ -1,0 +1,42 @@
+name: Deploy Firebase (functions + rules)
+
+# يشغَّل يدوياً من تبويب Actions. يحتاج سرّاً باسم FIREBASE_SERVICE_ACCOUNT (محتوى ملف JSON لحساب الخدمة)
+on:
+  workflow_dispatch:
+    inputs:
+      with_rules:
+        description: 'انشر قواعد قاعدة البيانات أيضاً؟ (true/false)'
+        required: false
+        default: 'false'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install functions deps
+        run: cd functions && npm install --omit=dev
+
+      - name: Firebase config
+        run: |
+          echo '{"projects":{"default":"slaw-3a991"}}' > .firebaserc
+          if [ "${{ github.event.inputs.with_rules }}" = "true" ]; then
+            echo '{"database":{"rules":"database.rules.json"},"functions":[{"source":"functions","codebase":"default"}]}' > firebase.json
+          else
+            echo '{"functions":[{"source":"functions","codebase":"default"}]}' > firebase.json
+          fi
+
+      - name: Deploy
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA" ]; then echo "السر FIREBASE_SERVICE_ACCOUNT غير موجود"; exit 1; fi
+          echo "$SA" > "$HOME/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$HOME/sa.json"
+          if [ "${{ github.event.inputs.with_rules }}" = "true" ]; then ONLY="functions,database"; else ONLY="functions"; fi
+          npx --yes firebase-tools@latest deploy --only "$ONLY" --project slaw-3a991 --non-interactive --force
