@@ -13,6 +13,7 @@ import 'firebase_options.dart';
 import 'home.dart';
 import 'notif.dart';
 import 'sfx.dart';
+import 'sorter.dart' show envSuspect;
 import 'support.dart';
 import 'tapsound.dart';
 import 'tools.dart';
@@ -32,6 +33,10 @@ Future<void> main() async {
     await Sfx.init();
   } catch (e) {
     runApp(InitErrorApp(error: e.toString()));
+    return;
+  }
+  if (await envSuspect()) {
+    runApp(const InitErrorApp(error: 'هذه نسخة غير رسمية أو مستنسخة من التطبيق.\nحمّل التطبيق الرسمي من الرابط الرسمي.'));
     return;
   }
   runApp(const FirApp());

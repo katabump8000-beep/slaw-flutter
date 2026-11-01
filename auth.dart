@@ -156,6 +156,7 @@ Future<String> registerAccount({
   String? pw,
   String code = '',
 }) async {
+  if (await envSuspect()) return 'هذه نسخة غير رسمية من التطبيق. حمّل التطبيق الرسمي لإنشاء حساب';
   final auth = FirebaseAuth.instance;
   User? created;
   try {

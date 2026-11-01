@@ -29,10 +29,14 @@ String nameKey(String raw) {
 
 /// يسجّل آخر ظهور ونسخة التطبيق، ويحجز لقب العضو في فهرس الألقاب
 /// هل التطبيق يعمل داخل بيئة مستنسخة/افتراضية؟ (كشف تقريبي لا يحظر أحداً)
+/// اسم حزمة التطبيق الرسمي (org + project-name في ملف البناء). إن تغيّر عدّله هنا.
+const String kPkg = 'io.github.katabump8000_beep.twa';
+
 Future<bool> envSuspect() async {
   try {
     final d = (await getApplicationSupportDirectory()).path;
-    if (!(d.startsWith('/data/user/0/') || d.startsWith('/data/data/'))) return true;
+    // التطبيق الأصلي يعمل دائماً من /data/user/0/<الحزمة>/ ؛ برامج الاستنساخ والمساحات الثانية تغيّر هذا المسار
+    if (!(d.startsWith('/data/user/0/$kPkg/') || d.startsWith('/data/data/$kPkg/'))) return true;
     final low = d.toLowerCase();
     return low.contains('virtual') || low.contains('parallel') || low.contains('clone') || low.contains('dualspace') || low.contains('multi');
   } catch (_) {
@@ -111,6 +115,25 @@ Future<bool> nameTaken(String name, String guild, String uid) async {
     try {
       final s = await ref(p).get();
       if (s.exists && s.value.toString() != uid) return true;
+    } catch (_) {}
+  }
+  // الأعضاء القدامى قد لا يكونون في الفهرس: نفحص أسماء أعضاء النقابة الفعلية
+  if (guild.isNotEmpty) {
+    try {
+      final mv = (await ref('members/$guild').get()).value;
+      if (mv is Map) {
+        final ids = mv.entries.where((e) => e.value == true && e.key.toString() != uid).map((e) => e.key.toString()).take(500).toList();
+        final names = await Future.wait(ids.map((u) async {
+          try {
+            return (await ref('profiles/$u/name').get()).value?.toString() ?? '';
+          } catch (_) {
+            return '';
+          }
+        }));
+        for (final n in names) {
+          if (n.isNotEmpty && nameKey(n) == key) return true;
+        }
+      }
     } catch (_) {}
   }
   return false;
