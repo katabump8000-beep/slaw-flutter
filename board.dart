@@ -16,8 +16,9 @@ class Board {
         final v = (await ref(p).get()).value;
         return v is num ? v.toInt() : 0;
       }
-      final b = await n('wallets/$myUid/bal');
-      final l = await n('loss/$myUid');
+      // المطورون لا يدخلون قوائم الربح والخسارة، فقط التفاعل
+      final b = Session.isDev ? 0 : await n('wallets/$myUid/bal');
+      final l = Session.isDev ? 0 : await n('loss/$myUid');
       final a = await n('msgTotal/$myUid');
       await ref('board/$myUid').set(<String, Object?>{'b': b, 'l': l, 'a': a});
     } catch (_) {}
@@ -48,7 +49,7 @@ class _BoardList extends StatelessWidget {
   const _BoardList(this.f, this.unit);
 
   Future<List<MapEntry<String, int>>> _load() async {
-    final s = await ref('board').orderByChild(f).limitToLast(15).get();
+    final s = await ref('board').orderByChild(f).limitToLast(f == 'a' ? 15 : 60).get();
     final v = s.value;
     final out = <MapEntry<String, int>>[];
     if (v is Map) {
@@ -57,6 +58,14 @@ class _BoardList extends StatelessWidget {
       });
     }
     out.sort((a, b) => b.value.compareTo(a.value));
+    if (f != 'a') {
+      final keep = <MapEntry<String, int>>[];
+      for (final e in out) {
+        if (await roleOf(e.key) == null) keep.add(e);
+        if (keep.length >= 10) break;
+      }
+      return keep;
+    }
     return out.take(10).toList();
   }
 

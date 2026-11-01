@@ -46,6 +46,7 @@ class _SecurityState extends State<SecurityScreen> {
   String msg = '';
   bool busy = false;
   String saved = '';
+  bool editing = false;
 
   @override
   void initState() {
@@ -86,6 +87,7 @@ class _SecurityState extends State<SecurityScreen> {
       } catch (_) {}
       if (mounted) setState(() {
         saved = e;
+        editing = false;
         msg = 'تم تأمين حسابك ✅';
       });
     } on FirebaseAuthException {
@@ -112,6 +114,12 @@ class _SecurityState extends State<SecurityScreen> {
               Expanded(child: Text('بريد الاستعادة المسجّل: $saved', textDirection: TextDirection.ltr, style: const TextStyle(fontWeight: FontWeight.w700))),
             ]),
           ),
+        if (saved.isNotEmpty && !editing)
+          AppButton('تعديل البريد الإلكتروني', onPressed: () => setState(() {
+                editing = true;
+                msg = '';
+              }))
+        else ...[
         const Text('أضف بريداً إلكترونياً للاستعادة في حال نسيت كلمة السر.', style: TextStyle(height: 1.8)),
         const SizedBox(height: 12),
         TextField(controller: em, keyboardType: TextInputType.emailAddress, textDirection: TextDirection.ltr, decoration: const InputDecoration(hintText: 'بريد الاستعادة')),
@@ -120,6 +128,7 @@ class _SecurityState extends State<SecurityScreen> {
         if (msg.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(msg, style: TextStyle(color: msg.contains('✅') ? context.accent2 : kRed))),
         const SizedBox(height: 14),
         AppButton(busy ? '...' : 'حفظ', onPressed: busy ? null : _save),
+        ],
       ]),
     );
   }

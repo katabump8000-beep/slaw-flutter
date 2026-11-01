@@ -165,6 +165,18 @@ class _ProfileBodyState extends State<_ProfileBody> {
             Expanded(child: AppButton('🚩 ابلاغ', kind: 'g', compact: true, onPressed: () => reportChat(context, kind: 'user', where: p!.name, peer: widget.uid))),
           ]),
         ),
+      if (widget.uid != myUid && Session.isDev)
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: AppButton('⏱ تحرير وقت الحظر', kind: 'g', compact: true, onPressed: () async {
+            try {
+              await ref('mod/${widget.uid}').remove();
+              toast('تم تحرير الحظر ويبدأ العدّ من جديد ✅');
+            } catch (e) {
+              err(e);
+            }
+          }),
+        ),
       if (isDevPeer || (Session.isDev && (role == 'dev' || role == 'emp') && widget.uid != myUid))
         Padding(padding: const EdgeInsets.only(top: 10), child: AppButton('مراسلة', kind: 'g', onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => DevDmScreen(peer: widget.uid))))),
     ]);

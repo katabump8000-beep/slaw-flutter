@@ -54,10 +54,6 @@ Future<void> checkUpdate(BuildContext context) async {
     final u = (m['u'] ?? '').toString();
     final note = (m['n'] ?? '').toString();
     if (!context.mounted) return;
-    if (Session.isEmp && kBuild > b) {
-      await publishUpdateSheet(context, force: true, link: u, note: note);
-      return;
-    }
     if (b <= kBuild || u.isEmpty) return;
     await _showUpdate(context, u, note);
   } catch (_) {}
@@ -202,32 +198,24 @@ class _UpdateDialogState extends State<_UpdateDialog> {
 }
 
 /// الإمبراطور: نشر/فرض تحديث
+/// رابط تحميل آخر نسخة تلقائياً (يبنيه سير عمل GitHub عند كل بناء) — لا حاجة لوضع رابط يدوياً
+const String kApkLink = 'https://github.com/katabump8000-beep/slaw-flutter/releases/latest/download/SLAW.apk';
+
 Future<void> publishUpdateSheet(BuildContext context, {bool force = false, String link = '', String note = ''}) async {
-  String l = link, n = note;
-  if (!force) {
-    try {
-      final v = (await ref('config/update').get()).value;
-      if (v is Map) {
-        l = (v['u'] ?? '').toString();
-        n = (v['n'] ?? '').toString();
-      }
-    } catch (_) {}
-  }
-  final u = TextEditingController(text: l);
+  var n = note;
+  try {
+    final v = (await ref('config/update').get()).value;
+    if (v is Map) n = (v['n'] ?? '').toString();
+  } catch (_) {}
   final nt = TextEditingController(text: n);
   if (!context.mounted) return;
   await showAppSheet<void>(context, (sc) => [
-        Text(force ? 'نسختك ($kBuild) أحدث من المنشورة' : 'نشر تحديث للأعضاء', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-        Text(force ? 'اضغط «فرض التحديث» لتظهر بطاقة التحديث لكل الأعضاء.' : 'رقم نسخة هذا التطبيق: $kBuild', style: const TextStyle(color: kMu, height: 1.6)),
-        TextField(controller: u, textDirection: TextDirection.ltr, decoration: const InputDecoration(hintText: 'رابط التحميل (يفضّل رابط آخر إصدار)')),
+        const Text('فرض تحديث الأعضاء', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+        Text('ستظهر لكل عضو بطاقة «هنالك تحديث جديد» وزر تثبيت من داخل التطبيق مباشرة (نسخة هذا التطبيق: $kBuild).', style: const TextStyle(color: kMu, height: 1.7)),
         TextField(controller: nt, maxLength: 200, decoration: const InputDecoration(hintText: 'ملاحظة (اختياري)', counterText: '')),
-        AppButton(force ? 'فرض التحديث' : 'نشر', onPressed: () async {
-          if (u.text.trim().isEmpty) {
-            toast('ضع رابط التحميل', bad: true);
-            return;
-          }
+        AppButton('فرض التحديث', onPressed: () async {
           try {
-            await ref('config/update').set(<String, Object?>{'b': kBuild, 'u': u.text.trim(), 'n': nt.text.trim()});
+            await ref('config/update').set(<String, Object?>{'b': kBuild, 'u': kApkLink, 'n': nt.text.trim()});
             if (sc.mounted) Navigator.of(sc).pop();
             toast('تم النشر ✅ ستظهر البطاقة للأعضاء');
           } catch (e) {
@@ -235,6 +223,6 @@ Future<void> publishUpdateSheet(BuildContext context, {bool force = false, Strin
           }
         }),
         AppButton('رفع فيديو شرح التحديث', kind: 'g', onPressed: () => uploadVideo('upd')),
-        if (force) AppButton('لاحقاً', kind: 'g', onPressed: () => Navigator.of(sc).pop()),
+        AppButton('إغلاق', kind: 'g', onPressed: () => Navigator.of(sc).pop()),
       ]);
 }

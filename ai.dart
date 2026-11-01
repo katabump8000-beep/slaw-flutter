@@ -97,32 +97,71 @@ Future<String?> charImage(String arabicName) async {
   }
 }
 
-/// مخالفة: تقييد تصاعدي (5د، 10د، 2س، 10س، ثم 12س) + إنقاص درجة الفخر 4 أو 5 أو 6
-Future<String> strike(String reason) async {
-  if (Session.isDev) return '0 دقائق';
-  const mins = [5, 10, 120, 600, 720];
-  var n = 0;
+/// نتيجة عقوبة: [text] يُعرض للمستخدم، و[warn] = بطاقة تحذير فقط (للرتب العالية في أول مخالفة)
+class PunishResult {
+  final String text;
+  final bool warn;
+  const PunishResult(this.text, this.warn);
+}
+
+String _durText(int mins) {
+  if (mins >= 1440) return '${mins ~/ 1440} يوم';
+  if (mins >= 60) return '${mins ~/ 60} ساعة';
+  if (mins == 1) return 'دقيقة';
+  return '$mins دقائق';
+}
+
+/// kind: mild (كلمة خفيفة) | severe (كلمة شنيعة) | image (صورة) | spam
+/// الأعضاء: خفيفة 5 دقائق، شنيعة 7 ساعات، صورة 30 دقيقة، سبام 10 دقائق، وتتضاعف عند كل تكرار من النوع نفسه.
+/// الرتب العالية (مطور/إمبراطور): تحذير، ثم دقيقة، ثم 5 دقائق، ثم 30 دقيقة.
+/// يزيلها المطور بزر «تحرير وقت الحظر» من الملف التعريفي فتبدأ العدّ من جديد.
+Future<PunishResult> applyPunish(String kind) async {
+  Map<String, Object?> cur = <String, Object?>{};
   try {
-    final s = await ref('mod/$myUid').get();
-    final v = s.value;
-    if (v is Map) n = (v['n'] as num?)?.toInt() ?? 0;
-  } catch (_) {}
-  final dur = mins[n >= 5 ? 4 : n];
-  final until = DateTime.now().millisecondsSinceEpoch + dur * 60000;
-  try {
-    await ref('mod/$myUid').set(<String, Object?>{'n': n + 1, 'until': until});
-  } catch (_) {}
-  try {
-    final p = await ref('pride/$myUid').get();
-    var cur = 100;
-    if (!p.exists) {
-      await ref('pride/$myUid').set(100);
-    } else if (p.value is num) {
-      cur = (p.value as num).toInt();
+    final v = (await ref('mod/$myUid').get()).value;
+    if (v is Map) {
+      v.forEach((k, x) {
+        if (x is num) cur[k.toString()] = x.toInt();
+      });
     }
-    if (cur > 0) await ref('pride/$myUid').set(max(0, cur - (4 + Random().nextInt(3))));
   } catch (_) {}
-  return dur >= 60 ? '${dur ~/ 60} ساعة' : '$dur دقائق';
+  final n = (cur['n'] as int?) ?? 0;
+  final now = DateTime.now().millisecondsSinceEpoch;
+  var dur = 0;
+  var warn = false;
+  final key = {'mild': 'a', 'severe': 'b', 'image': 'i', 'spam': 's'}[kind] ?? 'a';
+  if (Session.isDev) {
+    const tiers = [0, 1, 5, 30];
+    dur = tiers[n >= 3 ? 3 : n];
+    warn = dur == 0;
+  } else {
+    const base = {'mild': 5, 'severe': 420, 'image': 30, 'spam': 10};
+    final c = (cur[key] as int?) ?? 0;
+    dur = (base[kind] ?? 5) * pow(2, c > 12 ? 12 : c).toInt();
+    if (dur > 20160) dur = 20160;
+  }
+  cur['n'] = n + 1;
+  cur[key] = ((cur[key] as int?) ?? 0) + 1;
+  cur['until'] = dur == 0 ? 0 : now + dur * 60000;
+  try {
+    await ref('mod/$myUid').set(cur);
+  } catch (_) {}
+  if (!Session.isDev) {
+    try {
+      final p = await ref('pride/$myUid').get();
+      var pr = 100;
+      if (!p.exists) {
+        await ref('pride/$myUid').set(100);
+      } else if (p.value is num) {
+        pr = (p.value as num).toInt();
+      }
+      if (pr > 0) await ref('pride/$myUid').set(max(0, pr - (kind == 'severe' ? 6 : 4 + Random().nextInt(2))));
+    } catch (_) {}
+  }
+  if (warn) {
+    return const PunishResult('مرحباً أيها صاحب الرتبة العالية، رجاءً لا تخالف القوانين، وإلا سيتم حظرك من الشات لمدة دقيقة في المرة القادمة.', true);
+  }
+  return PunishResult('تم تقييدك من الشات لمدة ${_durText(dur)}', false);
 }
 
 Future<int> prideOf(String uid) async {
@@ -174,47 +213,27 @@ String _nb(String s) {
 }
 
 const Set<String> _badExact = {
-  'كس', 'كسك', 'كسم', 'كسمك', 'طيز', 'طيزك', 'زب', 'زبي', 'زبك', 'نيك', 'انيك', 'نيكني', 'عرص', 'عرصه', 'خرا',
+  'كس', 'كسك', 'كسم', 'كسمك', 'طيز', 'طيزك', 'زب', 'زبي', 'زبك', 'نيك', 'انيك', 'نيكني', 'عرص', 'عرصه',
 };
+// إهانات خفيفة (عقوبتها أخف)
+const Set<String> _mildExact = {'كلب', 'كلاب', 'حمار', 'حمير', 'خرا', 'خره', 'تيس', 'حيوان', 'كلبه'};
 const List<String> _badPart = [
   'شرموط', 'شراميط', 'منيك', 'منيوك', 'قحبه', 'قحاب', 'متناك', 'كسمك', 'كسختك', 'كساختك', 'كسامك', 'fuck',
 ];
 
-/// true = فيها كلمة غير لائقة (كلب ومعاق وأمثالها مسموحة)
-bool badWord(String text) {
+/// 0 = نظيف، 1 = إهانة خفيفة، 2 = كلمة شنيعة
+int badLevel(String text) {
   final t = _nb(text);
+  var lv = 0;
   for (final w in t.split(RegExp(r'[^\u0621-\u064Aa-zA-Z0-9]+'))) {
     if (w.isEmpty) continue;
-    if (_badExact.contains(w)) return true;
+    if (_badExact.contains(w)) return 2;
     for (final b in _badPart) {
-      if (w.contains(_nb(b))) return true;
+      if (w.contains(_nb(b))) return 2;
     }
+    if (_mildExact.contains(w)) lv = 1;
   }
-  return false;
+  return lv;
 }
 
-/// عقوبة كلمة غير لائقة: تقييد 10 دقائق وخصم 5 من درجة الفخر
-Future<String> strikeWord() async {
-  if (Session.isDev) return '0 دقائق';
-  var n = 0;
-  try {
-    final s = await ref('mod/$myUid').get();
-    final v = s.value;
-    if (v is Map) n = (v['n'] as num?)?.toInt() ?? 0;
-  } catch (_) {}
-  final until = DateTime.now().millisecondsSinceEpoch + 10 * 60000;
-  try {
-    await ref('mod/$myUid').set(<String, Object?>{'n': n + 1, 'until': until});
-  } catch (_) {}
-  try {
-    final p = await ref('pride/$myUid').get();
-    var cur = 100;
-    if (!p.exists) {
-      await ref('pride/$myUid').set(100);
-    } else if (p.value is num) {
-      cur = (p.value as num).toInt();
-    }
-    if (cur > 0) await ref('pride/$myUid').set(max(0, cur - 5));
-  } catch (_) {}
-  return '10 دقائق';
-}
+bool badWord(String text) => badLevel(text) > 0;

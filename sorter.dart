@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -37,6 +39,18 @@ Future<bool> envSuspect() async {
     final d = (await getApplicationSupportDirectory()).path;
     // التطبيق الأصلي يعمل دائماً من /data/user/0/<الحزمة>/ ؛ برامج الاستنساخ والمساحات الثانية تغيّر هذا المسار
     if (!(d.startsWith('/data/user/0/$kPkg/') || d.startsWith('/data/data/$kPkg/'))) return true;
+    // مستخدم أندرويد ثانوي (نسخة مزدوجة/مساحة ثانية): المعرّف يتجاوز 100000
+    try {
+      final st = await File('/proc/self/status').readAsString();
+      final m = RegExp(r'Uid:\s+(\d+)').firstMatch(st);
+      if (m != null && (int.tryParse(m.group(1)!) ?? 0) >= 100000) return true;
+    } catch (_) {}
+    // اسم العملية يجب أن يطابق حزمة التطبيق الرسمي
+    try {
+      final cl = await File('/proc/self/cmdline').readAsString();
+      final proc = cl.split('\u0000').first.trim();
+      if (proc.isNotEmpty && !proc.startsWith(kPkg)) return true;
+    } catch (_) {}
     final low = d.toLowerCase();
     return low.contains('virtual') || low.contains('parallel') || low.contains('clone') || low.contains('dualspace') || low.contains('multi');
   } catch (_) {

@@ -432,19 +432,33 @@ class _ChatScreenState extends State<ChatScreen> {
     return true;
   }
 
+  /// تطبيق العقوبة وعرض النتيجة (بطاقة تحذير للرتب العالية في أول مخالفة)
+  Future<void> _punish(String kind, String lead) async {
+    final r = await applyPunish(kind);
+    if (!mounted) return;
+    if (r.warn) {
+      await showAppSheet<void>(context, (sc) => [
+            const Text('⚠️ تحذير', textAlign: TextAlign.center, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFFFFC857))),
+            Text(r.text, textAlign: TextAlign.center, style: const TextStyle(height: 1.9, fontSize: 14.5)),
+            AppButton('حسناً', onPressed: () => Navigator.of(sc).pop()),
+          ]);
+    } else {
+      toast('$lead ${r.text}', bad: true);
+    }
+  }
+
   Future<void> _sendText() async {
     final t = ctrl.text.trim();
     if (t.isEmpty || !_gate()) return;
-    if (!Session.isDev && badWord(t)) {
+    final lv = badLevel(t);
+    if (lv > 0) {
       ctrl.clear();
-      final d = await strikeWord();
-      toast('رسالة مخالفة! تم تقييدك $d وخصم 5 من درجة الفخر', bad: true);
+      await _punish(lv == 2 ? 'severe' : 'mild', 'رسالة مخالفة!');
       return;
     }
     if (!Session.isDev && spamHit()) {
       ctrl.clear();
-      final d = await strike('spam');
-      toast('تم رصد سبام. تم تقييدك من الشات لمدة $d', bad: true);
+      await _punish('spam', 'تم رصد سبام.');
       return;
     }
     ctrl.clear();
@@ -464,9 +478,8 @@ class _ChatScreenState extends State<ChatScreen> {
   /// فحص الصورة بالذكاء الاصطناعي قبل الإرسال
   Future<bool> _clean(Uint8List bytes) async {
     final bad = await imageUnsafe(bytes);
-    if (bad == true && !Session.isDev) {
-      final d = await strike('image');
-      toast('تم رصد محتوى غير لائق. تم تقييدك من الشات لمدة $d', bad: true);
+    if (bad == true) {
+      await _punish('image', 'تم رصد محتوى غير لائق.');
       return false;
     }
     return true;
@@ -906,9 +919,35 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  static const String _pushChars = '-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz';
+
+  /// وقت إنشاء مفتاح Firebase (أول 8 رموز) بالمللي ثانية
+  int _keyTime(String k) {
+    var t = 0;
+    for (var i = 0; i < 8 && i < k.length; i++) {
+      final x = _pushChars.indexOf(k[i]);
+      t = t * 64 + (x < 0 ? 0 : x);
+    }
+    return t;
+  }
+
+  /// ترتيب الرسائل بوقت الخادم (ts) فتبقى متسلسلة حتى لو اختلفت ساعات الأجهزة
+  List<String> _orderedKeys() {
+    final ks = msgs.keys.toList();
+    int eff(String k) {
+      final t = (msgs[k]?['ts'] as num?)?.toInt() ?? 0;
+      return t > 0 ? t : _keyTime(k);
+    }
+    ks.sort((a, b) {
+      final c = eff(a).compareTo(eff(b));
+      return c != 0 ? c : a.compareTo(b);
+    });
+    return ks;
+  }
+
   /// آخر الرسائل (نصاً) لإرفاقها كدليل مع البلاغ
   Future<List<String>> _evidence({String? around}) async {
-    final ks = msgs.keys.toList()..sort();
+    final ks = _orderedKeys();
     var end = ks.length;
     if (around != null) {
       final i = ks.indexOf(around);
@@ -1192,7 +1231,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ks = msgs.keys.toList()..sort();
+    final ks = _orderedKeys();
     final rows = ks.reversed.toList();
     final more = hasMore && msgs.length >= 30;
     return Scaffold(

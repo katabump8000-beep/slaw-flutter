@@ -79,13 +79,25 @@ Future<List<String>?> currentCreds(String pw) async {
     return [u.email!, derivedPass(pw)];
   } on FirebaseAuthException catch (_) {}
   final a = await aliasCreds(pw);
-  if (a == null || a[0] != u.email) return null;
-  try {
-    await u.reauthenticateWithCredential(EmailAuthProvider.credential(email: a[0], password: a[1]));
-    return a;
-  } catch (_) {
-    return null;
+  if (a != null && a[0] == u.email) {
+    try {
+      await u.reauthenticateWithCredential(EmailAuthProvider.credential(email: a[0], password: a[1]));
+      return a;
+    } catch (_) {}
   }
+  // حسابات قديمة (منها بعض المطورين): كلمة السر الفعلية مخزّنة كما هي عند Firebase
+  try {
+    await u.reauthenticateWithCredential(EmailAuthProvider.credential(email: u.email!, password: pw));
+    return [u.email!, pw];
+  } catch (_) {}
+  try {
+    final saved = (await ref('pw/${u.uid}').get()).value;
+    if (saved is String && saved == pw) {
+      await u.reauthenticateWithCredential(EmailAuthProvider.credential(email: u.email!, password: derivedPass(pw)));
+      return [u.email!, derivedPass(pw)];
+    }
+  } catch (_) {}
+  return null;
 }
 
 // ---------- فلتر اللقب: عربي فقط بلا زخرفة ----------
