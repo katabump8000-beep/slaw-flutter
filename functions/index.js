@@ -218,3 +218,53 @@ exports.onChatter = onValueCreated({ ...OPT, ref: '/messages/{gid}/{mid}' }, asy
 exports.onBan = onValueCreated({ ...OPT, ref: '/banned/{uid}' }, async (e) => {
   await push(e.params.uid, { title: '⛔ تم حظرك', body: 'تم حظرك من قبل أحد المطورين. افتح التطبيق للتواصل معهم.', tag: 'ban' }).catch(() => {});
 });
+
+// 11) مراقبة شات النقابات: كلمات غير لائقة → حذف الرسالة + حظر متدرج (يعمل حتى لو تجاوز أحدهم فحص التطبيق)
+const nb = (t) => (t || '').toString()
+  .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+  .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
+  .toLowerCase().replace(/(.)\1+/g, '$1');
+const BAD_EXACT = new Set(['كس', 'كسك', 'كسم', 'كسمك', 'طيز', 'طيزك', 'زب', 'زبي', 'زبك', 'نيك', 'انيك', 'نيكني', 'عرص', 'عرصه'].map(nb));
+const BAD_PART = ['شرموط', 'شراميط', 'منيك', 'منيوك', 'قحبه', 'قحاب', 'متناك', 'كسمك', 'كسختك', 'كساختك', 'كسامك', 'fuck'].map(nb);
+const MILD = new Set(['كلب', 'كلاب', 'حمار', 'حمير', 'خرا', 'خره', 'تيس', 'حيوان', 'كلبه'].map(nb));
+
+function levelOf(text) {
+  let lv = 0;
+  for (const w of nb(text).split(/[^\u0621-\u064Aa-zA-Z0-9]+/)) {
+    if (!w) continue;
+    if (BAD_EXACT.has(w)) return 2;
+    if (BAD_PART.some((b) => w.includes(b))) return 2;
+    if (MILD.has(w)) lv = 1;
+  }
+  return lv;
+}
+
+exports.onModerate = onValueCreated({ ...OPT, ref: '/messages/{gid}/{mid}' }, async (e) => {
+  const m = e.data.val();
+  if (!m || m.type !== 'text' || !m.from) return;
+  const lv = levelOf(m.text);
+  if (!lv) return;
+  const g = await val(`groups/${e.params.gid}`);
+  if (!g || g.kind !== 'main') return;
+  const uid = m.from;
+  const emp = await val('config/emperorUid');
+  const high = uid === emp || (await val(`roles/${uid}`)) === 'dev';
+  const cur = (await val(`mod/${uid}`)) || {};
+  const n = typeof cur.n === 'number' ? cur.n : 0;
+  const key = lv === 2 ? 'b' : 'a';
+  let dur; let warn = false;
+  if (high) { dur = [0, 1, 5, 30][Math.min(n, 3)]; warn = dur === 0; }
+  else {
+    const c = typeof cur[key] === 'number' ? cur[key] : 0;
+    dur = Math.min((lv === 2 ? 420 : 5) * Math.pow(2, Math.min(c, 12)), 20160);
+  }
+  const next = { ...cur, n: n + 1, [key]: (typeof cur[key] === 'number' ? cur[key] : 0) + 1, until: dur ? Date.now() + dur * 60000 : 0 };
+  await db.ref(`mod/${uid}`).set(next);
+  try { await e.data.ref.remove(); } catch (_) {}
+  const txt = dur >= 1440 ? `${Math.round(dur / 1440)} يوم` : dur >= 60 ? `${Math.round(dur / 60)} ساعة` : `${dur} دقيقة`;
+  await push(uid, {
+    title: warn ? '⚠️ تحذير' : '⛔ تم تقييدك من الشات',
+    body: warn ? 'رجاءً لا تخالف القوانين، وإلا سيتم حظرك دقيقة في المرة القادمة.' : `بسبب كلمات غير لائقة — المدة: ${txt}`,
+    tag: 'mod',
+  }).catch(() => {});
+});
