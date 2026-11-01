@@ -102,17 +102,19 @@ exports.onMessage = onValueCreated({ ...OPT, ref: '/messages/{gid}/{mid}' }, asy
   );
 });
 
-// 4) إعلان حرب: لأعضاء النقابة المُهاجَمة
+// 4) إعلان حرب: إشعار لأعضاء النقابتين (المهاجِمة والمُهاجَمة) حتى والتطبيق مغلق
 exports.onWar = onValueCreated({ ...OPT, ref: '/warFeed/{wid}' }, async (e) => {
   const w = e.data.val();
   if (!w) return;
-  const mem = (await val(`members/${w.dg}`)) || {};
-  const ids = Object.keys(mem).filter((u) => mem[u] === true).slice(0, 400);
-  await Promise.all(
-    ids.map((u) =>
-      push(u, { title: '⚔️ إعلان حرب!', body: `نقابة ${w.an} تعلن الحرب على نقابة ${w.dn}`, tag: `war_${e.params.wid}` }).catch(() => {})
-    )
-  );
+  const send = async (gid, title, body) => {
+    const mem = (await val(`members/${gid}`)) || {};
+    const ids = Object.keys(mem).filter((u) => mem[u] === true).slice(0, 400);
+    await Promise.all(ids.map((u) => push(u, { title, body, tag: `war_${e.params.wid}` }).catch(() => {})));
+  };
+  await Promise.all([
+    send(w.dg, '⚔️ تتعرضون لهجوم!', `نقابة ${w.an} تعلن الحرب على نقابتكم ${w.dn} — ادخل وجهّز نفسك`),
+    send(w.ag, '⚔️ بدأت الحرب!', `نقابتكم ${w.an} تشنّ حرباً على ${w.dn} — ادخل وشارك`),
+  ]);
 });
 
 // 5) رسائل الأصدقاء الخاصة
@@ -194,4 +196,25 @@ exports.onDelMember = onValueCreated({ ...OPT, ref: '/delQueue/{uid}' }, async (
   } finally {
     try { await q.remove(); } catch (_) {}
   }
+});
+
+// 9) كثرة الكلام: كل 50 رسالة في نقابة يصل إشعار لأعضائها
+exports.onChatter = onValueCreated({ ...OPT, ref: '/messages/{gid}/{mid}' }, async (e) => {
+  const m = e.data.val();
+  if (!m || m.type === 'sys') return;
+  const gid = e.params.gid;
+  const g = await val(`groups/${gid}`);
+  if (!g || g.kind !== 'main') return;
+  const r = await db.ref(`chatCnt/${gid}`).transaction((n) => (typeof n === 'number' ? n : 0) + 1);
+  const n = (r.snapshot && r.snapshot.val()) || 0;
+  if (n % 50 !== 0) return;
+  const mem = (await val(`members/${gid}`)) || {};
+  const banned = (await val('banned')) || {};
+  const ids = Object.keys(mem).filter((u) => mem[u] === true && !banned[u]).slice(0, 400);
+  await Promise.all(ids.map((u) => push(u, { title: '💬 كلام كثير في نقابتك', body: `هناك نقاش نشط الآن في «${g.name || 'نقابتك'}» — ادخل وشارك`, tag: `chat_${gid}`, gid }).catch(() => {})));
+});
+
+// 10) إشعار الحظر
+exports.onBan = onValueCreated({ ...OPT, ref: '/banned/{uid}' }, async (e) => {
+  await push(e.params.uid, { title: '⛔ تم حظرك', body: 'تم حظرك من قبل أحد المطورين. افتح التطبيق للتواصل معهم.', tag: 'ban' }).catch(() => {});
 });
