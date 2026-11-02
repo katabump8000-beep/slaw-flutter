@@ -17,6 +17,7 @@ import 'quiz.dart';
 import 'memberadmin.dart';
 import 'reports.dart';
 import 'susp.dart';
+import 'accounts.dart';
 import 'sfx.dart';
 import 'sorter.dart';
 import 'tally.dart';
@@ -220,6 +221,8 @@ class _ToolsState extends State<ToolsScreen> {
         const ReportsTile(),
         const SuspTile(),
         _t(Icons.gavel_outlined, 'حظر / حذف عضو', () => go(const MemberAdminScreen()), sub: 'بالـID: حظر أو حذف نهائي'),
+        _t(Icons.manage_accounts_outlined, 'الحسابات', () => go(const AccountsScreen()), sub: 'بحث باللقب أو الـID وعرض الملف'),
+        _t(Icons.folder_delete_outlined, 'حذف قروب', () => go(const DeleteGroupScreen()), sub: 'حذف أي قروب نهائياً'),
         _t(Icons.bar_chart, 'الإحصائيات', () => go(const StatsScreen())),
         _t(Icons.people_alt_outlined, 'الفرز', () => go(const SorterScreen()), sub: 'كل المستخدمين، النسخة، آخر ظهور، حذف'),
         _t(Icons.shield_outlined, 'درجة الفخر (بالـID)', _pride),

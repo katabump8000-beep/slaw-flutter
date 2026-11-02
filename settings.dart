@@ -146,9 +146,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SwitchListTile(
             value: !muted,
             title: const Text('تفعيل الإشعارات'),
-            onChanged: (v) {
-              prefs.setBool('mute', !v);
-              setState(() {});
+            subtitle: const Text('عند الإيقاف تتوقف كل إشعارات البرنامج', style: TextStyle(color: kMu, fontSize: 12)),
+            onChanged: (v) async {
+              await setAllNotifs(v);
+              if (mounted) setState(() {});
+              toast(v ? 'تم تفعيل الإشعارات 🔔' : 'تم إيقاف كل الإشعارات 🔕');
             },
           ),
           SwitchListTile(

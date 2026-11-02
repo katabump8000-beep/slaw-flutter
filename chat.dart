@@ -21,6 +21,7 @@ import 'ai.dart';
 import 'aljesi.dart';
 import 'app_state.dart';
 import 'bell.dart';
+import 'notif.dart';
 import 'core.dart';
 import 'crop.dart';
 import 'data.dart';
@@ -1286,7 +1287,7 @@ class _ChatScreenState extends State<ChatScreen> {
         titleSpacing: 0,
         title: GestureDetector(
           onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => GroupInfoScreen(gid: gid))),
-          child: Row(children: [GroupPhoto(gid, size: 36, viewable: true), const SizedBox(width: 10), Expanded(child: Text(groupName(gid), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 17)))]),
+          child: Row(children: [GroupPhoto(gid, size: 36, viewable: true), const SizedBox(width: 10), Expanded(child: Text(groupName(gid), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 17))), GuildMuteButton(gid)]),
         ),
         actions: [
           if (kind == 'main') IconButton(onPressed: () => showGamesSheet(context, gid), icon: const Icon(Icons.sports_esports_outlined)),

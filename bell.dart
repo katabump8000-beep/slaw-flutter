@@ -8,6 +8,7 @@ import 'chat.dart';
 import 'data.dart';
 import 'home.dart';
 import 'notif.dart';
+import 'susp.dart';
 import 'support.dart';
 import 'widgets.dart';
 
@@ -33,6 +34,8 @@ String notifText(NotifItem n, String who) {
       return 'هناك من ذكر اسمك\n$who ذكرك في «${n.groupLabel}»';
     case 'all':
       return '📢 $who نادى الجميع في «${n.groupLabel}»\n${n.tx}';
+    case 'mod':
+      return 'العضو [${n.m}] تم تقييده مدة ${n.a.toInt() >= 1440 ? '${(n.a / 1440).round()} يوم' : n.a.toInt() >= 60 ? '${(n.a / 60).round()} ساعة' : '${n.a.toInt()} دقيقة'} بسبب ارساله كلمة: ${n.tx}';
     case 'susp':
       return '⚠️ ايها المطور! هناك دخيل يستعمل نسخ لتطبيقكم!\nراجع «الجلسات المشبوهة» من الأدوات';
     case 'frq':
@@ -78,6 +81,10 @@ IconData notifIcon(String t) {
     case 'war':
     case 'warend':
       return Icons.shield_outlined;
+    case 'mod':
+      return Icons.gavel_outlined;
+    case 'susp':
+      return Icons.warning_amber_rounded;
     default:
       return Icons.notifications_none;
   }
@@ -249,6 +256,10 @@ class _BellScreenState extends State<BellScreen> {
       await BellService.removeMany([n.k]);
     } catch (_) {}
     if (!mounted) return;
+    if (n.t == 'susp') {
+      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SuspScreen()));
+      return;
+    }
     if (n.t == 'sup' && n.m.isNotEmpty) {
       Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => SupportTicketScreen(tid: n.m)));
       return;
@@ -279,10 +290,10 @@ class _BellScreenState extends State<BellScreen> {
           IconButton(
             tooltip: 'كتم الإشعارات',
             icon: Icon(muted ? Icons.notifications_off_outlined : Icons.notifications_active_outlined),
-            onPressed: () {
-              prefs.setBool('mute', !muted);
-              setState(() {});
-              toast(!muted ? 'تم كتم الإشعارات' : 'تم تفعيل الإشعارات');
+            onPressed: () async {
+              await setAllNotifs(muted);
+              if (mounted) setState(() {});
+              toast(!muted ? 'تم إيقاف الإشعارات' : 'تم تفعيل الإشعارات');
             },
           ),
           IconButton(
@@ -302,6 +313,7 @@ class _BellScreenState extends State<BellScreen> {
               itemBuilder: (c, i) {
                 final n = l[i];
                 if (n.t == 'frq' && !selecting) return _FriendReqCard(n: n, onDone: () => BellService.removeMany([n.k]));
+                if (n.t == 'mod' && !selecting) return _ModCard(n: n);
                 return ListTile(
                   onTap: () => _open(n),
                   leading: selecting
@@ -332,6 +344,51 @@ class _BellScreenState extends State<BellScreen> {
               ),
             )
           : null,
+    );
+  }
+}
+
+/// بطاقة تقييد عضو (للمطورين فقط): تحرير الحظر أو إكمال العقوبة
+class _ModCard extends StatelessWidget {
+  final NotifItem n;
+  const _ModCard({required this.n});
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = n.from;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: const Color.fromRGBO(0, 0, 0, .28), borderRadius: BorderRadius.circular(14), border: Border.all(color: kRed.withAlpha(140))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          const Icon(Icons.gavel_outlined, color: kRed, size: 20),
+          const SizedBox(width: 8),
+          Expanded(child: Text(notifText(n, ''), style: const TextStyle(fontSize: 14, height: 1.6))),
+          Text(hhmm(n.ts), style: const TextStyle(fontSize: 11, color: kMu)),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: AppButton('تحرير الحظر', kind: 'g', compact: true, onPressed: () async {
+            try {
+              await ref('mod/$uid/until').set(0);
+              await BellService.removeMany([n.k]);
+              toast('تم تحرير العضو ✅');
+            } catch (e) {
+              err(e);
+            }
+          })),
+          const SizedBox(width: 8),
+          Expanded(child: AppButton('إكمال العقوبة', kind: 'r', compact: true, onPressed: () async {
+            try {
+              await BellService.removeMany([n.k]);
+              toast('ستكتمل العقوبة');
+            } catch (e) {
+              err(e);
+            }
+          })),
+        ]),
+      ]),
     );
   }
 }

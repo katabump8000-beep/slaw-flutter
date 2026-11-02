@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:workmanager/workmanager.dart';
 
@@ -94,6 +94,8 @@ String notifTitle(String t) {
       return '💰 وصلك رصيد';
     case 'sup':
       return '🛟 رسالة ابلاغ';
+    case 'susp':
+      return '⚠️ ايها المطور!';
     default:
       return 'FIR';
   }
@@ -202,4 +204,61 @@ Future<void> startBackgroundPolling() async {
     await Workmanager().initialize(callbackDispatcher);
     await Workmanager().registerPeriodicTask('fir_poll', 'fir_poll', frequency: const Duration(minutes: 15));
   } catch (_) {}
+}
+
+/// تشغيل/إيقاف كل إشعارات التطبيق: محلياً + في قاعدة البيانات (السيرفر يتجاهل المكتومين) + حذف توكن FCM
+Future<void> setAllNotifs(bool on) async {
+  prefs.setBool('mute', !on);
+  try {
+    if (myUid.isNotEmpty) {
+      if (on) {
+        await ref('notifOff/$myUid').remove();
+      } else {
+        await ref('notifOff/$myUid').set(true);
+      }
+    }
+  } catch (_) {}
+  if (on) {
+    await initPush();
+  } else {
+    await dropPushToken();
+  }
+}
+
+/// هل إشعارات هذه النقابة مكتومة عندي؟
+Stream<bool> guildMutedStream(String gid) => ref('notifMute/$myUid/$gid').onValue.map((e) => e.snapshot.value == true);
+
+Future<void> setGuildMuted(String gid, bool mute) async {
+  try {
+    if (mute) {
+      await ref('notifMute/$myUid/$gid').set(true);
+    } else {
+      await ref('notifMute/$myUid/$gid').remove();
+    }
+    toast(mute ? 'تم إيقاف إشعارات هذه النقابة 🔕' : 'تم تفعيل إشعارات هذه النقابة 🔔');
+  } catch (e) {
+    err(e);
+  }
+}
+
+/// زر بجانب اسم النقابة: كتم إشعارات هذه النقابة فقط
+class GuildMuteButton extends StatelessWidget {
+  final String gid;
+  const GuildMuteButton(this.gid, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<bool>(
+      stream: guildMutedStream(gid),
+      builder: (c, s) {
+        final m = s.data == true;
+        return IconButton(
+          tooltip: m ? 'تفعيل إشعارات النقابة' : 'إيقاف إشعارات النقابة',
+          visualDensity: VisualDensity.compact,
+          icon: Icon(m ? Icons.notifications_off_outlined : Icons.notifications_active_outlined, size: 20),
+          onPressed: () => setGuildMuted(gid, !m),
+        );
+      },
+    );
+  }
 }

@@ -140,6 +140,16 @@ Future<void> resetLeaderboard({bool interaction = false}) async {
   try {
     // أمر تصفير عام: كل جهاز يبدأ أرقامه (ربح/خسارة وتفاعل اختيارياً) من الصفر عند أول مزامنة
     await ref('boardReset').set(<String, Object?>{'ts': ServerValue.timestamp, 'a': interaction});
+    // تصفير الصفوف المنشورة فعلياً (كانت تبقى حتى يفتح كل عضو تطبيقه)
+    final bv = (await ref('board').get()).value;
+    if (bv is Map) {
+      final up = <String, Object?>{};
+      bv.forEach((u, x) {
+        if (x is! Map) return;
+        up['board/$u'] = <String, Object?>{'b': 0, 'l': 0, 'a': interaction ? 0 : (x['a'] is num ? x['a'] : 0)};
+      });
+      if (up.isNotEmpty) await db.ref().update(up);
+    }
     if (interaction) {
       for (final g in groupsCache.keys.where((g) => groupKind(g) == 'main')) {
         await ref('stats/$g').remove();
