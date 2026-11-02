@@ -16,6 +16,7 @@ import 'media.dart';
 import 'quiz.dart';
 import 'memberadmin.dart';
 import 'reports.dart';
+import 'susp.dart';
 import 'sfx.dart';
 import 'sorter.dart';
 import 'tally.dart';
@@ -217,6 +218,7 @@ class _ToolsState extends State<ToolsScreen> {
       body: ListView(children: [
         _t(Icons.casino_outlined, 'الفعاليات ⚙️', () => go(const QuizAdminScreen()), sub: 'صور الحيوانات والشخصيات'),
         const ReportsTile(),
+        const SuspTile(),
         _t(Icons.gavel_outlined, 'حظر / حذف عضو', () => go(const MemberAdminScreen()), sub: 'بالـID: حظر أو حذف نهائي'),
         _t(Icons.bar_chart, 'الإحصائيات', () => go(const StatsScreen())),
         _t(Icons.people_alt_outlined, 'الفرز', () => go(const SorterScreen()), sub: 'كل المستخدمين، النسخة، آخر ظهور، حذف'),
@@ -233,12 +235,22 @@ class _ToolsState extends State<ToolsScreen> {
         _t(Icons.sell_outlined, 'أسعار المتجر', () => editShopPrices(context), sub: 'تعديل سعر أي عنصر'),
         _t(Icons.block, 'المقيدون', () => go(const RestrictedScreen()), sub: 'من ظهرت له رسالة «لا يمكن إنشاء حساب آخر»'),
         _t(Icons.restart_alt, 'تصفير المتصدرين', () async {
+          var withInter = false;
           final ok = await showAppSheet<bool>(context, (sc) => [
-                const Text('هل أنت متأكد من تصفير المتصدرين؟', style: TextStyle(fontSize: 16)),
+                const Text('هل أنت متأكد من تصفير المتصدرين؟', textAlign: TextAlign.center, style: TextStyle(fontSize: 16)),
+                const Text('يُصفَّر الأكثر ربحاً والأكثر خسارة.', textAlign: TextAlign.center, style: TextStyle(color: kMu, fontSize: 12.5)),
+                StatefulBuilder(
+                  builder: (c, set) => CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: withInter,
+                    onChanged: (v) => set(() => withInter = v == true),
+                    title: const Text('تصفير التفاعل أيضاً', style: TextStyle(fontSize: 14)),
+                  ),
+                ),
                 AppButton('نعم، صفّر', kind: 'r', onPressed: () => Navigator.of(sc).pop(true)),
                 AppButton('إلغاء', kind: 'g', onPressed: () => Navigator.of(sc).pop(false)),
               ]);
-          if (ok == true) await resetLeaderboard();
+          if (ok == true) await resetLeaderboard(interaction: withInter);
         }),
         if (emp) ...[
           _t(Icons.merge, 'دمج أو إنشاء مملكة', () => go(const KingdomMakeScreen()), sub: 'اجمع عدة نقابات تحت مملكة واحدة'),

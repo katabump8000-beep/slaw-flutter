@@ -237,3 +237,21 @@ int badLevel(String text) {
 }
 
 bool badWord(String text) => badLevel(text) > 0;
+
+/// تقييد 30 ثانية عند تكرار المنشن (@) بسرعة
+Future<void> mentionLock() async {
+  Map<String, Object?> cur = <String, Object?>{};
+  try {
+    final v = (await ref('mod/$myUid').get()).value;
+    if (v is Map) {
+      v.forEach((k, x) {
+        if (x is num) cur[k.toString()] = x.toInt();
+      });
+    }
+  } catch (_) {}
+  cur['n'] = ((cur['n'] as int?) ?? 0) + 1;
+  cur['until'] = DateTime.now().millisecondsSinceEpoch + 30000;
+  try {
+    await ref('mod/$myUid').set(cur);
+  } catch (_) {}
+}

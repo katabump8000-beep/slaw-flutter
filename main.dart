@@ -14,6 +14,7 @@ import 'home.dart';
 import 'notif.dart';
 import 'sfx.dart';
 import 'sorter.dart' show envSuspect;
+import 'susp.dart';
 import 'support.dart';
 import 'tapsound.dart';
 import 'tools.dart';
@@ -36,8 +37,12 @@ Future<void> main() async {
     return;
   }
   if (await envSuspect()) {
-    runApp(const InitErrorApp(error: 'هذه نسخة غير رسمية أو مستنسخة من التطبيق.\nحمّل التطبيق الرسمي من الرابط الرسمي.'));
-    return;
+    final dh = await deviceHash();
+    if ((await suspStatus(dh)) != 'allow') {
+      await reportSuspect(dh);
+      runApp(const InitErrorApp(error: 'هذه نسخة غير رسمية أو مستنسخة من التطبيق.\nحمّل التطبيق الرسمي من الرابط الرسمي.'));
+      return;
+    }
   }
   runApp(const FirApp());
 }

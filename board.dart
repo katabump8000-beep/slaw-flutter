@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
@@ -10,16 +12,29 @@ class Board {
     try {
       if (Session.isEmp || myUid.isEmpty) return;
       final now = DateTime.now().millisecondsSinceEpoch;
-      if (now - (prefs.getInt('board_ts') ?? 0) < 300000) return;
-      prefs.setInt('board_ts', now);
       Future<int> n(String p) async {
         final v = (await ref(p).get()).value;
         return v is num ? v.toInt() : 0;
       }
+      // تصفير المتصدرين: نسجّل أرقام هذا الجهاز كنقطة بداية جديدة عند صدور أمر تصفير أحدث
+      final rs = (await ref('boardReset').get()).value;
+      var fresh = false;
+      if (rs is Map) {
+        final rts = (rs['ts'] as num?)?.toInt() ?? 0;
+        if (rts > (prefs.getInt('br_ts') ?? 0)) {
+          fresh = true;
+          prefs.setInt('br_ts', rts);
+          prefs.setInt('br_b', Session.isDev ? 0 : await n('wallets/$myUid/bal'));
+          prefs.setInt('br_l', Session.isDev ? 0 : await n('loss/$myUid'));
+          if (rs['a'] == true) prefs.setInt('br_a', await n('msgTotal/$myUid'));
+        }
+      }
+      if (!fresh && now - (prefs.getInt('board_ts') ?? 0) < 300000) return;
+      prefs.setInt('board_ts', now);
       // المطورون لا يدخلون قوائم الربح والخسارة، فقط التفاعل
-      final b = Session.isDev ? 0 : await n('wallets/$myUid/bal');
-      final l = Session.isDev ? 0 : await n('loss/$myUid');
-      final a = await n('msgTotal/$myUid');
+      final b = Session.isDev ? 0 : max(0, await n('wallets/$myUid/bal') - (prefs.getInt('br_b') ?? 0));
+      final l = Session.isDev ? 0 : max(0, await n('loss/$myUid') - (prefs.getInt('br_l') ?? 0));
+      final a = max(0, await n('msgTotal/$myUid') - (prefs.getInt('br_a') ?? 0));
       await ref('board/$myUid').set(<String, Object?>{'b': b, 'l': l, 'a': a});
     } catch (_) {}
   }

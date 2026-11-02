@@ -136,10 +136,14 @@ Future<void> runTally() async {
 }
 
 /// تصفير المتصدرين (للمطورين والإمبراطور)
-Future<void> resetLeaderboard() async {
+Future<void> resetLeaderboard({bool interaction = false}) async {
   try {
-    for (final g in groupsCache.keys.where((g) => groupKind(g) == 'main')) {
-      await ref('stats/$g').remove();
+    // أمر تصفير عام: كل جهاز يبدأ أرقامه (ربح/خسارة وتفاعل اختيارياً) من الصفر عند أول مزامنة
+    await ref('boardReset').set(<String, Object?>{'ts': ServerValue.timestamp, 'a': interaction});
+    if (interaction) {
+      for (final g in groupsCache.keys.where((g) => groupKind(g) == 'main')) {
+        await ref('stats/$g').remove();
+      }
     }
     await feedNote('ads', '♻️ تم تصفير المتصدرين');
     toast('تم تصفير المتصدرين ✅');

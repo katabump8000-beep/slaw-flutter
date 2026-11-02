@@ -33,6 +33,8 @@ String notifText(NotifItem n, String who) {
       return 'هناك من ذكر اسمك\n$who ذكرك في «${n.groupLabel}»';
     case 'all':
       return '📢 $who نادى الجميع في «${n.groupLabel}»\n${n.tx}';
+    case 'susp':
+      return '⚠️ ايها المطور! هناك دخيل يستعمل نسخ لتطبيقكم!\nراجع «الجلسات المشبوهة» من الأدوات';
     case 'frq':
       return '$who أرسل لك طلب صداقة';
     case 'fok':
@@ -110,14 +112,10 @@ class BellService {
       items[k] = n;
       _recompute();
       final live = DateTime.now().difference(_startAt).inSeconds > 3;
-      if (live && !muted) {
+      // إشعار الذكر (@) لا يظهر كرسالة أسفل الشاشة داخل التطبيق؛ وخارج التطبيق يصل عبر سيرفر الإشعارات
+      if (live && !muted && n.t != 'men' && !appInBackground()) {
         prof(n.from).then((p) {
-          final t = notifText(n, p.name);
-          if (appInBackground()) {
-            showLocal(n.ts % 100000, notifTitle(n.t), t.replaceAll('\n', ' • '), tag: n.mid.isNotEmpty ? n.mid : null);
-          } else {
-            toast(t.replaceAll('\n', ' • '), accent: true);
-          }
+          toast(notifText(n, p.name).replaceAll('\n', ' • '), accent: true);
         });
       }
     }, onError: (_) {});

@@ -1,5 +1,6 @@
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'ai.dart';
 import 'app_state.dart';
@@ -117,7 +118,21 @@ class _ProfileBodyState extends State<_ProfileBody> {
       ),
       const SizedBox(height: 6),
       Center(child: Wrap(spacing: 6, runSpacing: 6, children: [if (role == 'dev' || role == 'emp') DevBadge(founder: role == 'emp'), if (tag != null) tag, ageTag(p!, role: role), FutureBuilder<DataSnapshot>(future: ref('pdata/${widget.uid}/elite').get(), builder: (c, es) => es.data?.value == true ? const Tag('نخبة 🏅', fg: Color(0xFFFFB04A)) : const SizedBox.shrink()), Tag(p!.gender == 'f' ? 'أنثى' : 'ذكر'), if (pubs > 10) const Tag('رتبة عالية 🌟')])),
-      if (pid.isNotEmpty) Center(child: Text('ID: $pid', style: const TextStyle(color: kMu, letterSpacing: 1.5))),
+      if (pid.isNotEmpty)
+        Center(
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text('ID: $pid', style: const TextStyle(color: kMu, letterSpacing: 1.5)),
+            IconButton(
+              tooltip: 'نسخ المعرف',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.copy_rounded, size: 18, color: kMu),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: pid));
+                toast('تم نسخ المعرّف');
+              },
+            ),
+          ]),
+        ),
       const SizedBox(height: 4),
       Center(child: LastSeenLine(widget.uid)),
       const SizedBox(height: 8),

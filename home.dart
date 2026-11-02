@@ -424,7 +424,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const FriendsScreen())), icon: const Icon(Icons.person_add_alt_1)),
                   IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ShopScreen())), icon: const Icon(Icons.shopping_bag_outlined)),
                   const BellButton(),
-                  IconButton(onPressed: _openSettings, icon: const Icon(Icons.settings_outlined)),
+                  Stack(clipBehavior: Clip.none, children: [
+                    IconButton(onPressed: _openSettings, icon: const Icon(Icons.settings_outlined)),
+                    // نقطة تنبيه للمطورين: جلسات مشبوهة لم تُراجَع بعد
+                    if (Session.isDev)
+                      PositionedDirectional(
+                        top: 8,
+                        end: 8,
+                        child: StreamBuilder(
+                          stream: ref('susp').onValue,
+                          builder: (c, s) {
+                            final v = s.data?.snapshot.value;
+                            var n = 0;
+                            if (v is Map) {
+                              v.forEach((k, x) {
+                                if (x is Map && x['st'] == null) n++;
+                              });
+                            }
+                            return n > 0 ? Container(width: 11, height: 11, decoration: BoxDecoration(color: kRed, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 1.5))) : const SizedBox.shrink();
+                          },
+                        ),
+                      ),
+                  ]),
                 ],
               ),
             ),

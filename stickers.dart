@@ -60,12 +60,12 @@ class _StealState extends State<StealStickerButton> {
   Widget build(BuildContext context) {
     if (!loaded || mine || data.isEmpty) return const SizedBox.shrink();
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      if (maker.isNotEmpty)
+      if (maker.isNotEmpty || owner.isNotEmpty)
         FutureBuilder<Prof>(
-          future: prof(maker),
+          future: prof(maker.isNotEmpty ? maker : owner),
           builder: (c, p) => Padding(
             padding: const EdgeInsets.only(bottom: 4),
-            child: Text('صانع الملصق: ${p.data?.name ?? '...'}', textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFFFD54A), fontWeight: FontWeight.w800, fontSize: 12.5)),
+            child: Text(maker.isNotEmpty ? 'مسروق من: ${p.data?.name ?? '...'}' : 'صانع الملصق: ${p.data?.name ?? '...'}', textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFFFD54A), fontWeight: FontWeight.w800, fontSize: 12.5)),
           ),
         ),
       AppButton('🕵️ سرقة الملصق', kind: 'g', onPressed: _steal),

@@ -101,6 +101,8 @@ class _ChatScreenState extends State<ChatScreen> {
   Timer? _evTimer;
   Timer? _expTimer;
   final Set<String> _warHidden = {};
+  String _jumpId = '';
+  int _lastMention = 0;
   final Map<String, List<int>> _myScore = {}; // eid -> [نقاطي, وقت التحديث]
 
   String get kind => groupKind(gid);
@@ -301,6 +303,36 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (_) {}
   }
 
+  /// الانتقال إلى الرسالة المردود عليها عند الضغط على اقتباس الرد
+  Future<void> _jumpTo(String id, [int tries = 0]) async {
+    if (!mounted || id.isEmpty) return;
+    if (tries == 0) setState(() => _jumpId = id);
+    final ctx = keys[id]?.currentContext;
+    if (msgs.containsKey(id) && ctx != null) {
+      await Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 400), alignment: .4);
+      return;
+    }
+    if (tries >= 6) {
+      toast('تعذر الوصول للرسالة الأصلية');
+      return;
+    }
+    if (!msgs.containsKey(id)) {
+      if (hasMore) {
+        await _older();
+      } else {
+        toast('الرسالة الأصلية غير موجودة');
+        return;
+      }
+    } else {
+      final ks = _orderedKeys().reversed.toList();
+      final i = ks.indexOf(id);
+      if (i >= 0 && scroll.hasClients) {
+        await scroll.animateTo((i * 110.0).clamp(0.0, scroll.position.maxScrollExtent), duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+      }
+    }
+    Future<void>.delayed(const Duration(milliseconds: 450), () => _jumpTo(id, tries + 1));
+  }
+
   Future<void> _focus(int tries) async {
     if (!mounted) return;
     final id = widget.focusMid;
@@ -374,7 +406,7 @@ class _ChatScreenState extends State<ChatScreen> {
   // ---------- الإرسال ----------
   Map<String, String>? _reply;
 
-  Future<void> _startReply(Map<String, dynamic> m) async {
+  Future<void> _startReply(Map<String, dynamic> m, [String id = '']) async {
     final type = (m['type'] ?? 'text').toString();
     var t = '';
     if (type == 'sys') {
@@ -382,7 +414,7 @@ class _ChatScreenState extends State<ChatScreen> {
       if ((m['d'] ?? '').toString().contains('"bet"')) st = 'فعالية الرهانات 🎈';
       if (st.isEmpty) return;
       if (!mounted) return;
-      setState(() => _reply = {'n': (m['k'] ?? '') == 'welcome' ? 'رسالة الترحيب' : 'ALJESI', 't': st.length > 100 ? st.substring(0, 100) : st});
+      setState(() => _reply = {'n': (m['k'] ?? '') == 'welcome' ? 'رسالة الترحيب' : 'ALJESI', 't': st.length > 100 ? st.substring(0, 100) : st, 'i': id});
       return;
     }
     if (type == 'text') {
@@ -398,7 +430,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (t.isEmpty) return;
     final p = await prof((m['from'] ?? '').toString());
     if (!mounted) return;
-    setState(() => _reply = {'n': p.name, 't': t.length > 100 ? t.substring(0, 100) : t});
+    setState(() => _reply = {'n': p.name, 't': t.length > 100 ? t.substring(0, 100) : t, 'i': id});
   }
 
   Map<String, Object?> _base(String type) => <String, Object?>{
@@ -410,6 +442,7 @@ class _ChatScreenState extends State<ChatScreen> {
         if (myMsgStyleCode() != null) 'ms': myMsgStyleCode(),
         if (_reply != null) 'rpn': _reply!['n'],
         if (_reply != null) 'rpt': _reply!['t'],
+        if (_reply != null && (_reply!['i'] ?? '').isNotEmpty) 'rpi': _reply!['i'],
       };
 
   Future<String> _post(Map<String, Object?> m, {bool count = true}) async {
@@ -460,6 +493,16 @@ class _ChatScreenState extends State<ChatScreen> {
       ctrl.clear();
       await _punish('spam', 'تم رصد سبام.');
       return;
+    }
+    if (!Session.isDev && t.contains('@')) {
+      final nowM = DateTime.now().millisecondsSinceEpoch;
+      if (nowM - _lastMention < 30000) {
+        ctrl.clear();
+        await mentionLock();
+        toast('تكرار المنشن! تم تقييدك من الشات 30 ثانية', bad: true);
+        return;
+      }
+      _lastMention = nowM;
     }
     ctrl.clear();
     try {
@@ -713,11 +756,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
   static final RegExp _allRe = RegExp(r'@(الكل|all)', caseSensitive: false);
 
-  /// @الكل: إشعار فوري لكل أعضاء القروب (للمطورين والإمبراطور فقط)
+  /// @الكل: إشعار فوري لكل أعضاء القروب (للمشرفين والمطورين والإمبراطور)
   Future<void> _notifyAll(String mid, String text) async {
     if (!_allRe.hasMatch(text)) return;
-    if (!Session.isDev) {
-      toast('الأمر @الكل للمطورين والإمبراطور فقط');
+    if (!Session.isDev && admins[myUid] == null) {
+      toast('الأمر @الكل للمشرفين والمطورين والإمبراطور فقط');
       return;
     }
     try {
@@ -1108,6 +1151,13 @@ class _ChatScreenState extends State<ChatScreen> {
             Navigator.of(sc).pop();
             _sendImage();
           }),
+          if (Session.isDev) ...[
+            const SizedBox(height: 8),
+            AppButton('✨ تأثير رسائلي', kind: 'g', onPressed: () {
+              Navigator.of(sc).pop();
+              showMsgStyleSheet(context);
+            }),
+          ],
           const SizedBox(height: 12),
           const Text('لون رسائلك (يبقى ثابتاً)', style: TextStyle(color: kMu, fontSize: 12.5)),
           const SizedBox(height: 8),
@@ -1157,11 +1207,8 @@ class _ChatScreenState extends State<ChatScreen> {
         top: false,
         child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           IconButton(visualDensity: VisualDensity.compact, onPressed: _plusMenu, icon: const Icon(Icons.add_circle_outline)),
-          IconButton(visualDensity: VisualDensity.compact, onPressed: _sendImage, icon: const Icon(Icons.photo_outlined)),
           IconButton(visualDensity: VisualDensity.compact, onPressed: _stickers, icon: const Icon(Icons.emoji_emotions_outlined)),
           IconButton(visualDensity: VisualDensity.compact, onPressed: _mentionPicker, icon: const Icon(Icons.alternate_email)),
-          if (Session.isDev)
-            IconButton(visualDensity: VisualDensity.compact, tooltip: 'تأثير رسائلي', onPressed: () => showMsgStyleSheet(context), icon: Icon(Icons.auto_awesome, color: context.accent2)),
           if (Session.me.gender == 'm')
             IconButton(visualDensity: VisualDensity.compact, onPressed: _toggleRec, icon: Icon(recording ? Icons.stop_circle : Icons.mic_none, color: recording ? kRed : null)),
           Expanded(
@@ -1300,7 +1347,7 @@ class _ChatScreenState extends State<ChatScreen> {
               final bio = bios[from];
               return MsgBubble(
                 // مفتاح ثابت بالمعرّف: GlobalKey لكل رسالة كان يسبب تداخل الرسائل وتعلّق بطاقات البوت
-                key: id == widget.focusMid ? keys.putIfAbsent(id, () => GlobalKey()) : ValueKey<String>(id),
+                key: (id == widget.focusMid || id == _jumpId) ? keys.putIfAbsent(id, () => GlobalKey()) : ValueKey<String>(id),
                 id: id,
                 m: m,
                 mine: from == myUid,
@@ -1308,8 +1355,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 bio: bio is Map ? Map<String, dynamic>.from(bio) : null,
                 cache: imgCache,
                 onLong: () => _menu(id),
+                onJump: (i) => _jumpTo(i),
                 onAvatar: () => _avatarTap(from),
-                onReply: (type == 'sys' && !((m['k'] ?? '') == 'bot' || (m['k'] ?? '') == 'welcome')) ? null : () => _startReply(m),
+                onReply: (type == 'sys' && !((m['k'] ?? '') == 'bot' || (m['k'] ?? '') == 'welcome')) ? null : () => _startReply(m, id),
                 gid: gid,
               );
             },
@@ -1349,7 +1397,8 @@ Future<void> showGamesSheet(BuildContext context, String gid) async {
 class _StickerImg extends StatelessWidget {
   final String sid;
   final double size;
-  const _StickerImg({required this.sid, this.size = 132});
+  final bool steal;
+  const _StickerImg({required this.sid, this.size = 132, this.steal = false});
 
   @override
   Widget build(BuildContext context) {
@@ -1357,7 +1406,16 @@ class _StickerImg extends StatelessWidget {
       future: stickerData(sid),
       builder: (c, s) {
         final b = s.data == null ? null : dataUrlBytes(s.data!);
-        return SizedBox(width: size, height: size, child: b == null ? const SizedBox() : ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.memory(b, fit: BoxFit.cover, gaplessPlayback: true)));
+        final img = SizedBox(width: size, height: size, child: b == null ? const SizedBox() : ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.memory(b, fit: BoxFit.cover, gaplessPlayback: true)));
+        if (!steal) return img;
+        // ضغطة واحدة على الملصق تعرض زر «سرقة الملصق» مع اسم صانعه
+        return GestureDetector(
+          onTap: () => showAppSheet<void>(c, (sc) => [
+                const Text('الملصق', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                StealStickerButton(sid: sid, close: () => Navigator.of(sc).pop()),
+              ]),
+          child: img,
+        );
       },
     );
   }
@@ -1425,9 +1483,10 @@ class MsgBubble extends StatefulWidget {
   final VoidCallback onLong;
   final VoidCallback onAvatar;
   final VoidCallback? onReply;
+  final void Function(String)? onJump;
   final String gid;
 
-  const MsgBubble({super.key, required this.id, required this.m, required this.mine, required this.admin, required this.bio, required this.cache, required this.onLong, required this.onAvatar, this.onReply, this.gid = ''});
+  const MsgBubble({super.key, required this.id, required this.m, required this.mine, required this.admin, required this.bio, required this.cache, required this.onLong, required this.onAvatar, this.onReply, this.onJump, this.gid = ''});
 
   @override
   State<MsgBubble> createState() => _MsgBubbleState();
@@ -1505,7 +1564,12 @@ class _MsgBubbleState extends State<MsgBubble> {
           if (!mine && bio != null && (bio['t'] ?? '').toString().isNotEmpty)
             Padding(padding: const EdgeInsets.only(bottom: 3), child: Text(bio['t'].toString(), style: TextStyle(fontSize: 11, color: hexOk(bio['c']?.toString()) ? hexColor(bio['c'].toString()) : kMu))),
           if ((m['rpt'] ?? '').toString().isNotEmpty)
-            Container(
+            GestureDetector(
+              onTap: () {
+                final i = (m['rpi'] ?? '').toString();
+                if (i.isNotEmpty) widget.onJump?.call(i);
+              },
+              child: Container(
               margin: const EdgeInsets.only(bottom: 5),
               padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
               decoration: BoxDecoration(color: const Color(0x33000000), borderRadius: BorderRadius.circular(8), border: const BorderDirectional(start: BorderSide(color: Colors.white70, width: 3))),
@@ -1513,6 +1577,7 @@ class _MsgBubbleState extends State<MsgBubble> {
                 Text('رد على ${m['rpn'] ?? ''}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
                 Text(m['rpt'].toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Color(0xCCFFFFFF))),
               ]),
+            ),
             ),
         ];
         if (type == 'image') {
@@ -1523,7 +1588,7 @@ class _MsgBubbleState extends State<MsgBubble> {
           final cap = (m['cap'] ?? '').toString();
           if (cap.isNotEmpty) body.add(Padding(padding: const EdgeInsets.only(top: 5), child: Text.rich(TextSpan(children: _spans(cap, context.accent2)), style: const TextStyle(fontSize: 15, height: 1.5))));
         } else if (type == 'sticker') {
-          body.add(_StickerImg(sid: (m['sid'] ?? '').toString()));
+          body.add(_StickerImg(sid: (m['sid'] ?? '').toString(), steal: true));
         } else if (type == 'audio') {
           body.add(VoiceBubble(src: (m['au'] ?? '').toString()));
         } else {
