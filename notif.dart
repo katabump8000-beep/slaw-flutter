@@ -96,6 +96,8 @@ String notifTitle(String t) {
       return '🛟 رسالة ابلاغ';
     case 'susp':
       return '⚠️ ايها المطور!';
+    case 'guard':
+      return '🛡 الحارس';
     default:
       return 'FIR';
   }

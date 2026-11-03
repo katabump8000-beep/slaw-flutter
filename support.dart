@@ -133,8 +133,7 @@ class _SupportScreenState extends State<SupportScreen> {
       if (img != null) m['img'] = img;
       await ref('support/$id').set(m);
       await ref('supportOpen/$myUid').set(id);
-      final h = (await ref('config/support').get()).value?.toString() ?? '';
-      if (h.isNotEmpty) await sendNotif(h, {'t': 'sup', 'tx': 'رسالة ابلاغ من احد الاعضاء', 'm': id});
+      // الإشعار لكل المطورين يرسله السيرفر تلقائياً (onSupport)
       tx.clear();
       img = null;
       await _load();

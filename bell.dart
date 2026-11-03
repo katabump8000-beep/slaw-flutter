@@ -36,6 +36,8 @@ String notifText(NotifItem n, String who) {
       return '📢 $who نادى الجميع في «${n.groupLabel}»\n${n.tx}';
     case 'mod':
       return 'العضو [${n.m}] تم تقييده مدة ${n.a.toInt() >= 1440 ? '${(n.a / 1440).round()} يوم' : n.a.toInt() >= 60 ? '${(n.a / 60).round()} ساعة' : '${n.a.toInt()} دقيقة'} بسبب ارساله كلمة: ${n.tx}';
+    case 'guard':
+      return n.tx;
     case 'susp':
       return '⚠️ ايها المطور! هناك دخيل يستعمل نسخ لتطبيقكم!\nراجع «الجلسات المشبوهة» من الأدوات';
     case 'frq':
@@ -83,6 +85,8 @@ IconData notifIcon(String t) {
       return Icons.shield_outlined;
     case 'mod':
       return Icons.gavel_outlined;
+    case 'guard':
+      return Icons.shield_outlined;
     case 'susp':
       return Icons.warning_amber_rounded;
     default:

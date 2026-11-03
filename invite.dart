@@ -24,6 +24,9 @@ class _InviteSectionState extends State<InviteSection> {
   String code = '';
   int count = 0;
   bool loading = true;
+  String blocked = ''; // رسالة بدل الرابط (النشر متوقف / محظور)
+  bool stopG = false;
+  bool canStop = false;
 
   @override
   void initState() {
@@ -34,8 +37,19 @@ class _InviteSectionState extends State<InviteSection> {
   Future<void> _load() async {
     try {
       final g = widget.gid;
+      final bn = (await ref('pubBan/$myUid').get()).value;
+      final stopAll = (await ref('config/pubStop').get()).value == true;
+      stopG = (await ref('pubStopG/$g').get()).value == true;
+      canStop = Session.isDev || Session.isEmp || (await ref('groupAdmins/$g/$myUid').get()).value == true;
+      if (bn is Map) {
+        blocked = 'تم حظرك من النشر من المطور: ${(bn['n'] ?? '').toString()}';
+      } else if (stopAll || stopG) {
+        blocked = 'النشر متوقف حاليا.';
+      }
       final s = await ref('pubPerm/$g/$myUid').get();
-      if (s.exists) {
+      if (blocked.isNotEmpty) {
+        // لا ننشئ رابطاً جديداً ولا نعرض القديم
+      } else if (s.exists) {
         code = s.value.toString();
       } else {
         final rnd = Random.secure();
@@ -106,7 +120,13 @@ class _InviteSectionState extends State<InviteSection> {
               children: [
                 Text('رابط النشر الخاص بك', style: TextStyle(fontWeight: FontWeight.w800, color: context.accent2)),
                 const SizedBox(height: 8),
-                if (code.isEmpty)
+                if (blocked.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: const Color.fromRGBO(0, 0, 0, .35), borderRadius: BorderRadius.circular(10), border: Border.all(color: kRed.withAlpha(140))),
+                    child: Text(blocked, textAlign: TextAlign.center, style: const TextStyle(color: kRed, fontWeight: FontWeight.w800, height: 1.6)),
+                  )
+                else if (code.isEmpty)
                   const Text('تعذر إنشاء الرابط، تأكد من الاتصال.', style: TextStyle(color: kMu))
                 else ...[
                   Container(
@@ -148,6 +168,29 @@ class _InviteSectionState extends State<InviteSection> {
                 ),
                 const SizedBox(height: 6),
                 Text('النشر: $count', style: const TextStyle(fontWeight: FontWeight.w700)),
+                if (canStop)
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('إيقاف النشر في هذه النقابة', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+                    subtitle: const Text('لا يدخل أحد برابط نشر وتظهر لهم «النشر متوقف حاليا»', style: TextStyle(fontSize: 11.5, color: kMu)),
+                    value: stopG,
+                    onChanged: (v) async {
+                      try {
+                        if (v) {
+                          await ref('pubStopG/${widget.gid}').set(true);
+                        } else {
+                          await ref('pubStopG/${widget.gid}').remove();
+                        }
+                        toast(v ? 'تم إيقاف النشر ⛔' : 'تم تشغيل النشر ✅');
+                        setState(() => loading = true);
+                        blocked = '';
+                        code = '';
+                        await _load();
+                      } catch (e) {
+                        err(e);
+                      }
+                    },
+                  ),
               ],
             ),
     );

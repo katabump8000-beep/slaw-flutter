@@ -206,6 +206,17 @@ Future<String> registerAccount({
         await _rollback(created);
         return 'لا يمكنك استخدام رابطك الخاص';
       }
+      // إيقاف النشر عاماً أو للنقابة، أو حظر صاحب الرابط من النشر
+      final stopAll = (await ref('config/pubStop').get()).value == true;
+      final stopG = refG.isNotEmpty && (await ref('pubStopG/$refG').get()).value == true;
+      if (stopAll || stopG) {
+        await _rollback(created);
+        return 'النشر متوقف حاليا.';
+      }
+      if ((await ref('pubBan/$refU').get()).exists) {
+        await _rollback(created);
+        return 'هذا الرابط موقوف من المطور.';
+      }
     }
 
     if (pw != null && await nameTaken(name, refG, uid)) {
@@ -467,7 +478,6 @@ class _AuthFlowState extends State<AuthFlow> {
     return Scaffold(
       body: Stack(children: [
        FirShell(
-        onDot: _dot,
         child: returning
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -18,6 +18,7 @@ import 'memberadmin.dart';
 import 'reports.dart';
 import 'susp.dart';
 import 'accounts.dart';
+import 'links.dart';
 import 'sfx.dart';
 import 'sorter.dart';
 import 'tally.dart';
@@ -222,6 +223,9 @@ class _ToolsState extends State<ToolsScreen> {
         const SuspTile(),
         _t(Icons.gavel_outlined, 'حظر / حذف عضو', () => go(const MemberAdminScreen()), sub: 'بالـID: حظر أو حذف نهائي'),
         _t(Icons.manage_accounts_outlined, 'الحسابات', () => go(const AccountsScreen()), sub: 'بحث باللقب أو الـID وعرض الملف'),
+        _t(Icons.link, 'الروابط', () => go(const LinksScreen()), sub: 'رابط النشر، منع النشر، إعادة تعيين'),
+        _t(Icons.hourglass_bottom, 'عرض جلسات (العالقون)', () => go(const StuckScreen()), sub: 'سجّلوا ولم يدخلوا نقابة — حظر أو إدخال'),
+        _t(Icons.shield, 'تشغيل الحماية القصوى', () => toggleMaxGuard(), sub: 'حظر مباشر لتكرار التسجيل والاستنساخ'),
         _t(Icons.folder_delete_outlined, 'حذف قروب', () => go(const DeleteGroupScreen()), sub: 'حذف أي قروب نهائياً'),
         _t(Icons.bar_chart, 'الإحصائيات', () => go(const StatsScreen())),
         _t(Icons.people_alt_outlined, 'الفرز', () => go(const SorterScreen()), sub: 'كل المستخدمين، النسخة، آخر ظهور، حذف'),
@@ -366,14 +370,18 @@ class _StatsState extends State<StatsScreen> {
       final p = (await ref('profiles').get()).value;
       users = p is Map ? p.length : 0;
       final o = (await ref('presence').get()).value;
-      online = o is Map ? o.length : 0;
+      online = o is Map ? o.values.where((x) => x == true).length : 0;
       groups = groupsCache.length;
       final i = (await ref('installs').get()).value;
       if (i is Map) {
         installs = i.length;
-        final keys = i.keys.map((e) => e.toString()).take(400).toList();
-        final res = await Future.wait(keys.map((h) => ref('devices/$h').get().then((s) => s.exists).catchError((_) => true)));
-        noLink = res.where((x) => !x).length;
+        final keys = i.keys.map((e) => e.toString()).toList();
+        var miss = 0;
+        for (var k = 0; k < keys.length; k += 60) {
+          final res = await Future.wait(keys.skip(k).take(60).map((h) => ref('devices/$h').get().then((s) => s.exists).catchError((_) => true)));
+          miss += res.where((x) => !x).length;
+        }
+        noLink = miss;
       }
     } catch (e) {
       err(e);
@@ -398,6 +406,7 @@ class _StatsState extends State<StatsScreen> {
               _row('القروبات', groups),
               _row('حمّلوا التطبيق', installs),
               _row('حمّلوه ولم يدخلوا عبر رابط', noLink),
+              ListTile(title: const Text('عرض جلسات (العالقون)'), subtitle: const Text('حسابات سُجّلت ولم تدخل نقابة', style: TextStyle(color: kMu, fontSize: 12)), trailing: const Icon(Icons.chevron_left), onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const StuckScreen()))),
               const Padding(padding: EdgeInsets.all(16), child: Text('المساحة المستخدمة: Firebase ← Realtime Database ← Usage', style: TextStyle(color: kMu, height: 1.8))),
             ]),
     );

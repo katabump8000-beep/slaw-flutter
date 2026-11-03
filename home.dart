@@ -22,6 +22,7 @@ import 'war.dart';
 import 'friends.dart';
 import 'board.dart';
 import 'update.dart';
+import 'ipreport.dart';
 import 'empcard.dart';
 import 'gift.dart';
 import 'unread.dart';
@@ -195,6 +196,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool loading = true;
   Timer? devTimer;
+  Timer? _idleOff;
   StreamSubscription<DatabaseEvent>? presenceSub;
 
   @override
@@ -210,6 +212,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (mounted) checkUpdate(context);
     });
     Sfx.syncBgm();
+    reportIp();
     initPush().then((_) => startBackgroundPolling());
     clearBadge();
     presenceSub = FirebaseDatabase.instance.ref('.info/connected').onValue.listen((e) {
@@ -236,12 +239,37 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState st) {
     if (st == AppLifecycleState.resumed) {
+      // رجوع للتطبيق: أعد الاتصال بالقاعدة
+      _idleOff?.cancel();
+      try {
+        FirebaseDatabase.instance.goOnline();
+      } catch (_) {}
+      if (myUid.isNotEmpty) {
+        final pr = ref('presence/$myUid');
+        pr.onDisconnect().remove();
+        pr.set(true);
+      }
+      reportIp();
       clearBadge();
       Sfx.unblock('bg');
       Board.sync();
       if (mounted) checkUpdate(context);
     } else {
       Sfx.block('bg');
+      // يظهر العضو «غير متصل» فور خروجه من التطبيق
+      if (st == AppLifecycleState.paused && myUid.isNotEmpty) {
+        ref('presence/$myUid').remove().catchError((_) {});
+      }
+      // التطبيق بالخلفية أكثر من 60 ثانية: اقطع اتصال القاعدة لتوفير حد الـ100 اتصال المجاني.
+      // الإشعارات تبقى تصل عبر FCM، وتتزامن الرسائل عند الرجوع. (المطورون يبقون متصلين لمهامهم)
+      if (st == AppLifecycleState.paused && !Session.isDev) {
+        _idleOff?.cancel();
+        _idleOff = Timer(const Duration(seconds: 60), () {
+          try {
+            FirebaseDatabase.instance.goOffline();
+          } catch (_) {}
+        });
+      }
     }
   }
 
@@ -249,6 +277,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     devTimer?.cancel();
+    _idleOff?.cancel();
     presenceSub?.cancel();
     WarWatcher.stop();
     super.dispose();
