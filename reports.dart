@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 
@@ -18,7 +19,7 @@ Future<void> reportChat(
   String gid = '',
   List<String> lines = const [],
 }) async {
-  final now = DateTime.now().millisecondsSinceEpoch;
+  final now = nowMs();
   if (now - (prefs.getInt('rep_last') ?? 0) < 45000) {
     toast('انتظر قليلاً قبل إرسال بلاغ آخر', bad: true);
     return;

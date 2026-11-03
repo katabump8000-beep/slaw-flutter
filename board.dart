@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -11,7 +12,7 @@ class Board {
   static Future<void> sync() async {
     try {
       if (Session.isEmp || myUid.isEmpty) return;
-      final now = DateTime.now().millisecondsSinceEpoch;
+      final now = nowMs();
       Future<int> n(String p) async {
         final v = (await ref(p).get()).value;
         return v is num ? v.toInt() : 0;

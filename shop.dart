@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 
@@ -242,7 +243,7 @@ class _ShopScreenState extends State<ShopScreen> {
                 try {
                   await db.ref().update(<String, Object?>{
                     'members/$g/$myUid': 'v',
-                    'visit/$myUid': <String, Object?>{'g': g, 'home': home.first, 'until': DateTime.now().millisecondsSinceEpoch + 3 * 86400000},
+                    'visit/$myUid': <String, Object?>{'g': g, 'home': home.first, 'until': nowMs() + 3 * 86400000},
                     'wallets/$myUid/bal': ServerValue.increment(-_pr(it)),
                   });
                   memCache[g] = 'v';
@@ -294,7 +295,7 @@ Future<void> checkVisitExpiry() async {
     final v = (await ref('visit/$myUid').get()).value;
     if (v is! Map) return;
     final until = (v['until'] as num?)?.toInt() ?? 0;
-    if (until < DateTime.now().millisecondsSinceEpoch) {
+    if (until < nowMs()) {
       await db.ref().update(<String, Object?>{'members/${v['g']}/$myUid': null, 'visit/$myUid': null});
       memCache.remove((v['g'] ?? '').toString());
       toast('انتهت زيارتك، عدت إلى نقابتك');

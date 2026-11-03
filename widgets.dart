@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'vip.dart';
 import 'dart:math' as math;
 
@@ -137,7 +138,7 @@ Widget? rankTag(String? r) {
 
 /// وسم عمر العضو: عضو (أقل من 3 أيام) / مخضرم (3) / نخبة (10) / أسطورة (50). الرتب العليا أسطورة دائماً
 Widget ageTag(Prof p, {String? role}) {
-  final now = DateTime.now().millisecondsSinceEpoch;
+  final now = nowMs();
   final ts = p.ts == 0 ? now : p.ts;
   final d = (now - ts) / 86400000;
   String t;

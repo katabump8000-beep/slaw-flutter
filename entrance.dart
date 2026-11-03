@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'dart:math';
 
 import 'package:firebase_database/firebase_database.dart';
@@ -17,7 +18,7 @@ Future<void> announceEntrance(String gid, String type) async {
 bool shouldShowEntrance(Object? v, String gid) {
   if (v is! Map) return false;
   final ts = (v['ts'] as num?)?.toInt() ?? 0;
-  final now = DateTime.now().millisecondsSinceEpoch;
+  final now = nowMs();
   if ((now - ts).abs() > 12000) return false;
   if (prefs.getInt('ent_$gid') == ts) return false;
   prefs.setInt('ent_$gid', ts);

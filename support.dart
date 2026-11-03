@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -63,7 +64,7 @@ class _StatusState extends State<_Status> {
     final d = t;
     if (d == null) return const Text('...');
     if (d['st'] == 'a') return const Text('📩 وصل ردّ المطور — عرض');
-    final left = ((d['ts'] as num?)?.toInt() ?? 0) + 12 * 3600000 - DateTime.now().millisecondsSinceEpoch;
+    final left = ((d['ts'] as num?)?.toInt() ?? 0) + 12 * 3600000 - nowMs();
     final s = left > 0 ? left ~/ 1000 : 0;
     String p(int x) => x.toString().padLeft(2, '0');
     return Row(children: [const Icon(Icons.access_time, size: 18), const SizedBox(width: 6), Text('بانتظار الرد  ${p(s ~/ 3600)}:${p((s % 3600) ~/ 60)}:${p(s % 60)}')]);
@@ -129,7 +130,7 @@ class _SupportScreenState extends State<SupportScreen> {
     setState(() => busy = true);
     try {
       final id = ref('support').push().key!;
-      final m = <String, Object?>{'u': myUid, 'tx': text, 'ts': DateTime.now().millisecondsSinceEpoch, 'st': 'o'};
+      final m = <String, Object?>{'u': myUid, 'tx': text, 'ts': nowMs(), 'st': 'o'};
       if (img != null) m['img'] = img;
       await ref('support/$id').set(m);
       await ref('supportOpen/$myUid').set(id);
@@ -227,7 +228,7 @@ class _SupportTicketState extends State<SupportTicketScreen> {
     final a = rep.text.trim();
     if (a.isEmpty || t == null) return;
     try {
-      await ref('support/${widget.tid}').update(<String, Object?>{'ans': a, 'ansby': myUid, 'st': 'a', 'at': DateTime.now().millisecondsSinceEpoch});
+      await ref('support/${widget.tid}').update(<String, Object?>{'ans': a, 'ansby': myUid, 'st': 'a', 'at': nowMs()});
       await sendNotif(t!['u'].toString(), {'t': 'sup', 'tx': 'وصل ردّ المطور على بلاغك'});
       toast('تم إرسال الرد ✅');
       if (mounted) Navigator.of(context).pop();

@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -151,7 +152,7 @@ class _AccountsState extends State<AccountsScreen> {
               _l('نسخة التطبيق', (seen['b'] ?? '—').toString()),
               _l('النقابات', (i['groups'] as List).isEmpty ? '—' : (i['groups'] as List).join('، ')),
               _l('حظر التطبيق', i['ban'] != null ? 'محظور ⛔' : 'لا'),
-              _l('تقييد الشات', modUntil > DateTime.now().millisecondsSinceEpoch ? 'مقيد حتى ${_d(modUntil)}' : 'لا'),
+              _l('تقييد الشات', modUntil > nowMs() ? 'مقيد حتى ${_d(modUntil)}' : 'لا'),
               _l('علامة بيئة مشبوهة', i['flag'] != null ? 'نعم ⚠️' : 'لا'),
               const SizedBox(height: 10),
               Row(children: [
@@ -160,7 +161,7 @@ class _AccountsState extends State<AccountsScreen> {
                   toast('تم النسخ');
                 })),
                 const SizedBox(width: 8),
-                if (modUntil > DateTime.now().millisecondsSinceEpoch)
+                if (modUntil > nowMs())
                   Expanded(child: AppButton('تحرير التقييد', compact: true, onPressed: () async {
                     try {
                       await ref('mod/$uid/until').set(0);

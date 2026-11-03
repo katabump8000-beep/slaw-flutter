@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'sorter.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -123,14 +124,14 @@ String nameError(String raw) {
 /// حماية صاحب كلمة السر: إذا حاول أحد إنشاء حساب بكلمة سر مستخدمة يُقفل الدخول بها 24 ساعة
 Future<void> lockPwOwner(String pw) async {
   try {
-    await ref('pwLock/${aliasKey(pw)}').set(<String, Object?>{'until': DateTime.now().millisecondsSinceEpoch + 86400000});
+    await ref('pwLock/${aliasKey(pw)}').set(<String, Object?>{'until': nowMs() + 86400000});
   } catch (_) {}
 }
 
 Future<bool> pwLocked(String pw) async {
   try {
     final v = (await ref('pwLock/${aliasKey(pw)}/until').get()).value;
-    return v is num && v.toInt() > DateTime.now().millisecondsSinceEpoch;
+    return v is num && v.toInt() > nowMs();
   } catch (_) {
     return false;
   }
@@ -244,7 +245,7 @@ Future<String> registerAccount({
     await ref('profiles/$uid').set(<String, Object?>{
       'name': name,
       'gender': gender,
-      'ts': DateTime.now().millisecondsSinceEpoch,
+      'ts': nowMs(),
       'color': '#ff7a1a',
     });
     try {
@@ -400,7 +401,7 @@ class _AuthFlowState extends State<AuthFlow> {
     try {
       if (FirebaseAuth.instance.currentUser == null) await FirebaseAuth.instance.signInAnonymously();
       final h = await deviceHash();
-      await ref('installs/$h').set(DateTime.now().millisecondsSinceEpoch);
+      await ref('installs/$h').set(nowMs());
     } catch (_) {}
   }
 

@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'unread.dart';
 import 'stickers.dart';
 import 'vip.dart';
@@ -111,7 +112,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool get visitor => memCache[gid] == 'v';
   bool get isStaff => Session.isDev || admins[myUid] == true;
   bool get canWrite => Session.isDev || (kind == 'main' && (!locked || isStaff));
-  bool get muted => muteUntil > DateTime.now().millisecondsSinceEpoch;
+  bool get muted => muteUntil > nowMs();
 
   @override
   void initState() {
@@ -150,7 +151,7 @@ class _ChatScreenState extends State<ChatScreen> {
       }
       _evTimer?.cancel();
       // أعد الرسم عند حلول وقت اختفاء أقرب فعالية منتهية
-      final now = DateTime.now().millisecondsSinceEpoch;
+      final now = nowMs();
       final next = evEnds.values.map((t) => t + 180000 - now).where((d) => d > 0).fold<int>(1 << 30, (a, b) => b < a ? b : a);
       if (next < (1 << 30)) _evTimer = Timer(Duration(milliseconds: next + 400), () => mounted ? setState(() {}) : null);
       if (mounted) setState(() {});
@@ -177,7 +178,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _entranceTriggers() {
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final now = nowMs();
     if (Session.isEmp && (prefs.getBool('emp_enter') ?? false)) {
       prefs.setBool('emp_enter', false);
       announceEntrance(gid, 'emp');
@@ -193,7 +194,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _evTimer?.cancel();
     _expTimer?.cancel();
     BellService.clearMentions(gid);
-    prefs.setInt('ls_$gid', DateTime.now().millisecondsSinceEpoch);
+    prefs.setInt('ls_$gid', nowMs());
     for (final s in subs) {
       s.cancel();
     }
@@ -236,7 +237,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _eidOf[id] = eid;
     }
     final end = evEnds[eid];
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final now = nowMs();
     if (end == null) {
       // فعالية عالقة (أُغلق جهاز مشغّلها قبل أن تنتهي): تختفي بعد 25 دقيقة بدل أن تبقى معلّقة
       final ts = (m['ts'] as num?)?.toInt() ?? 0;
@@ -258,11 +259,11 @@ class _ChatScreenState extends State<ChatScreen> {
       if (j is Map) eid = (j['eid'] ?? '').toString();
     } catch (_) {}
     if (eid.isEmpty) return;
-    _myScore[eid] = [int.tryParse(mt.group(2)!) ?? 0, DateTime.now().millisecondsSinceEpoch];
+    _myScore[eid] = [int.tryParse(mt.group(2)!) ?? 0, nowMs()];
   }
 
   Widget _scoreChip() {
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final now = nowMs();
     for (final e in _myScore.entries) {
       if (evEnds[e.key] != null || now - e.value[1] > 25 * 60000) continue;
       final sc = e.value[0].clamp(0, 10);
@@ -285,7 +286,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void _checkWin(String id, Map<String, dynamic> m) {
     if (m['k'] != 'bot' || m['d'] is! String) return;
     final ts = (m['ts'] as num?)?.toInt() ?? 0;
-    if (DateTime.now().millisecondsSinceEpoch - ts > 300000) return;
+    if (nowMs() - ts > 300000) return;
     try {
       final j = jsonDecode(m['d'] as String);
       if (j is Map && j['win'] == myUid && !(prefs.getBool('win_$id') ?? false)) {
@@ -497,7 +498,7 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
     if (!Session.isDev && t.contains('@')) {
-      final nowM = DateTime.now().millisecondsSinceEpoch;
+      final nowM = nowMs();
       // مسموح 5 رسائل منشن متتالية (كل واحدة خلال 30 ثانية من السابقة)، والسادسة تقييد
       _mentionRun = nowM - _lastMention < 30000 ? _mentionRun + 1 : 1;
       _lastMention = nowM;
@@ -1048,7 +1049,7 @@ class _ChatScreenState extends State<ChatScreen> {
             if (t.isEmpty) return;
             Navigator.of(sc).pop();
             try {
-              await ref('messages/$gid/$id').update(<String, Object?>{'text': t, 'edited': true, 'editedAt': DateTime.now().millisecondsSinceEpoch});
+              await ref('messages/$gid/$id').update(<String, Object?>{'text': t, 'edited': true, 'editedAt': nowMs()});
             } catch (e) {
               err(e);
             }
@@ -1242,7 +1243,7 @@ class _ChatScreenState extends State<ChatScreen> {
     return StreamBuilder<int>(
       stream: Stream<int>.periodic(const Duration(seconds: 1), (i) => i),
       builder: (c, _) {
-        final now = DateTime.now().millisecondsSinceEpoch;
+        final now = nowMs();
         for (final en in WarWatcher.feeds.entries) {
           final f = en.value;
           if (f['res'] != null || _warHidden.contains(en.key)) continue;
@@ -1744,7 +1745,7 @@ class ImageViewer extends StatelessWidget {
 
 /// نص الوقت المتبقي: 00:30 أو 1:05:00 أو «2 يوم 03:00:00»
 String leftText(int until) {
-  var s = ((until - DateTime.now().millisecondsSinceEpoch) / 1000).ceil();
+  var s = ((until - nowMs()) / 1000).ceil();
   if (s < 0) s = 0;
   String two(int n) => n.toString().padLeft(2, '0');
   final d = s ~/ 86400;
@@ -1773,7 +1774,7 @@ class _MuteCountdownState extends State<MuteCountdown> {
     super.initState();
     t = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
-      if (widget.until <= DateTime.now().millisecondsSinceEpoch && !fired) {
+      if (widget.until <= nowMs() && !fired) {
         fired = true;
         widget.onDone();
       }

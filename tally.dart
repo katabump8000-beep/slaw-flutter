@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'dart:convert';
 
 import 'package:firebase_database/firebase_database.dart';
@@ -75,7 +76,7 @@ Future<void> runTally() async {
   try {
     final hh = (await ref('meta/tallyHour').get()).value;
     final hour = hh is num ? hh.toInt() : 23;
-    final n = DateTime.now();
+    final n = nowDt();
     if (n.hour < hour) return;
     final key = 'tally_${n.year}_${n.month}_${n.day}';
     try {

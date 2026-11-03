@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -506,7 +507,7 @@ class _CrystalScreenState extends State<CrystalScreen> {
       return;
     }
     // استراحة: بعد 5 لفّات متتالية ينتظر اللاعب 5 دقائق
-    final nowT = DateTime.now().millisecondsSinceEpoch;
+    final nowT = nowMs();
     final lockT = prefs.getInt('cr_lock') ?? 0;
     if (nowT < lockT) {
       final sec = ((lockT - nowT) / 1000).ceil();

@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
@@ -126,7 +127,7 @@ Future<PunishResult> applyPunish(String kind) async {
     }
   } catch (_) {}
   final n = (cur['n'] as int?) ?? 0;
-  final now = DateTime.now().millisecondsSinceEpoch;
+  final now = nowMs();
   var dur = 0;
   var warn = false;
   final key = {'mild': 'a', 'severe': 'b', 'image': 'i', 'spam': 's'}[kind] ?? 'a';
@@ -178,7 +179,7 @@ Future<int> prideOf(String uid) async {
 /// كاشف السبام: 9 رسائل خلال 8 ثوانٍ
 final List<int> _sent = <int>[];
 bool spamHit() {
-  final n = DateTime.now().millisecondsSinceEpoch;
+  final n = nowMs();
   _sent.add(n);
   _sent.removeWhere((t) => n - t > 8000);
   if (_sent.length >= 9) {
@@ -250,7 +251,7 @@ Future<void> mentionLock() async {
     }
   } catch (_) {}
   cur['n'] = ((cur['n'] as int?) ?? 0) + 1;
-  cur['until'] = DateTime.now().millisecondsSinceEpoch + 30000;
+  cur['until'] = nowMs() + 30000;
   try {
     await ref('mod/$myUid').set(cur);
   } catch (_) {}

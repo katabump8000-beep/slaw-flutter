@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'dart:async';
 
 import 'package:firebase_database/firebase_database.dart';
@@ -41,7 +42,7 @@ class _GiftBoxState extends State<GiftBox> with SingleTickerProviderStateMixin {
     try {
       final v = (await ref('gift/$myUid').get()).value;
       var r = true;
-      if (v is Map && v['ts'] is num) r = DateTime.now().millisecondsSinceEpoch - (v['ts'] as num).toInt() >= _cool;
+      if (v is Map && v['ts'] is num) r = nowMs() - (v['ts'] as num).toInt() >= _cool;
       if (mounted) setState(() => ready = r);
     } catch (_) {}
   }
@@ -116,7 +117,7 @@ class _GiftScreenState extends State<GiftScreen> {
     if (mounted) setState(() => loaded = true);
   }
 
-  int get left => ts == 0 ? 0 : (ts + _cool) - DateTime.now().millisecondsSinceEpoch;
+  int get left => ts == 0 ? 0 : (ts + _cool) - nowMs();
 
   String _fmt(int ms) {
     final s = (ms / 1000).ceil();

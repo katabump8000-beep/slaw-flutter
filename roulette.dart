@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -84,7 +85,7 @@ class _RouletteScreenState extends State<RouletteScreen> with SingleTickerProvid
   String info = 'لفّة واحدة كل 12 ساعة';
   int nextAt = 0;
   Timer? tk;
-  int get left => nextAt - DateTime.now().millisecondsSinceEpoch;
+  int get left => nextAt - nowMs();
 
   @override
   void initState() {
@@ -106,10 +107,10 @@ class _RouletteScreenState extends State<RouletteScreen> with SingleTickerProvid
     try {
       final v = (await ref('spin/$myUid').get()).value;
       if (v is num) {
-        final l = 43200000 - (DateTime.now().millisecondsSinceEpoch - v.toInt());
+        final l = 43200000 - (nowMs() - v.toInt());
         if (l > 0 && mounted) {
           setState(() {
-            nextAt = DateTime.now().millisecondsSinceEpoch + l;
+            nextAt = nowMs() + l;
           });
         }
       }
@@ -167,7 +168,7 @@ class _RouletteScreenState extends State<RouletteScreen> with SingleTickerProvid
     } catch (_) {
       toast('تعذر إضافة الجائزة، تواصل مع مطور', bad: true);
     }
-    nextAt = DateTime.now().millisecondsSinceEpoch + 43200000;
+    nextAt = nowMs() + 43200000;
     if (mounted) setState(() => busy = false);
   }
 

@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -65,7 +66,7 @@ class WarWatcher {
         final v = e.snapshot.value;
         if (v is! Map) return;
         final ts = (v['ts'] as num?)?.toInt() ?? 0;
-        final now = DateTime.now().millisecondsSinceEpoch;
+        final now = nowMs();
         if ((v['by'] ?? '') == myUid || (now - ts).abs() > 9000) return;
         if (prefs.getInt('sfx_$g') == ts) return;
         prefs.setInt('sfx_$g', ts);
@@ -89,7 +90,7 @@ class WarWatcher {
   }
 
   static void _pulse() {
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final now = nowMs();
     Color? c;
     for (final f in feeds.values) {
       if (f['res'] != null) continue;
@@ -106,7 +107,7 @@ class WarWatcher {
   static final List<Future<void> Function()> _queue = [];
 
   static void _eval() {
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final now = nowMs();
     for (final e in feeds.entries) {
       final wid = e.key;
       final f = e.value;
@@ -219,7 +220,7 @@ Future<void> _declare(String a, String d) async {
       return;
     }
     final wid = ref('wars').push().key!;
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final now = nowMs();
     final st = now + 3600000 + 30000;
     await db.ref().update(<String, Object?>{
       'wars/$wid': <String, Object?>{'a': a, 'd': d, 'by': myUid, 't0': now, 'st': st, 'en': st, 's': 'p'},
@@ -264,7 +265,7 @@ class WarCancelBar extends StatelessWidget {
     return ValueListenableBuilder<int>(
       valueListenable: WarWatcher.tick,
       builder: (c, _, __) {
-        final now = DateTime.now().millisecondsSinceEpoch;
+        final now = nowMs();
         final mine = WarWatcher.feeds.entries.where((e) => e.value['by'] == myUid && e.value['res'] == null && ((e.value['st'] as num?)?.toInt() ?? 0) > now).toList();
         if (mine.isEmpty) return const SizedBox();
         return Column(
@@ -446,7 +447,7 @@ class _WarCardState extends State<WarCard> {
   Widget build(BuildContext context) {
     final o = widget.o;
     final decl = o['t'] == 'decl';
-    final left = ((o['st'] as num?)?.toInt() ?? 0) - DateTime.now().millisecondsSinceEpoch;
+    final left = ((o['st'] as num?)?.toInt() ?? 0) - nowMs();
     if (decl && left < -120000) {
       return Container(
         width: double.infinity,
@@ -882,7 +883,7 @@ class _WarEpicState extends State<WarEpicScreen> with SingleTickerProviderStateM
 
 // ---------- حسم الحروب (تنفّذه أجهزة المطورين/الإمبراطور) ----------
 Future<void> settleWars() async {
-  final now = DateTime.now().millisecondsSinceEpoch;
+  final now = nowMs();
   Map<dynamic, dynamic> ws = {};
   try {
     final s = await ref('wars').get();

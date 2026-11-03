@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -134,7 +135,7 @@ class BetHost {
     final h = BetHost(gid, myUid);
     h.st.creator = myUid;
     h.st.maxBet = mx;
-    h.st.t0 = DateTime.now().millisecondsSinceEpoch;
+    h.st.t0 = nowMs();
     h.st.seed = Random().nextInt(1000000) + 1;
     _active[gid] = h;
     h._run();
@@ -216,7 +217,7 @@ class BetHost {
     }
   }
 
-  bool get _late => DateTime.now().millisecondsSinceEpoch - st.t0 >= 360000;
+  bool get _late => nowMs() - st.t0 >= 360000;
 
   Future<void> _push() async {
     try {
@@ -448,7 +449,7 @@ class _BetCardState extends State<BetCard> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final mine = st.players.any((p) => p.uid == myUid);
-    final late = DateTime.now().millisecondsSinceEpoch - st.t0 >= 360000;
+    final late = nowMs() - st.t0 >= 360000;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0x99FFD54A))),

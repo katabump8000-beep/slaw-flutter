@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'vip.dart';
 import 'uiprefs.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -31,6 +32,7 @@ Future<void> main() async {
       FirebaseDatabase.instance.setPersistenceEnabled(true);
       FirebaseDatabase.instance.setPersistenceCacheSizeBytes(60 * 1024 * 1024);
     } catch (_) {}
+    await ServerClock.init();
     await Sfx.init();
   } catch (e) {
     runApp(InitErrorApp(error: e.toString()));

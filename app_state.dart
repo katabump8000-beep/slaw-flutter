@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -205,7 +206,7 @@ String fmtN(num n) => n
     .replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',');
 
 int daysSince(int? ts) {
-  final now = DateTime.now().millisecondsSinceEpoch;
+  final now = nowMs();
   final t = (ts == null || ts == 0) ? now : ts;
   final d = ((now - t) / 86400000).floor();
   return d < 0 ? 0 : d;

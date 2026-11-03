@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -69,7 +70,7 @@ class _QuickQuizScreenState extends State<QuickQuizScreen> {
   @override
   void initState() {
     super.initState();
-    final left = 180000 - (DateTime.now().millisecondsSinceEpoch - (prefs.getInt('cd_${widget.kind}') ?? 0));
+    final left = 180000 - (nowMs() - (prefs.getInt('cd_${widget.kind}') ?? 0));
     if (left > 0) {
       blocked = true;
       info = 'انتظر ${(left / 1000).ceil()} ثانية قبل إعادة اللعب';
@@ -109,7 +110,7 @@ class _QuickQuizScreenState extends State<QuickQuizScreen> {
   Future<void> _end({int? typingPay}) async {
     if (finished) return;
     finished = true;
-    prefs.setInt('cd_${widget.kind}', DateTime.now().millisecondsSinceEpoch);
+    prefs.setInt('cd_${widget.kind}', nowMs());
     final raw = typingPay ?? (widget.kind == 'flags' ? ok * 8 : ok * 4);
     final room = await quizRoom();
     final pay = min(raw, room);
@@ -160,7 +161,7 @@ class _QuickQuizScreenState extends State<QuickQuizScreen> {
         ));
         if (t0 == 0) {
           w.add(AppButton('ابدأ', onPressed: () {
-            setState(() => t0 = DateTime.now().millisecondsSinceEpoch);
+            setState(() => t0 = nowMs());
             timeout = Timer(const Duration(seconds: 40), () {
               if (!finished) _end(typingPay: 0);
             });
@@ -172,7 +173,7 @@ class _QuickQuizScreenState extends State<QuickQuizScreen> {
             onChanged: (v) {
               if (finished) return;
               if (normAr(v) == normAr(phrase)) {
-                final s = (DateTime.now().millisecondsSinceEpoch - t0) / 1000;
+                final s = (nowMs() - t0) / 1000;
                 setState(() => info = '⏱ ${s.toStringAsFixed(1)} ثانية');
                 _end(typingPay: s <= 8 ? 25 : (s <= 15 ? 12 : 0));
               }

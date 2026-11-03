@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -153,7 +154,7 @@ Future<void> prideRegen() async {
     final cur = (p.value as num).toInt();
     if (cur >= 100) return;
     final t = (await ref('prideTs/$myUid').get()).value;
-    if (t is num && DateTime.now().millisecondsSinceEpoch - t.toInt() < 10800000) return;
+    if (t is num && nowMs() - t.toInt() < 10800000) return;
     await db.ref().update(<String, Object?>{'pride/$myUid': cur + 1, 'prideTs/$myUid': ServerValue.timestamp});
   } catch (_) {}
 }

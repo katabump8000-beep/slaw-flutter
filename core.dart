@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'dart:async';
 
 import 'package:firebase_database/firebase_database.dart';
@@ -6,7 +7,7 @@ import 'app_state.dart';
 import 'data.dart';
 import 'home.dart';
 
-String dayKey() => DateTime.now().toIso8601String().substring(0, 10);
+String dayKey() => nowDt().toIso8601String().substring(0, 10);
 
 Future<num> balanceNow() async {
   final s = await ref('wallets/$myUid/bal').get();
@@ -83,7 +84,7 @@ List<String> mainGroups() => memCache.entries
     .toList();
 
 /// معرّف فريد لفعالية (يُلحق برسائلها لتختفي بعد انتهائها بـ 3 دقائق)
-String newEventId() => ref('evEnd').push().key ?? DateTime.now().millisecondsSinceEpoch.toString();
+String newEventId() => ref('evEnd').push().key ?? nowMs().toString();
 
 /// يسجّل نهاية الفعالية: كل رسائلها تختفي من الشات بعد 3 دقائق من هذه اللحظة
 Future<void> markEventEnd(String gid, String eid) async {

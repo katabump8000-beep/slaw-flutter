@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 
@@ -6,7 +7,7 @@ import 'data.dart';
 
 /// نص «منذ ...» بالعربية (لا يرجع أبداً «غير معروف»)
 String agoArabic(int ts) {
-  final d = DateTime.now().millisecondsSinceEpoch - ts;
+  final d = nowMs() - ts;
   if (d < 60000) return 'منذ لحظات';
   final m = d ~/ 60000;
   if (m < 60) return m == 1 ? 'منذ دقيقة' : (m == 2 ? 'منذ دقيقتين' : (m <= 10 ? 'منذ $m دقائق' : 'منذ $m دقيقة'));

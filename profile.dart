@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -74,7 +75,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
     }
     isFriend = u != myUid && (await _g('friends/$myUid/$u')) == true;
     final l = await _g('likes/$u/$myUid');
-    liked = l is num && DateTime.now().millisecondsSinceEpoch - l < 43200000;
+    liked = l is num && nowMs() - l < 43200000;
     if (mounted) setState(() => loading = false);
   }
 

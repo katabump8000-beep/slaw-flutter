@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -9,7 +10,7 @@ import 'data.dart';
 /// يرسل هوية الحساب للسيرفر ليسجّل عنوان IP (للمطورين فقط) — مرة كل 6 ساعات
 Future<void> reportIp() async {
   try {
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final now = nowMs();
     if (now - (prefs.getInt('ip_t') ?? 0) < 6 * 3600 * 1000) return;
     final u = FirebaseAuth.instance.currentUser;
     if (u == null) return;

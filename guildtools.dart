@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'dart:convert';
 
 import 'package:firebase_database/firebase_database.dart';
@@ -176,7 +177,7 @@ Future<void> warTrial(BuildContext context) async {
                 return;
               }
               Navigator.of(sc).pop();
-              final now = DateTime.now().millisecondsSinceEpoch;
+              final now = nowMs();
               final f = <String, dynamic>{
                 'ag': a,
                 'dg': d,

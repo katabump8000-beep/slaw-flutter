@@ -1,3 +1,4 @@
+import 'servertime.dart';
 import 'sorter.dart';
 import 'kingdoms.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -109,7 +110,7 @@ class _InfoState extends State<GroupInfoScreen> {
               if (t.isEmpty) {
                 await ref('groupStatus/$gid').remove();
               } else {
-                await ref('groupStatus/$gid').set(<String, Object?>{'t': t, 'by': myUid, 'ts': DateTime.now().millisecondsSinceEpoch});
+                await ref('groupStatus/$gid').set(<String, Object?>{'t': t, 'by': myUid, 'ts': nowMs()});
               }
               if (sc.mounted) Navigator.of(sc).pop();
               await _load();
@@ -186,7 +187,7 @@ class _InfoState extends State<GroupInfoScreen> {
         err(e);
       }
     }
-    Future<void> mute(int h) => act(() => ref('bans/$gid/$u').set(DateTime.now().millisecondsSinceEpoch + h * 3600000), note: 'mute');
+    Future<void> mute(int h) => act(() => ref('bans/$gid/$u').set(nowMs() + h * 3600000), note: 'mute');
     showAppSheet<void>(context, (sc) {
       Widget b(String t, Future<void> Function() f, {String kind = 'g', String? note}) => AppButton(t, kind: kind, onPressed: () {
             Navigator.of(sc).pop();
