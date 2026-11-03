@@ -68,10 +68,17 @@ class _AccountsState extends State<AccountsScreen> {
   Future<void> _open(String u) async {
     setState(() => busy = true);
     try {
-      Future<dynamic> g(String p) async => (await ref(p).get()).value;
+      Future<dynamic> g(String p) async {
+        try {
+          return (await ref(p).get()).value;
+        } catch (_) {
+          return null; // قراءة غير مسموحة أو غير موجودة: لا توقف باقي الملف
+        }
+      }
+
       final r = await Future.wait<dynamic>([
         g('profiles/$u'), g('pdata/$u/pid'), g('roles/$u'), g('wallets/$u/bal'), g('seen/$u'),
-        g('presence/$u'), g('banned/$u'), g('mod/$u'), g('deviceOf/$u'), g('flags/$u'), g('friends/$u'),
+        g('presence/$u'), g('banned/$u'), g('mod/$u'), g('flags/$u'),
       ]);
       final gs = <String>[];
       for (final x in groupsCache.keys) {
@@ -81,7 +88,7 @@ class _AccountsState extends State<AccountsScreen> {
       }
       info = {
         'p': r[0], 'pid': r[1], 'role': r[2], 'bal': r[3], 'seen': r[4], 'on': r[5], 'ban': r[6], 'mod': r[7],
-        'dev': r[8], 'flag': r[9], 'fr': r[10] is Map ? (r[10] as Map).length : 0, 'groups': gs,
+        'flag': r[8], 'groups': gs,
       };
       uid = u;
       hits = [];
@@ -143,10 +150,8 @@ class _AccountsState extends State<AccountsScreen> {
               _l('آخر ظهور', _d(seen['t'] as num?)),
               _l('نسخة التطبيق', (seen['b'] ?? '—').toString()),
               _l('النقابات', (i['groups'] as List).isEmpty ? '—' : (i['groups'] as List).join('، ')),
-              _l('عدد الأصدقاء', '${i['fr']}'),
               _l('حظر التطبيق', i['ban'] != null ? 'محظور ⛔' : 'لا'),
               _l('تقييد الشات', modUntil > DateTime.now().millisecondsSinceEpoch ? 'مقيد حتى ${_d(modUntil)}' : 'لا'),
-              _l('جهاز مرتبط', i['dev'] != null ? 'نعم' : 'لا'),
               _l('علامة بيئة مشبوهة', i['flag'] != null ? 'نعم ⚠️' : 'لا'),
               const SizedBox(height: 10),
               Row(children: [
