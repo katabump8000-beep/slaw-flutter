@@ -5,11 +5,14 @@ import 'dart:math';
 
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import 'app_state.dart';
-import 'chat.dart' show VoiceBubble;
+import 'ai.dart' show imageUnsafe;
+import 'chat.dart' show VoiceBubble, StickerThumb, ImageViewer, dataUrlBytes;
+import 'crop.dart';
 import 'data.dart';
 import 'friends.dart' show removeFriend;
 import 'profile.dart';
@@ -170,6 +173,70 @@ class _ThreadState extends State<_Thread> {
     }
   }
 
+  Future<void> _sendImg() async {
+    try {
+      final x = await ImagePicker().pickImage(source: ImageSource.gallery);
+      if (x == null || !mounted) return;
+      final bytes = await x.readAsBytes();
+      if (!mounted) return;
+      final d = await cropImage(context, bytes, out: const [900, 720, 560, 420, 320], limit: 55000, round: false, title: 'قص الصورة', ratio: 4 / 3);
+      if (d == null) return;
+      final fb = dataUrlBytes(d);
+      if (!Session.isDev && fb != null && await imageUnsafe(fb) == true) {
+        toast('لا يمكن إرسال هذه الصورة', bad: true);
+        return;
+      }
+      await ref(widget.path).push().set(<String, Object?>{'from': myUid, 'text': '📷 صورة', 'img': d, 'ts': ServerValue.timestamp});
+    } catch (e) {
+      err(e);
+    }
+  }
+
+  Future<void> _sendSticker() async {
+    List<String> mine = [];
+    try {
+      final v = (await ref('myStickers/$myUid').get()).value;
+      if (v is Map) mine = v.keys.map((e) => e.toString()).toList();
+    } catch (_) {}
+    if (!mounted) return;
+    if (mine.isEmpty) {
+      toast('ما عندك ملصقات بعد — أنشئ ملصقاً من الشات العام أولاً');
+      return;
+    }
+    showAppSheet<void>(context, (sc) => [
+          const Text('الملصقات', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final sid in mine)
+              GestureDetector(
+                onTap: () async {
+                  Navigator.of(sc).pop();
+                  try {
+                    await ref(widget.path).push().set(<String, Object?>{'from': myUid, 'text': '🏷 ملصق', 'sid': sid, 'ts': ServerValue.timestamp});
+                  } catch (e) {
+                    err(e);
+                  }
+                },
+                child: StickerThumb(sid: sid, size: 76),
+              ),
+          ]),
+        ]);
+  }
+
+  Widget _body(Map<dynamic, dynamic> m) {
+    if ((m['au'] ?? '').toString().isNotEmpty) return VoiceBubble(src: m['au'].toString());
+    if ((m['sid'] ?? '').toString().isNotEmpty) return StickerThumb(sid: m['sid'].toString(), size: 120);
+    if ((m['img'] ?? '').toString().isNotEmpty) {
+      final b = dataUrlBytes(m['img'].toString());
+      if (b != null) {
+        return GestureDetector(
+          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ImageViewer(bytes: b))),
+          child: ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.memory(b, width: 220, fit: BoxFit.cover, gaplessPlayback: true)),
+        );
+      }
+    }
+    return Text((m['text'] ?? '').toString(), style: const TextStyle(height: 1.5));
+  }
+
   Future<void> _startRec() async {
     try {
       if (!await rec.hasPermission()) {
@@ -226,7 +293,7 @@ class _ThreadState extends State<_Thread> {
     final out = <String>[];
     for (final k in last) {
       final m = msgs[k]!;
-      final t = (m['au'] ?? '').toString().isNotEmpty ? '[تسجيل صوتي]' : (m['text'] ?? '').toString();
+      final t = (m['au'] ?? '').toString().isNotEmpty ? '[تسجيل صوتي]' : (m['img'] ?? '').toString().isNotEmpty ? '[صورة]' : (m['sid'] ?? '').toString().isNotEmpty ? '[ملصق]' : (m['text'] ?? '').toString();
       out.add('${m['from'] == myUid ? 'المبلِّغ' : 'الطرف الآخر'}: ${t.length > 120 ? t.substring(0, 120) : t}');
     }
     return out;
@@ -289,9 +356,7 @@ class _ThreadState extends State<_Thread> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * .78),
                   decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), color: msgs[k]!['from'] == myUid ? const Color(0xFF7A2A00) : const Color(0xFF26304A)),
-                  child: (msgs[k]!['au'] ?? '').toString().isNotEmpty
-                      ? VoiceBubble(src: msgs[k]!['au'].toString())
-                      : Text((msgs[k]!['text'] ?? '').toString(), style: const TextStyle(height: 1.5)),
+                  child: _body(msgs[k]!),
                 ),
               ),
           ]),
@@ -308,6 +373,8 @@ class _ThreadState extends State<_Thread> {
                     IconButton(onPressed: () => _finishRec(send: true), icon: Transform.flip(flipX: true, child: Icon(Icons.send, color: context.accent))),
                   ])
                 : Row(children: [
+                    IconButton(onPressed: _sendImg, icon: Icon(Icons.image_outlined, color: context.accent)),
+                    IconButton(onPressed: _sendSticker, icon: Icon(Icons.emoji_emotions_outlined, color: context.accent)),
                     Expanded(child: TextField(controller: c, decoration: const InputDecoration(hintText: 'اكتب رسالة…'))),
                     IconButton(onPressed: _startRec, icon: Icon(Icons.mic_rounded, color: context.accent)),
                     IconButton(onPressed: _send, icon: Transform.flip(flipX: true, child: Icon(Icons.send, color: context.accent))),

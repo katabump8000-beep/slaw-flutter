@@ -121,6 +121,10 @@ Future<void> runTally() async {
         await ref('stats/$g').remove();
       } catch (_) {}
     }
+    // تصفير الدردشات الخاصة بين الأشخاص عند نزول الحسبة (يمسحها السيرفر لأن القواعد تمنع الحذف من التطبيق)
+    try {
+      await ref('fdmReset/${ref('fdmReset').push().key}').set(<String, Object?>{'by': myUid, 'ts': ServerValue.timestamp});
+    } catch (_) {}
     final bo = (await ref('boost').get()).value;
     if (bo is Map) {
       for (final u in bo.keys) {
@@ -142,14 +146,23 @@ Future<void> resetLeaderboard({bool interaction = false}) async {
     await ref('boardReset').set(<String, Object?>{'ts': ServerValue.timestamp, 'a': interaction});
     // تصفير الصفوف المنشورة فعلياً (كانت تبقى حتى يفتح كل عضو تطبيقه)
     final bv = (await ref('board').get()).value;
+    var failed = 0;
     if (bv is Map) {
-      final up = <String, Object?>{};
-      bv.forEach((u, x) {
-        if (x is! Map) return;
-        up['board/$u'] = <String, Object?>{'b': 0, 'l': 0, 'a': interaction ? 0 : (x['a'] is num ? x['a'] : 0)};
-      });
-      if (up.isNotEmpty) await db.ref().update(up);
+      for (final e in bv.entries) {
+        final x = e.value;
+        if (x is! Map) continue;
+        final up = <String, Object?>{'b': 0, 'l': 0};
+        if (interaction) up['a'] = 0;
+        final already = (x['b'] ?? 0) == 0 && (x['l'] ?? 0) == 0 && (!interaction || (x['a'] ?? 0) == 0);
+        if (already) continue;
+        try {
+          await ref('board/${e.key}').update(up);
+        } catch (_) {
+          failed++;
+        }
+      }
     }
+    if (failed > 0) toast('تعذّر تصفير $failed صف (تأكد من نشر قواعد Firebase الجديدة)', bad: true);
     if (interaction) {
       for (final g in groupsCache.keys.where((g) => groupKind(g) == 'main')) {
         await ref('stats/$g').remove();

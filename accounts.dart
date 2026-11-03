@@ -28,6 +28,7 @@ class _AccountsState extends State<AccountsScreen> {
   String? uid;
   Map<String, dynamic>? info;
   bool busy = false;
+  bool none = false;
 
   Future<void> _search() async {
     final q = normDigits(c.text.trim());
@@ -37,9 +38,10 @@ class _AccountsState extends State<AccountsScreen> {
       info = null;
       uid = null;
       hits = [];
+      none = false;
     });
     try {
-      final u = await uidFromPid(q);
+      final u = q.length >= 20 ? q : await uidFromPid(q);
       if (u != null) {
         await _open(u);
       } else {
@@ -52,7 +54,10 @@ class _AccountsState extends State<AccountsScreen> {
           });
         }
         hits = l.take(30).toList();
-        if (hits.isEmpty) toast('لا يوجد نتائج', bad: true);
+        if (hits.isEmpty) {
+          none = true;
+          toast('لا يوجد نتائج', bad: true);
+        }
       }
     } catch (e) {
       err(e);
@@ -114,6 +119,7 @@ class _AccountsState extends State<AccountsScreen> {
         ),
         const SizedBox(height: 8),
         const Text('ايها المطور رجاءا استعمل هذه الميزة في إسترجاع الحسابات ولا تنتهك حقوق أحد!', style: TextStyle(color: kRed, fontWeight: FontWeight.w800, fontSize: 12.5, height: 1.6)),
+        if (none && !busy) const Padding(padding: EdgeInsets.all(24), child: Center(child: Text('لا يوجد حساب بهذا اللقب أو الـID', style: TextStyle(color: kMu)))),
         if (busy) const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())),
         for (final h in hits)
           ListTile(title: Text(h.value), subtitle: Text(h.key, style: const TextStyle(color: kMu, fontSize: 11)), onTap: () => _open(h.key)),

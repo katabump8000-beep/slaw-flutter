@@ -6,7 +6,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'app_state.dart';
 import 'data.dart';
-import 'sorter.dart' show kPkg;
+import 'sorter.dart' show cloneScan;
 import 'widgets.dart';
 
 /// قرار المطورين على الجهاز: allow / ban / '' (لم يُراجع)
@@ -26,28 +26,9 @@ String _short(String s) => s.length > 8 ? s.substring(0, 8) : s;
 Future<void> reportSuspect(String h) async {
   try {
     final d = (await getApplicationSupportDirectory()).path;
-    final ind = <String>[];
-    var host = '';
-    final m = RegExp(r'^/data/(?:user/(\d+)|data)/([^/]+)/').firstMatch(d);
-    if (m != null) {
-      host = m.group(2) ?? '';
-      if (host != kPkg) ind.add('يعمل داخل تطبيق آخر: $host');
-      final u = int.tryParse(m.group(1) ?? '0') ?? 0;
-      if (u > 0) ind.add('مستخدم أندرويد ثانوي رقم $u');
-    } else {
-      ind.add('مسار بيانات غير معتاد');
-    }
-    try {
-      final st = await File('/proc/self/status').readAsString();
-      final mm = RegExp(r'Uid:\s+(\d+)').firstMatch(st);
-      if (mm != null && (int.tryParse(mm.group(1)!) ?? 0) >= 100000) ind.add('معرّف تشغيل ثانوي (نسخة مزدوجة)');
-    } catch (_) {}
-    try {
-      final cl = await File('/proc/self/cmdline').readAsString();
-      final proc = cl.split('\u0000').first.trim();
-      if (proc.isNotEmpty && !proc.startsWith(kPkg)) ind.add('اسم العملية: $proc');
-    } catch (_) {}
-    if (d.toLowerCase().contains('virtual') || d.toLowerCase().contains('clone') || d.toLowerCase().contains('parallel')) ind.add('كلمات استنساخ في المسار');
+    final r = await cloneScan();
+    final ind = (r['ind'] as List).map((e) => e.toString()).toSet().toList();
+    final host = r['host'].toString();
     await ref('susp/$h').update(<String, Object?>{
       'ts': ServerValue.timestamp,
       'n': ServerValue.increment(1),
@@ -166,6 +147,7 @@ class SuspScreen extends StatelessWidget {
         const SizedBox(height: 6),
         line('بصمة الجهاز', h.length > 10 ? '${h.substring(0, 10)}…' : h),
         line('نوع التطبيق المستنسخ', (r['app'] ?? '').toString()),
+        line('تحليل السيرفر', (r['cl'] ?? '').toString()),
         line('عدد المحاولات', (r['n'] ?? '').toString()),
         line('بيئة التشغيل', (r['os'] ?? '').toString()),
         line('مؤشرات الاشتباه', (r['ind'] ?? '').toString()),

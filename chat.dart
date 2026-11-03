@@ -104,6 +104,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final Set<String> _warHidden = {};
   String _jumpId = '';
   int _lastMention = 0;
+  int _mentionRun = 0;
   final Map<String, List<int>> _myScore = {}; // eid -> [نقاطي, وقت التحديث]
 
   String get kind => groupKind(gid);
@@ -460,7 +461,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   bool _gate() {
     if (muted) {
-      toast('أنت مقيد من الشات حتى ${hhmm(muteUntil)}', bad: true);
+      toast('أنت مقيد من الشات — باقي ${leftText(muteUntil)}', bad: true);
       return false;
     }
     return true;
@@ -497,13 +498,16 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     if (!Session.isDev && t.contains('@')) {
       final nowM = DateTime.now().millisecondsSinceEpoch;
-      if (nowM - _lastMention < 30000) {
+      // مسموح 5 رسائل منشن متتالية (كل واحدة خلال 30 ثانية من السابقة)، والسادسة تقييد
+      _mentionRun = nowM - _lastMention < 30000 ? _mentionRun + 1 : 1;
+      _lastMention = nowM;
+      if (_mentionRun > 5) {
+        _mentionRun = 0;
         ctrl.clear();
         await mentionLock();
         toast('تكرار المنشن! تم تقييدك من الشات 30 ثانية', bad: true);
         return;
       }
-      _lastMention = nowM;
     }
     ctrl.clear();
     try {
@@ -1198,7 +1202,9 @@ class _ChatScreenState extends State<ChatScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(14),
         color: const Color(0xFF3A0A0A),
-        child: SafeArea(top: false, child: Text('⛔ أنت مقيد من الشات حتى ${hhmm(muteUntil)}', textAlign: TextAlign.center, style: const TextStyle(color: kRed))),
+        child: SafeArea(top: false, child: MuteCountdown(until: muteUntil, onDone: () {
+          if (mounted) setState(() {});
+        })),
       );
     }
     return Container(
@@ -1734,4 +1740,62 @@ class ImageViewer extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(backgroundColor: Colors.black, appBar: AppBar(backgroundColor: Colors.black), body: Center(child: InteractiveViewer(child: Image.memory(bytes))));
   }
+}
+
+/// نص الوقت المتبقي: 00:30 أو 1:05:00 أو «2 يوم 03:00:00»
+String leftText(int until) {
+  var s = ((until - DateTime.now().millisecondsSinceEpoch) / 1000).ceil();
+  if (s < 0) s = 0;
+  String two(int n) => n.toString().padLeft(2, '0');
+  final d = s ~/ 86400;
+  final h = (s % 86400) ~/ 3600;
+  final m = (s % 3600) ~/ 60;
+  final x = s % 60;
+  final core = h > 0 || d > 0 ? '${two(h)}:${two(m)}:${two(x)}' : '${two(m)}:${two(x)}';
+  return d > 0 ? '$d يوم $core' : core;
+}
+
+/// عدّاد تنازلي لمدة التقييد (يتحدّث كل ثانية دون إعادة رسم الشات)
+class MuteCountdown extends StatefulWidget {
+  final int until;
+  final VoidCallback onDone;
+  const MuteCountdown({super.key, required this.until, required this.onDone});
+  @override
+  State<MuteCountdown> createState() => _MuteCountdownState();
+}
+
+class _MuteCountdownState extends State<MuteCountdown> {
+  Timer? t;
+  bool fired = false;
+
+  @override
+  void initState() {
+    super.initState();
+    t = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      if (widget.until <= DateTime.now().millisecondsSinceEpoch && !fired) {
+        fired = true;
+        widget.onDone();
+      }
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    t?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Text('⛔ أنت مقيد من الشات — باقي ${leftText(widget.until)}', textAlign: TextAlign.center, style: const TextStyle(color: kRed, fontWeight: FontWeight.w800));
+}
+
+/// ملصق يُعرض خارج الشات (مثل الدردشة الخاصة)
+class StickerThumb extends StatelessWidget {
+  final String sid;
+  final double size;
+  const StickerThumb({super.key, required this.sid, this.size = 132});
+  @override
+  Widget build(BuildContext context) => _StickerImg(sid: sid, size: size);
 }

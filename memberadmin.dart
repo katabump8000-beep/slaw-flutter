@@ -67,7 +67,7 @@ class _MemberAdminState extends State<MemberAdminScreen> {
     }
   }
 
-  Future<bool> _allowed() async {
+  Future<bool> _allowed({bool forDelete = false}) async {
     if (uid.isEmpty) return false;
     if (uid == myUid) {
       toast('لا يمكنك تنفيذ هذا على نفسك', bad: true);
@@ -78,7 +78,7 @@ class _MemberAdminState extends State<MemberAdminScreen> {
       return false;
     }
     final r = await roleOf(uid);
-    if (r != null && !Session.isEmp) {
+    if (r != null && !Session.isEmp && !forDelete) {
       toast('لا يمكنك التصرف مع مطوّر', bad: true);
       return false;
     }
@@ -101,7 +101,7 @@ class _MemberAdminState extends State<MemberAdminScreen> {
   }
 
   Future<void> _delete() async {
-    if (!await _allowed()) return;
+    if (!await _allowed(forDelete: true)) return;
     if (!mounted) return;
     final ok = await showAppSheet<bool>(context, (sc) => [
           Text('حذف «${p?.name ?? ''}» نهائياً؟', textAlign: TextAlign.center, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),

@@ -440,16 +440,16 @@ class _Pat {
   const _Pat(this.p, this.m, this.r, this.w);
 }
 
+// 55% فوز / 45% خسارة — الأرباح الكبيرة (×5 و×4 و×3) نادرة
 const List<_Pat> _pats = [
-  _Pat(['💎', '💎', '💎', '💎'], 5, 'win', 2),
-  _Pat(['⭐', '⭐', '⭐', '⭐'], 4, 'win', 3),
-  _Pat(['👑', '👑', '👑', '👑'], 3, 'win', 5),
+  _Pat(['💎', '💎', '💎', '💎'], 5, 'win', 1),
+  _Pat(['⭐', '⭐', '⭐', '⭐'], 4, 'win', 2),
+  _Pat(['👑', '👑', '👑', '👑'], 3, 'win', 4),
   _Pat(['💎', '💎', '💎', '⭐'], 2, 'win', 8),
-  _Pat(['⭐', '⭐', '🍒', '🍒'], 1.5, 'win', 10),
-  _Pat(['🍀', '🍀', '💰', '💰'], 1.3, 'win', 10),
-  _Pat(['💎', '⭐', '💎', '⭐'], 1, 'retry', 12),
-  _Pat(['🔥', '🔥', '💣', '💎'], 0, 'lose', 25),
-  _Pat(['💣', '💣', '🍒', '⭐'], 0, 'lose', 25),
+  _Pat(['⭐', '⭐', '🍒', '🍒'], 1.5, 'win', 15),
+  _Pat(['🍀', '🍀', '💰', '💰'], 1.3, 'win', 25),
+  _Pat(['🔥', '🔥', '💣', '💎'], 0, 'lose', 23),
+  _Pat(['💣', '💣', '🍒', '⭐'], 0, 'lose', 22),
 ];
 const List<String> _em = ['💎', '⭐', '🍒', '💣', '🔥', '🍀', '👑', '💰'];
 
@@ -505,6 +505,25 @@ class _CrystalScreenState extends State<CrystalScreen> {
       toast('الرهان من 10 إلى 200', bad: true);
       return;
     }
+    // استراحة: بعد 5 لفّات متتالية ينتظر اللاعب 5 دقائق
+    final nowT = DateTime.now().millisecondsSinceEpoch;
+    final lockT = prefs.getInt('cr_lock') ?? 0;
+    if (nowT < lockT) {
+      final sec = ((lockT - nowT) / 1000).ceil();
+      toast('استراحة ⏳ انتظر ${sec ~/ 60}:${(sec % 60).toString().padLeft(2, '0')} قبل اللعب مجدداً', bad: true);
+      return;
+    }
+    var run = prefs.getInt('cr_n') ?? 0;
+    if (nowT - (prefs.getInt('cr_t') ?? 0) > 180000) run = 0;
+    run++;
+    prefs.setInt('cr_t', nowT);
+    if (run >= 5) {
+      prefs.setInt('cr_lock', nowT + 306000);
+      prefs.setInt('cr_n', 0);
+      toast('هذه اللفّة الخامسة المتتالية — استراحة 5 دقائق بعدها ⏳');
+    } else {
+      prefs.setInt('cr_n', run);
+    }
     setState(() => busy = true);
     try {
       await addBal(-b);
@@ -555,11 +574,14 @@ class _CrystalScreenState extends State<CrystalScreen> {
       info = txt;
       busy = false;
     });
-    await botSay(widget.gid, '💎 كريستال — ${Session.me.name}\n[ $line ]\n$txt');
+    // النتيجة تنزل في الإعلانات وليس داخل النقابة
+    final full = '💎 كريستال — ${Session.me.name}\n[ $line ]\n$txt';
     if (net >= 300) {
       await feedNote('ads', '🎉 ${Session.me.name} ربح ${fmtN(net)} رصيد في الكريستال!', k: 'win');
     } else if (net <= -150) {
       await feedNote('ads', '💥 ${Session.me.name} خسر ${fmtN(-net)} رصيد في الكريستال', k: 'lose');
+    } else {
+      await feedNote('ads', full);
     }
   }
 

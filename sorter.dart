@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:firebase_database/firebase_database.dart';
@@ -34,25 +35,97 @@ String nameKey(String raw) {
 /// اسم حزمة التطبيق الرسمي (org + project-name في ملف البناء). إن تغيّر عدّله هنا.
 const String kPkg = 'io.github.katabump8000_beep.twa';
 
-Future<bool> envSuspect() async {
+/// كلمات تدل على حزم برامج الاستنساخ (تُستعمل مع المسارات والمكتبات المحمّلة في العملية)
+const List<String> kCloneWords = ['ludashi', 'dualspace', 'lbe.parallel', 'parallel', 'clone', 'cloner', 'virtual', 'multi.', 'multiaccounts', 'pengyou', 'lody', 'xclone', 'dualaid', 'vapp', 'sandbox'];
+
+bool _isCloneName(String pkg) {
+  final l = pkg.toLowerCase();
+  return kCloneWords.any(l.contains);
+}
+
+/// فحص موسّع: يعيد {'sus': bool, 'host': اسم الحزمة المضيفة إن وُجدت, 'ind': مؤشرات}
+Future<Map<String, Object>> cloneScan() async {
+  final ind = <String>[];
+  var sus = false;
+  var host = '';
   try {
-    final d = (await getApplicationSupportDirectory()).path;
-    // التطبيق الأصلي يعمل دائماً من /data/user/0/<الحزمة>/ ؛ برامج الاستنساخ والمساحات الثانية تغيّر هذا المسار
-    if (!(d.startsWith('/data/user/0/$kPkg/') || d.startsWith('/data/data/$kPkg/'))) return true;
-    // مستخدم أندرويد ثانوي (نسخة مزدوجة/مساحة ثانية): المعرّف يتجاوز 100000
+    final dirs = <String>[];
+    try {
+      dirs.add((await getApplicationSupportDirectory()).path);
+    } catch (_) {}
+    try {
+      dirs.add((await getTemporaryDirectory()).path);
+    } catch (_) {}
+    try {
+      dirs.add((await getApplicationDocumentsDirectory()).path);
+    } catch (_) {}
+    try {
+      final e = await getExternalStorageDirectory();
+      if (e != null) dirs.add(e.path);
+    } catch (_) {}
+    final rx = RegExp(r'/(?:data/user/(\d+)|data/data|Android/data|Android/media|Android/obb)/([^/]+)');
+    for (final d in dirs) {
+      final m = rx.firstMatch(d);
+      if (m == null) {
+        ind.add('مسار غير معتاد');
+        sus = true;
+        continue;
+      }
+      final pkg = m.group(2) ?? '';
+      final u = int.tryParse(m.group(1) ?? '0') ?? 0;
+      if (pkg != kPkg) {
+        host = host.isEmpty ? pkg : host;
+        ind.add('مسار يعود لتطبيق آخر: $pkg');
+        sus = true;
+      }
+      if (u > 0) {
+        ind.add('مستخدم أندرويد ثانوي رقم $u');
+        sus = true;
+      }
+      final low = d.toLowerCase();
+      if (low.contains('virtual') || low.contains('parallel') || low.contains('clone') || low.contains('dualspace') || low.contains('multi')) {
+        ind.add('كلمات استنساخ في المسار');
+        sus = true;
+      }
+    }
     try {
       final st = await File('/proc/self/status').readAsString();
       final m = RegExp(r'Uid:\s+(\d+)').firstMatch(st);
-      if (m != null && (int.tryParse(m.group(1)!) ?? 0) >= 100000) return true;
+      if (m != null && (int.tryParse(m.group(1)!) ?? 0) >= 100000) {
+        ind.add('معرّف تشغيل ثانوي (نسخة مزدوجة)');
+        sus = true;
+      }
     } catch (_) {}
-    // اسم العملية يجب أن يطابق حزمة التطبيق الرسمي
     try {
       final cl = await File('/proc/self/cmdline').readAsString();
       final proc = cl.split('\u0000').first.trim();
-      if (proc.isNotEmpty && !proc.startsWith(kPkg)) return true;
+      if (proc.isNotEmpty && !proc.startsWith(kPkg)) {
+        ind.add('اسم العملية: $proc');
+        host = host.isEmpty ? proc.split(':').first : host;
+        sus = true;
+      }
     } catch (_) {}
-    final low = d.toLowerCase();
-    return low.contains('virtual') || low.contains('parallel') || low.contains('clone') || low.contains('dualspace') || low.contains('multi');
+    // مكتبات/ملفات محمّلة داخل العملية: برامج الاستنساخ تحمّل حزمتها المضيفة داخل نفس العملية
+    try {
+      final maps = await File('/proc/self/maps').readAsString(encoding: latin1);
+      final seen = <String>{};
+      for (final m in RegExp(r'/data/app/(?:~~[^/]+/)?([A-Za-z0-9_.]+)-[^/\s]+/|/data/(?:user/\d+|data)/([A-Za-z0-9_.]+)/').allMatches(maps)) {
+        final pkg = m.group(1) ?? m.group(2) ?? '';
+        if (pkg.isEmpty || pkg == kPkg || !seen.add(pkg)) continue;
+        if (_isCloneName(pkg)) {
+          ind.add('مكتبات برنامج استنساخ محمّلة: $pkg');
+          host = host.isEmpty ? pkg : host;
+          sus = true;
+        }
+      }
+    } catch (_) {}
+  } catch (_) {}
+  return <String, Object>{'sus': sus, 'host': host, 'ind': ind};
+}
+
+Future<bool> envSuspect() async {
+  try {
+    return (await cloneScan())['sus'] == true;
   } catch (_) {
     return false;
   }
@@ -232,42 +305,38 @@ class _SorterScreenState extends State<SorterScreen> {
   }
 
   Future<void> _delete(String uid, Prof p) async {
-    final r = await roleOf(uid);
-    if (r != null) {
-      toast('لا يمكن حذف مطور أو إمبراطور', bad: true);
+    if (uid == Session.emp) {
+      toast('لا يمكن حذف الإمبراطور', bad: true);
       return;
     }
+    if (uid == myUid) {
+      toast('لا يمكنك حذف حسابك', bad: true);
+      return;
+    }
+    final isStaff = (await roleOf(uid)) != null;
+    if (!mounted) return;
     final ok = await showAppSheet<bool>(context, (sc) => [
           Text('حذف «${p.name}» نهائياً؟', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
           const SizedBox(height: 8),
-          const Text('سيُحذف اللقب والصورة ويُزال من النقابات ولن يعود إلا بإنشاء حساب جديد.', style: TextStyle(color: kMu, height: 1.6)),
+          Text(isStaff ? 'هذا الحساب مطوّر! سيُحذف حسابه وكل بياناته ولن يعود إلا بإنشاء حساب جديد.' : 'سيُحذف اللقب والصورة ويُزال من النقابات ولن يعود إلا بإنشاء حساب جديد.', style: const TextStyle(color: kMu, height: 1.6)),
           const SizedBox(height: 14),
           AppButton('نعم، احذف', kind: 'r', onPressed: () => Navigator.of(sc).pop(true)),
           const SizedBox(height: 8),
           AppButton('إلغاء', kind: 'g', onPressed: () => Navigator.of(sc).pop(false)),
         ]);
     if (ok != true) return;
-    final key = nameKey(p.name);
-    final gs = <String>[...groupsCache.keys, '_dev'];
-    for (final g in gs) {
-      try {
-        if (g != '_dev') await ref('members/$g/$uid').remove();
-      } catch (_) {}
-      try {
-        final s = await ref('nameIdx/$g/$key').get();
-        if (s.exists && s.value.toString() == uid) await ref('nameIdx/$g/$key').remove();
-      } catch (_) {}
-    }
-    for (final path in ['avatars/$uid', 'seen/$uid', 'flags/$uid', 'profiles/$uid']) {
-      try {
-        await ref(path).remove();
-      } catch (_) {}
-    }
     try {
       await ref('banned/$uid').set(true);
     } catch (_) {}
-    toast('تم حذف ${p.name}');
-    setState(() => users.removeWhere((e) => e.key == uid));
+    try {
+      // يتولى السيرفر مسح الحساب وكل بياناته (يشمل المطورين)
+      await ref('delQueue/$uid').set(<String, Object?>{'by': myUid, 'ts': ServerValue.timestamp});
+    } catch (e) {
+      err(e);
+      return;
+    }
+    toast('تم إرسال حذف ${p.name} ✅');
+    if (mounted) setState(() => users.removeWhere((e) => e.key == uid));
   }
 
   @override
