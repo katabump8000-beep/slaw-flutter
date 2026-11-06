@@ -215,7 +215,10 @@ int daysSince(int? ts) {
 String hhmm(int ts) {
   if (ts == 0) return '';
   final d = DateTime.fromMillisecondsSinceEpoch(ts);
-  return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  final m = d.minute.toString().padLeft(2, '0');
+  if (prefs.getBool('h24') ?? false) return '${d.hour.toString().padLeft(2, '0')}:$m';
+  final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+  return '$h:$m ${d.hour < 12 ? 'ص' : 'م'}';
 }
 
 /// يحوّل الأرقام العربية ٠١٢ إلى 012

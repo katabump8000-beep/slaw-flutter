@@ -11,15 +11,44 @@ import 'package:workmanager/workmanager.dart';
 import 'app_state.dart';
 import 'data.dart';
 import 'firebase_options.dart';
+import 'chat.dart' show ChatScreen;
+import 'empchat.dart' show FriendDmScreen;
+import 'home.dart' show groupsCache;
+import 'war.dart' show WarWatcher;
 
 final FlutterLocalNotificationsPlugin _ln = FlutterLocalNotificationsPlugin();
 bool _lnReady = false;
+bool _pushOpenWired = false;
+
+/// يفتح الشات (وعند وجود رسالة يذهب إليها) عند الضغط على أي إشعار
+Future<void> openFromPush(Map<String, dynamic> data) async {
+  final gid = (data['gid'] ?? '').toString();
+  final mid = (data['mid'] ?? '').toString();
+  final dm = (data['dm'] ?? '').toString();
+  if (dm.isNotEmpty) {
+    final n = WarWatcher.navKey.currentState;
+    if (n != null) await n.push(MaterialPageRoute<void>(builder: (_) => FriendDmScreen(peer: dm)));
+    return;
+  }
+  if (gid.isEmpty) return;
+  for (var i = 0; i < 30 && !groupsCache.containsKey(gid); i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+  }
+  final nav = WarWatcher.navKey.currentState;
+  if (nav == null || !groupsCache.containsKey(gid)) return;
+  await nav.push(MaterialPageRoute<void>(builder: (_) => ChatScreen(gid: gid, focusMid: mid)));
+}
+
+void _onLocalTap(NotificationResponse r) {
+  final p = (r.payload ?? '').split('|');
+  if (p.isNotEmpty && p[0].isNotEmpty) openFromPush(<String, dynamic>{'gid': p[0], 'mid': p.length > 1 ? p[1] : ''});
+}
 
 Future<void> initLocalNotifs({bool ask = false}) async {
   try {
     if (!_lnReady) {
       const init = InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher'));
-      await _ln.initialize(init);
+      await _ln.initialize(init, onDidReceiveNotificationResponse: _onLocalTap);
       _lnReady = true;
     }
     if (ask) {
@@ -41,7 +70,7 @@ const AndroidNotificationChannel _chan = AndroidNotificationChannel(
 
 int _badgeN = 0;
 
-Future<void> showLocal(int id, String title, String body, {String? tag, int? number}) async {
+Future<void> showLocal(int id, String title, String body, {String? tag, int? number, String? payload}) async {
   try {
     await initLocalNotifs();
     _badgeN++;
@@ -63,7 +92,7 @@ Future<void> showLocal(int id, String title, String body, {String? tag, int? num
         tag: tag,
       ),
     );
-    await _ln.show(id, title, body, d);
+    await _ln.show(id, title, body, d, payload: payload);
   } catch (_) {}
 }
 
@@ -126,6 +155,14 @@ Future<void> initPush() async {
     fm.onTokenRefresh.listen(save);
     // والتطبيق مفتوح: مستمع الجرس يتكفل بالإشعار الفوري، فلا نكرر
     await fm.setForegroundNotificationPresentationOptions(alert: false, badge: false, sound: false);
+    if (!_pushOpenWired) {
+      _pushOpenWired = true;
+      FirebaseMessaging.onMessageOpenedApp.listen((m) => openFromPush(Map<String, dynamic>.from(m.data)));
+      final first = await fm.getInitialMessage();
+      if (first != null) openFromPush(Map<String, dynamic>.from(first.data));
+      final d = await _ln.getNotificationAppLaunchDetails();
+      if (d != null && d.didNotificationLaunchApp && d.notificationResponse != null) _onLocalTap(d.notificationResponse!);
+    }
   } catch (_) {}
 }
 
@@ -178,7 +215,7 @@ void callbackDispatcher() {
           final t = (x['t'] ?? '').toString();
           final tx = (x['tx'] ?? '').toString();
           final title = notifTitle(t);
-          showLocal(id++, title, tx.isNotEmpty ? tx : 'لديك إشعار جديد');
+          showLocal(id++, title, tx.isNotEmpty ? tx : 'لديك إشعار جديد', payload: '${x['g'] ?? ''}|${x['mid'] ?? ''}');
         });
       }
       prefs.setInt('bg_seen', mx);

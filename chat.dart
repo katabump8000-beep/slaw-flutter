@@ -104,6 +104,9 @@ class _ChatScreenState extends State<ChatScreen> {
   Timer? _expTimer;
   final Set<String> _warHidden = {};
   String _jumpId = '';
+  String _hlId = '';
+  Timer? _hlT;
+  List<String> _mentionMids = <String>[];
   int _lastMention = 0;
   int _mentionRun = 0;
   final Map<String, List<int>> _myScore = {}; // eid -> [نقاطي, وقت التحديث]
@@ -118,6 +121,10 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     markGroupRead(gid);
+    // نحفظ الرسائل التي ذُكرت فيها قبل مسح الإشعارات: يظهر زر @ صغير للانتقال إليها
+    final mm = BellService.items.values.where((n) => (n.t == 'men' || n.t == 'all') && n.g == gid && n.mid.isNotEmpty).toList()
+      ..sort((a, b) => a.ts.compareTo(b.ts));
+    _mentionMids = mm.map((n) => n.mid).toList();
     BellService.clearMentions(gid);
     locked = groupsCache[gid]?['locked'] == true;
     final q = ref('messages/$gid').orderByKey().limitToLast(30);
@@ -193,6 +200,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     _evTimer?.cancel();
     _expTimer?.cancel();
+    _hlT?.cancel();
     BellService.clearMentions(gid);
     prefs.setInt('ls_$gid', nowMs());
     for (final s in subs) {
@@ -306,6 +314,16 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (_) {}
   }
 
+  /// خلفية سوداء مظللة لمدة 3 ثوانٍ على الرسالة التي انتقلنا إليها
+  void _flash(String id) {
+    if (!mounted) return;
+    _hlT?.cancel();
+    setState(() => _hlId = id);
+    _hlT = Timer(const Duration(seconds: 3), () {
+      if (mounted && _hlId == id) setState(() => _hlId = '');
+    });
+  }
+
   /// الانتقال إلى الرسالة المردود عليها عند الضغط على اقتباس الرد
   Future<void> _jumpTo(String id, [int tries = 0]) async {
     if (!mounted || id.isEmpty) return;
@@ -313,6 +331,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final ctx = keys[id]?.currentContext;
     if (msgs.containsKey(id) && ctx != null) {
       await Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 400), alignment: .4);
+      _flash(id);
       return;
     }
     if (tries >= 6) {
@@ -342,6 +361,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final ctx = keys[id]?.currentContext;
     if (msgs.containsKey(id) && ctx != null) {
       await Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 400), alignment: .4);
+      _flash(id);
       return;
     }
     if (tries < 4 && hasMore) {
@@ -1353,9 +1373,7 @@ class _ChatScreenState extends State<ChatScreen> {
               final type = (m['type'] ?? 'text').toString();
               if (type != 'sys' && from != myUid) _queueSeen(id, m);
               final bio = bios[from];
-              return MsgBubble(
-                // مفتاح ثابت بالمعرّف: GlobalKey لكل رسالة كان يسبب تداخل الرسائل وتعلّق بطاقات البوت
-                key: (id == widget.focusMid || id == _jumpId) ? keys.putIfAbsent(id, () => GlobalKey()) : ValueKey<String>(id),
+              final bubble = MsgBubble(
                 id: id,
                 m: m,
                 mine: from == myUid,
@@ -1368,10 +1386,38 @@ class _ChatScreenState extends State<ChatScreen> {
                 onReply: (type == 'sys' && !((m['k'] ?? '') == 'bot' || (m['k'] ?? '') == 'welcome')) ? null : () => _startReply(m, id),
                 gid: gid,
               );
+              return AnimatedContainer(
+                // مفتاح ثابت بالمعرّف: GlobalKey لكل رسالة كان يسبب تداخل الرسائل وتعلّق بطاقات البوت
+                key: (id == widget.focusMid || id == _jumpId) ? keys.putIfAbsent(id, () => GlobalKey()) : ValueKey<String>(id),
+                duration: const Duration(milliseconds: 300),
+                decoration: BoxDecoration(color: id == _hlId ? const Color(0xB3000000) : Colors.transparent, borderRadius: BorderRadius.circular(14)),
+                child: bubble,
+              );
             },
           ),
         ),
         _scoreChip(),
+        if (_mentionMids.isNotEmpty)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+              child: GestureDetector(
+                onTap: () {
+                  final id = _mentionMids.removeAt(0);
+                  setState(() {});
+                  _jumpTo(id);
+                },
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: context.accent, boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 6)]),
+                  child: Text(_mentionMids.length > 1 ? '@${_mentionMids.length}' : '@', style: const TextStyle(color: kDarkText, fontWeight: FontWeight.w900, fontSize: 16)),
+                ),
+              ),
+            ),
+          ),
         _composer(),
       ])),
     );

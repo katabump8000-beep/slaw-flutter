@@ -377,6 +377,7 @@ class _ModCard extends StatelessWidget {
             try {
               await ref('mod/$uid/until').set(0);
               await BellService.removeMany([n.k]);
+              await _modDone(n);
               toast('تم تحرير العضو ✅');
             } catch (e) {
               err(e);
@@ -386,6 +387,7 @@ class _ModCard extends StatelessWidget {
           Expanded(child: AppButton('إكمال العقوبة', kind: 'r', compact: true, onPressed: () async {
             try {
               await BellService.removeMany([n.k]);
+              await _modDone(n);
               toast('ستكتمل العقوبة');
             } catch (e) {
               err(e);
@@ -490,4 +492,13 @@ class _FriendReqCardState extends State<_FriendReqCard> {
       ]),
     );
   }
+}
+
+/// يبلّغ السيرفر أن مطوراً حسم القرار ليختفي الإشعار عند بقية المطورين
+Future<void> _modDone(NotifItem n) async {
+  final mk = (n.v['mk'] ?? '').toString();
+  if (mk.isEmpty) return;
+  try {
+    await ref('modDone/$mk').set(<String, Object?>{'by': myUid, 'ts': ServerValue.timestamp});
+  } catch (_) {}
 }

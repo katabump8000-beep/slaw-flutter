@@ -128,31 +128,42 @@ class _RouletteScreenState extends State<RouletteScreen> with SingleTickerProvid
     return m >= 60 ? '${m ~/ 60} ساعة و${m % 60} دقيقة' : '$m دقيقة';
   }
 
-  int _pick() {
-    final t = _weights.fold<int>(0, (a, b) => a + b);
-    var r = math.Random().nextInt(t);
-    for (var i = 0; i < _weights.length; i++) {
-      r -= _weights[i];
-      if (r < 0) return i;
-    }
-    return 0;
-  }
-
+  /// اللفة تُنفَّذ بالكامل على السيرفر (الوقت + اختيار الجائزة + إضافة الرصيد). التطبيق يرسل طلباً ثم يعرض النتيجة فقط.
   Future<void> _spin() async {
     if (busy || left > 0) {
       toast(left > 0 ? 'اللفة القادمة بعد ${_fmt(left)}' : 'انتظر...', bad: true);
       return;
     }
     setState(() => busy = true);
+    final rid = ref('spinReq').push().key!;
+    final done = Completer<Map<dynamic, dynamic>>();
+    final sub = ref('spinRes/$myUid').onValue.listen((e) {
+      final v = e.snapshot.value;
+      if (v is Map && v['id'] == rid && !done.isCompleted) done.complete(v);
+    }, onError: (_) {});
+    Map<dynamic, dynamic>? res;
     try {
-      await ref('spin/$myUid').set(ServerValue.timestamp);
+      await ref('spinReq/$rid').set(<String, Object?>{'u': myUid, 'ts': ServerValue.timestamp}).timeout(const Duration(seconds: 8));
+      res = await done.future.timeout(const Duration(seconds: 15));
     } catch (_) {
-      toast('لا يمكنك اللف الآن، حاول لاحقاً', bad: true);
+      res = null;
+    }
+    await sub.cancel();
+    if (res == null) {
+      toast('الاتصال ضعيف، لم تكتمل اللفة. إن وصل طلبك ستُضاف جائزتك تلقائياً', bad: true);
       await _check();
       if (mounted) setState(() => busy = false);
       return;
     }
-    final k = _pick();
+    if (res['err'] != null) {
+      final l = (res['left'] as num?)?.toInt() ?? 0;
+      if (l > 0) nextAt = nowMs() + l;
+      toast(res['err'] == 'banned' ? 'حسابك محظور' : 'اللفة القادمة بعد ${_fmt(l)}', bad: true);
+      if (mounted) setState(() => busy = false);
+      return;
+    }
+    final k = ((res['k'] as num?)?.toInt() ?? 0).clamp(0, _prizes.length - 1);
+    final prize = _prizes[k];
     final seg = 2 * math.pi / _prizes.length;
     // يجب أن يقف منتصف القطاع k تحت المؤشر في الأعلى
     to = 2 * math.pi * (5 + math.Random().nextInt(2)) - (k + .5) * seg;
@@ -160,14 +171,8 @@ class _RouletteScreenState extends State<RouletteScreen> with SingleTickerProvid
     Sfx.start('wheel.wav');
     c.reset();
     await c.forward();
-    final prize = _prizes[k];
-    try {
-      await addBalRetry(prize);
-      if (mounted) setState(() => info = '🎉 ربحت $prize رصيد!');
-      toast('🎉 ربحت $prize رصيد');
-    } catch (_) {
-      toast('تعذر إضافة الجائزة، تواصل مع مطور', bad: true);
-    }
+    if (mounted) setState(() => info = '🎉 ربحت $prize رصيد!');
+    toast('🎉 ربحت $prize رصيد');
     nextAt = nowMs() + 43200000;
     if (mounted) setState(() => busy = false);
   }

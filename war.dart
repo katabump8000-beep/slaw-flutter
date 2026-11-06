@@ -60,7 +60,6 @@ class WarWatcher {
       feeds.remove(e.snapshot.key);
       tick.value++;
     }, onError: (_) {});
-    _glowT = Timer.periodic(const Duration(seconds: 9), (_) => _pulse());
     for (final g in mainGroups()) {
       _sfx.add(ref('warSfx/$g').onValue.listen((e) {
         final v = e.snapshot.value;
@@ -112,7 +111,7 @@ class WarWatcher {
       final wid = e.key;
       final f = e.value;
       final ts = (f['ts'] as num?)?.toInt() ?? 0;
-      if (ts > 0 && now - ts < 90000 && !(prefs.getBool('war_in_$wid') ?? false)) {
+      if (ts > 0 && now - ts < 300000 && !(prefs.getBool('war_in_$wid') ?? false)) {
         prefs.setBool('war_in_$wid', true);
         _queue.add(() => _show(WarIntroScreen(f: f)));
       }
@@ -323,10 +322,15 @@ class _GuildPanelState extends State<GuildPanel> {
       cards = c.value is num ? (c.value as num).toInt() : 0;
       final con = gs?['contrib'];
       mine = con is Map && con[myUid] is num ? (con[myUid] as num).toInt() : 0;
+      warLine = '';
       final aw = await ref('activeWar/${widget.gid}').get();
       if (aw.exists) {
-        final f = WarWatcher.feeds[aw.value.toString()];
-        if (f != null) {
+        final wid = aw.value.toString();
+        final f = WarWatcher.feeds[wid];
+        // لا نعرض الرسالة إلا إذا كانت الحرب فعلاً قائمة (لم تنتهِ ولم تُلغَ ولم يحن وقت حسمها)
+        final ws = (await ref('wars/$wid').get()).value;
+        final live = ws is Map && ws['s'] == 'p' && ((ws['st'] as num?)?.toInt() ?? 0) > nowMs();
+        if (f != null && live && f['res'] == null) {
           final at = f['ag'] == widget.gid;
           warLine = at ? '⚔️ تشنون حرباً على «${f['dn']}»' : '🚨 تتعرضون لهجوم من «${f['an']}»';
         }
@@ -920,6 +924,13 @@ Future<List<List<String>>> _rosterOf(String g, Set<String> high) async {
 
 Future<void> _settle(String wid, Map<String, dynamic> w) async {
   final a = (w['a'] ?? '').toString(), d = (w['d'] ?? '').toString();
+  // حجز الحرب بشكل ذري: أكثر من جهاز مطور يشغّل التسوية في نفس الوقت، والفائز بالحجز فقط ينفّذ (يمنع الخصم/التوزيع مرتين)
+  try {
+    final claim = await ref('wars/$wid/s').runTransaction((Object? v) => v == 'p' ? Transaction.success('d') : Transaction.abort());
+    if (!claim.committed) return;
+  } catch (_) {
+    return;
+  }
   try {
     final sa = (await ref('guildStats/$a').get()).value;
     final sd = (await ref('guildStats/$d').get()).value;
@@ -932,6 +943,10 @@ Future<void> _settle(String wid, Map<String, dynamic> w) async {
     final high = <String>{};
     final dv = (await ref('devs').get()).value;
     if (dv is Map) high.addAll(dv.keys.map((e) => e.toString()));
+    final rl = (await ref('roles').get()).value;
+    if (rl is Map) rl.forEach((k, v) {
+      if (v == 'dev') high.add(k.toString());
+    });
     final emp = (await ref('config/emperorUid').get()).value?.toString() ?? '';
     if (emp.isNotEmpty) high.add(emp);
     final ra = await _rosterOf(a, high);
@@ -953,6 +968,47 @@ Future<void> _settle(String wid, Map<String, dynamic> w) async {
       'activeWar/$d': null,
     };
     final nameA = groupName(a), nameD = groupName(d);
+    // نقابة خاسرة / فائزة
+    final loserG = win == 'a' ? d : a;
+    final winnerG = win == 'a' ? a : d;
+    // ضريبة الخسارة: 15% من رصيد كل عضو في النقابة الخاسرة (يُستثنى المطورون والإمبراطور) تُجمع وتُوزَّع بالتساوي على أعضاء الفائزة (يُستثنى أيضاً الرتب العليا)
+    var pool = 0;
+    final ml = (await ref('members/$loserG').get()).value;
+    if (ml is Map) {
+      for (final k in ml.keys) {
+        final u = k.toString();
+        if (ml[k] != true || high.contains(u)) continue;
+        final bv = (await ref('wallets/$u/bal').get()).value;
+        final bal = bv is num ? bv.toInt() : 0;
+        final cut = (bal * 0.15).floor();
+        if (cut > 0) {
+          pool += cut;
+          up['wallets/$u/bal'] = ServerValue.increment(-cut);
+        }
+      }
+    }
+    final winners = <String>[];
+    final mw = (await ref('members/$winnerG').get()).value;
+    if (mw is Map) {
+      for (final k in mw.keys) {
+        final u = k.toString();
+        if (mw[k] == true && !high.contains(u)) winners.add(u);
+      }
+    }
+    if (pool > 0 && winners.isNotEmpty) {
+      final share = pool ~/ winners.length;
+      if (share > 0) {
+        for (final u in winners) {
+          up['wallets/$u/bal'] = ServerValue.increment(share);
+        }
+      }
+    }
+    // سحب 10 مستويات من القوة التي خسرت بها النقابة (هجوم للمهاجِم، دفاع للمدافِع) بحد أدنى 1
+    if (loserG == a) {
+      up['guildStats/$a/atk'] = max(1, atk - 10);
+    } else {
+      up['guildStats/$d/def'] = max(1, def - 10);
+    }
     if (win == 'a') {
       final md = (await ref('members/$d').get()).value;
       final cand = <String, String>{};
@@ -960,32 +1016,11 @@ Future<void> _settle(String wid, Map<String, dynamic> w) async {
         for (final k in md.keys) {
           if (md[k] != true) continue;
           final u = k.toString();
-          up['wallets/$u/bal'] = 0;
           cand[u] = (await prof(u)).name;
         }
       }
-      final con = A['contrib'];
-      final ma = (await ref('members/$a').get()).value;
-      final rec = <String, int>{};
-      if (con is Map && con.isNotEmpty) {
-        con.forEach((k, v) => rec[k.toString()] = (v as num).toInt());
-      } else if (ma is Map) {
-        for (final k in ma.keys) {
-          if (ma[k] == true) rec[k.toString()] = 1;
-        }
-      }
-      final tot = rec.values.fold<int>(0, (s, x) => s + x);
-      if (tot > 0) {
-        rec.forEach((u, c) {
-          final sh = (10000 * c / tot).floor();
-          if (sh > 0) up['wallets/$u/bal'] = ServerValue.increment(sh);
-        });
-      }
       up['warCand/$wid'] = cand;
       up['leadWar/${w['by']}'] = wid;
-    } else {
-      up['guildStats/$a/atk'] = 1;
-      up['guildStats/$d/atk'] = ((D['atk'] as num?)?.toInt() ?? 1) + max(0, atk - 1);
     }
     final winName = win == 'a' ? nameA : nameD, loseName = win == 'a' ? nameD : nameA;
     up['warFeed/$wid/res'] = win;
@@ -995,6 +1030,7 @@ Future<void> _settle(String wid, Map<String, dynamic> w) async {
     up['warFeed/$wid/rA'] = js(ra, withRoy: true);
     up['warFeed/$wid/rD'] = js(rd);
     up['warFeed/$wid/rs'] = ServerValue.timestamp;
+    up['warEnd/$wid'] = <String, Object?>{'win': winName, 'ts': ServerValue.timestamp};
     // إشعار لكل أعضاء الطرفين بنتيجة الحرب
     for (final r in [...ra, ...rd]) {
       final k = ref('notifs/${r[0]}').push().key!;
@@ -1004,7 +1040,13 @@ Future<void> _settle(String wid, Map<String, dynamic> w) async {
     }
     await db.ref().update(up);
     await feedNote('news', '🏆 انتهت الحرب بانتصار نقابة $winName', k: 'war', d: jsonEncode({'t': 'res', 'win': winName, 'lose': loseName, 'lead': lead}));
-  } catch (_) {}
+  } catch (_) {
+    // فشل قبل اكتمال الكتابة: نعيد الحرب لحالتها لتُحسم في الدورة القادمة
+    try {
+      final cur = (await ref('wars/$wid/res').get()).value;
+      if (cur == null) await ref('wars/$wid/s').set('p');
+    } catch (_) {}
+  }
 }
 
 Future<void> _applyMoves(String wid, Map<String, dynamic> w) async {

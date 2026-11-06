@@ -7,7 +7,7 @@ import 'app_state.dart';
 import 'widgets.dart';
 
 /// وضع VIP: اختياري. يغيّر شكل الرسائل والبطاقات والأزرار ويضيف شهباً وأصوات نقر مختلفة
-final ValueNotifier<bool> vipOn = ValueNotifier<bool>(prefs.getBool('vip') ?? false);
+final ValueNotifier<bool> vipOn = ValueNotifier<bool>(false);
 final ValueNotifier<double> vipPhase = ValueNotifier<double>(0);
 
 void setVip(bool v) {

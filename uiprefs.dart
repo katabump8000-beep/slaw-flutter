@@ -4,7 +4,7 @@ import 'app_state.dart';
 import 'widgets.dart';
 
 /// مقاس الخط: 12 عقدة (0 إلى 11)
-final ValueNotifier<int> fontStep = ValueNotifier<int>(prefs.getInt('fs') ?? 4);
+final ValueNotifier<int> fontStep = ValueNotifier<int>(prefs.getInt('fs') ?? 10);
 
 double fontScale(int s) => 0.8 + s.clamp(0, 11) * 0.06;
 

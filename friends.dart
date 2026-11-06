@@ -37,8 +37,15 @@ Future<void> removeFriend(BuildContext context, String uid) async {
 }
 
 /// قسم «الأصدقاء» في الشاشة الرئيسية
-class FriendsSection extends StatelessWidget {
+class FriendsSection extends StatefulWidget {
   const FriendsSection({super.key});
+
+  @override
+  State<FriendsSection> createState() => _FriendsSectionState();
+}
+
+class _FriendsSectionState extends State<FriendsSection> {
+  bool open = false;
 
   @override
   Widget build(BuildContext context) {
@@ -56,13 +63,20 @@ class FriendsSection extends StatelessWidget {
             final n = rv is Map ? rv.length : 0;
             if (ids.isEmpty && n == 0) return const SizedBox.shrink();
             return SecCard(title: 'الأصدقاء', children: [
-              if (n > 0)
+              ListTile(
+                leading: Icon(Icons.people_alt_rounded, color: context.accent2),
+                title: Text('الأصدقاء (${ids.length})', style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: n > 0 ? Text('$n طلب صداقة جديد', style: TextStyle(color: context.accent2, fontSize: 12)) : null,
+                trailing: Icon(open ? Icons.expand_less : Icons.expand_more),
+                onTap: () => setState(() => open = !open),
+              ),
+              if (open && n > 0)
                 ListTile(
                   leading: Icon(Icons.person_add_alt_1, color: context.accent2),
                   title: Text('$n طلب صداقة'),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const FriendsScreen())),
                 ),
-              ...ids.map((u) => _FriendRow(uid: u, fav: fav.contains(u))),
+              if (open) ...ids.map((u) => _FriendRow(uid: u, fav: fav.contains(u))),
             ]);
           },
         );

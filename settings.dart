@@ -197,6 +197,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: const Text('12 مقاساً للنص في كل التطبيق', style: TextStyle(color: kMu, fontSize: 12)),
             onTap: () => showFontSheet(context),
           ),
+          StatefulBuilder(
+            builder: (c, set) => SwitchListTile(
+              secondary: const Icon(Icons.schedule_rounded),
+              title: const Text('نظام 24 ساعة'),
+              subtitle: const Text('الافتراضي 12 ساعة (ص / م)', style: TextStyle(color: kMu, fontSize: 12)),
+              value: prefs.getBool('h24') ?? false,
+              onChanged: (v) {
+                prefs.setBool('h24', v);
+                set(() {});
+              },
+            ),
+          ),
           ListTile(
             leading: const Icon(Icons.key_rounded),
             title: const Text('تغيير كلمة السر'),

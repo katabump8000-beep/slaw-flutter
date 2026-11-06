@@ -22,6 +22,7 @@ import 'war.dart';
 import 'friends.dart';
 import 'board.dart';
 import 'update.dart';
+import 'support.dart' show checkSupportReply;
 import 'ipreport.dart';
 import 'empcard.dart';
 import 'gift.dart';
@@ -210,6 +211,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       checkVisitExpiry();
       Board.sync();
       if (mounted) checkUpdate(context);
+      if (mounted) checkSupportReply(context);
     });
     Sfx.syncBgm();
     reportIp();
@@ -437,7 +439,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ),
                                         ]),
                         const SizedBox(height: 3),
-                        const Wrap(spacing: 10, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [BalanceChip(), StatusBadge(), VipChip()]),
+                        const Wrap(spacing: 10, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [BalanceChip(), StatusBadge()]),
                       ],
                     ),
                   ),
@@ -489,7 +491,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           physics: const AlwaysScrollableScrollPhysics(),
                           children: [
                             const EmperorCard(),
-                            const FriendsSection(),
                             if (!hasMain && !Session.isDev)
                               Container(
                                 margin: const EdgeInsets.all(12),
@@ -507,6 +508,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             if (mains.isNotEmpty) SecCard(title: 'النقابات', children: mains.map(_row).toList()),
                             if (system.isNotEmpty) SecCard(title: 'النظام', children: system.map(_row).toList()),
                             if (ids.isEmpty) const Padding(padding: EdgeInsets.all(40), child: Center(child: Text('لا توجد قروبات بعد', style: TextStyle(color: kMu)))),
+                            const FriendsSection(),
                             const SizedBox(height: 80),
                           ],
                         ),

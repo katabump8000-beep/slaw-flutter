@@ -92,7 +92,6 @@ class FirApp extends StatelessWidget {
               child: TapSound(
                 child: Stack(children: [
                   child ?? const SizedBox(),
-                  const EdgeGlow(),
                   ValueListenableBuilder<bool>(valueListenable: vipOn, builder: (c3, v, _) => v ? const VipLayers() : const SizedBox.shrink()),
                 ]),
               ),
