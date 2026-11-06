@@ -214,6 +214,11 @@ Future<void> declareWarSheet(BuildContext context) async {
 
 Future<void> _declare(String a, String d) async {
   try {
+    final prot = (groupsCache[d]?['prot'] as num?)?.toInt() ?? 0;
+    if (prot > nowMs()) {
+      toast('🛡 هذه النقابة تحت الحماية، لا يمكن إعلان الحرب عليها الآن', bad: true);
+      return;
+    }
     if ((await balanceNow()) < 10000) {
       toast('رصيدك لا يكفي (10,000)', bad: true);
       return;

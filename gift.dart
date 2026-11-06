@@ -125,27 +125,32 @@ class _GiftScreenState extends State<GiftScreen> {
     return '${p(s ~/ 3600)}:${p((s % 3600) ~/ 60)}:${p(s % 60)}';
   }
 
+  /// الاستلام يتم على السيرفر بالكامل (الوقت + الجائزة + الرصيد): التطبيق يرسل طلباً ثم يعرض النتيجة
   Future<void> _claim() async {
     if (busy || left > 0) return;
     setState(() => busy = true);
-    final nn = n >= 30 ? 1 : n + 1;
+    final rid = ref('giftReq').push().key!;
+    final done = Completer<Map<dynamic, dynamic>>();
+    final sub = ref('giftRes/$myUid').onValue.listen((e) {
+      final v = e.snapshot.value;
+      if (v is Map && v['id'] == rid && !done.isCompleted) done.complete(v);
+    }, onError: (_) {});
+    Map<dynamic, dynamic>? res;
     try {
-      await ref('gift/$myUid').set(<String, Object?>{'n': nn, 'ts': ServerValue.timestamp});
+      await ref('giftReq/$rid').set(<String, Object?>{'u': myUid, 'ts': ServerValue.timestamp}).timeout(const Duration(seconds: 8));
+      res = await done.future.timeout(const Duration(seconds: 15));
     } catch (_) {
-      toast('لا يمكنك استلام الهدية الآن', bad: true);
-      await _load();
-      if (mounted) setState(() => busy = false);
-      return;
+      res = null;
     }
-    final prize = giftPrize(nn);
-    await creditChunks(prize);
-    if (nn == 30) {
-      try {
-        await ref('pdata/$myUid/elite').set(true);
-      } catch (_) {}
+    await sub.cancel();
+    if (res == null) {
+      toast('الاتصال ضعيف، لم تكتمل العملية. إن وصل طلبك ستُضاف هديتك تلقائياً', bad: true);
+    } else if (res['err'] != null) {
+      toast('لا يمكنك استلام الهدية الآن', bad: true);
+    } else if (res['elite'] == true) {
       toast('🏅 حصلت على لقب نخبة و 1500 رصيد!');
     } else {
-      toast('🎁 حصلت على $prize رصيد');
+      toast('🎁 حصلت على ${(res['prize'] as num?)?.toInt() ?? 0} رصيد');
     }
     await _load();
     if (mounted) setState(() => busy = false);

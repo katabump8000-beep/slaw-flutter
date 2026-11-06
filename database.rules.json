@@ -430,6 +430,9 @@
     "by": {
      ".validate": "newData.isString()"
     },
+    "prot": {
+     ".validate": "newData.isNumber()"
+    },
     "$other": {
      ".validate": false
     }
@@ -1312,7 +1315,7 @@
   "gift": {
    "$uid": {
     ".read": "auth!=null&&(auth.uid===$uid||(root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val()))",
-    ".write": "auth!=null&&(auth.uid===$uid||(root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val()))",
+    ".write": "auth!=null&&(root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val())",
     ".validate": "newData.hasChildren(['n','ts'])"
    }
   },
@@ -1536,6 +1539,47 @@
     ".validate": "newData.hasChildren(['by','ts'])",
     "by": {
      ".validate": "newData.isString()"
+    },
+    "ts": {
+     ".validate": "newData.isNumber()"
+    },
+    "$other": {
+     ".validate": false
+    }
+   }
+  },
+  "giftReq": {
+   "$rid": {
+    ".read": false,
+    ".write": "auth!=null&&!data.exists()&&newData.child('u').val()===auth.uid&&newData.child('ts').val()===now",
+    ".validate": "newData.hasChildren(['u','ts'])",
+    "u": {
+     ".validate": "newData.isString()"
+    },
+    "ts": {
+     ".validate": "newData.isNumber()"
+    },
+    "$other": {
+     ".validate": false
+    }
+   }
+  },
+  "giftRes": {
+   "$uid": {
+    ".read": "auth!=null&&auth.uid===$uid",
+    ".write": false
+   }
+  },
+  "bankLog": {
+   "$id": {
+    ".read": false,
+    ".write": "auth!=null&&!data.exists()&&(root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val())",
+    ".validate": "newData.hasChildren(['by','a','ts'])",
+    "by": {
+     ".validate": "newData.isString()"
+    },
+    "a": {
+     ".validate": "newData.isNumber()"
     },
     "ts": {
      ".validate": "newData.isNumber()"

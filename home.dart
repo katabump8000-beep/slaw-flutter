@@ -1,3 +1,5 @@
+import 'servertime.dart';
+import 'visuals.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -179,8 +181,12 @@ class BalanceChip extends StatelessWidget {
             border: Border.all(color: neg ? kRed : kLine),
           ),
           child: Session.isEmp
-              ? const Row(mainAxisSize: MainAxisSize.min, children: [Text('💰 ', style: TextStyle(fontSize: 12)), InfinityMark(size: 15)])
-              : Text('💰 ${fmtN(n)}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: neg ? kRed : kTx)),
+              ? const Row(mainAxisSize: MainAxisSize.min, children: [CoinIcon(size: 15), SizedBox(width: 4), InfinityMark(size: 15)])
+              : Row(mainAxisSize: MainAxisSize.min, children: [
+                  const CoinIcon(size: 15),
+                  const SizedBox(width: 4),
+                  Text(fmtN(n), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: neg ? kRed : kTx)),
+                ]),
         );
       },
     );
@@ -331,6 +337,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         decoration: BoxDecoration(color: context.accent, borderRadius: BorderRadius.circular(10)),
                         child: const Text('@', style: TextStyle(color: kDarkText, fontWeight: FontWeight.w900, fontSize: 13)),
                       ),
+                    if (kind == 'main') ShieldBadge(until: (groupsCache[g]?['prot'] as num?)?.toInt() ?? 0),
                     UnreadBadge(gid: g),
                   ]),
                   const SizedBox(height: 3),
@@ -385,6 +392,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         'desc': '',
                         'ts': ServerValue.timestamp,
                         'by': myUid,
+                        if (kind == 'main') 'prot': nowMs() + 7 * 86400000,
                       },
                       'members/$g/$myUid': true,
                       if (kind == 'main') 'guildStats/$g': <String, Object?>{'atk': 1, 'def': 1},

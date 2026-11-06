@@ -275,3 +275,30 @@ class _FriendsScreenState extends State<FriendsScreen> {
     );
   }
 }
+
+/// إرسال طلب صداقة مباشرة من الملف التعريفي
+Future<void> sendFriendRequestTo(String u) async {
+  try {
+    if ((await ref('friends/$myUid/$u').get()).exists) {
+      toast('هو صديقك بالفعل');
+      return;
+    }
+    if (!_unlimited) {
+      final v = (await ref('friends/$myUid').get()).value;
+      if ((v is Map ? v.length : 0) >= kFriendCap) {
+        toast('وصلت للحد الأقصى ($kFriendCap أصدقاء)', bad: true);
+        return;
+      }
+    }
+    await ref('friendReq/$u/$myUid').set(ServerValue.timestamp);
+    for (final g in mainGroups()) {
+      try {
+        await ref('notifs/$u').push().set(<String, Object?>{'t': 'frq', 'from': myUid, 'g': g, 'tx': 'هناك من أرسل لك طلب صداقة', 'ts': ServerValue.timestamp});
+        break;
+      } catch (_) {}
+    }
+    toast('تم إرسال الطلب ✅');
+  } catch (e) {
+    toast('الطلب مرسل مسبقاً أو غير متاح', bad: true);
+  }
+}

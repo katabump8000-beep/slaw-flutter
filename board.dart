@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'data.dart';
+import 'profile.dart' show viewProfile;
 import 'widgets.dart';
 
 /// ملخص المتصدرين: كل مستخدم ينشر أرقامه (ضمن حدود القواعد)
@@ -97,7 +98,10 @@ class _BoardList extends StatelessWidget {
         return ListView.builder(
           padding: const EdgeInsets.all(12),
           itemCount: l.length,
-          itemBuilder: (c, i) => Container(
+          itemBuilder: (c, i) => GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => viewProfile(context, l[i].key),
+            child: Container(
             margin: const EdgeInsets.symmetric(vertical: 6),
             padding: EdgeInsets.all(i < 3 ? 14 : 12),
             decoration: BoxDecoration(
@@ -118,6 +122,7 @@ class _BoardList extends StatelessWidget {
               ),
               Text('${fmtN(l[i].value)} $unit', style: TextStyle(fontWeight: FontWeight.w900, color: context.accent2)),
             ]),
+          ),
           ),
         );
       },

@@ -1,5 +1,6 @@
 import 'servertime.dart';
 import 'unread.dart';
+import 'visuals.dart';
 import 'stickers.dart';
 import 'vip.dart';
 import 'dart:async';
@@ -849,6 +850,17 @@ class _ChatScreenState extends State<ChatScreen> {
             return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               TextField(controller: s, onChanged: (_) => set(() {}), decoration: const InputDecoration(hintText: 'ابحث بالاسم')),
               const SizedBox(height: 8),
+              if (isStaff && (q.isEmpty || 'الكل'.contains(q)))
+                ListTile(
+                  dense: true,
+                  leading: const CircleAvatar(radius: 17, child: Icon(Icons.campaign_outlined, size: 18)),
+                  title: const Text('الكل'),
+                  subtitle: const Text('تنبيه فوري لكل أعضاء القروب', style: TextStyle(color: kMu, fontSize: 11.5)),
+                  onTap: () {
+                    Navigator.of(sc).pop();
+                    _insertMention('الكل');
+                  },
+                ),
               ...names.map((n) => ListTile(
                     dense: true,
                     leading: UserAvatar(idx[n]!, size: 34),
@@ -1317,7 +1329,7 @@ class _ChatScreenState extends State<ChatScreen> {
           child: Row(children: [GroupPhoto(gid, size: 36, viewable: true), const SizedBox(width: 10), Expanded(child: Text(groupName(gid), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 17))), GuildMuteButton(gid)]),
         ),
         actions: [
-          if (kind == 'main') IconButton(onPressed: () => showGamesSheet(context, gid), icon: const Icon(Icons.sports_esports_outlined)),
+          if (kind == 'main') GamesActionButton(onTap: () => showGamesSheet(context, gid)),
           if (kind == 'main')
             IconButton(
               tooltip: 'ابلاغ عن الدردشة',

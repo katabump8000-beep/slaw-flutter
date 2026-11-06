@@ -8,7 +8,7 @@ import 'app_state.dart';
 import 'data.dart';
 import 'entrancefx.dart';
 import 'empchat.dart';
-import 'friends.dart' show removeFriend;
+import 'friends.dart' show removeFriend, sendFriendRequestTo;
 import 'reports.dart';
 import 'home.dart';
 import 'lastseen.dart';
@@ -176,6 +176,9 @@ class _ProfileBodyState extends State<_ProfileBody> {
                   } catch (_) {}
                 }),
               ),
+              const SizedBox(width: 8),
+            ] else ...[
+              Expanded(child: AppButton('➕ إضافة صديق', compact: true, onPressed: () => sendFriendRequestTo(widget.uid))),
               const SizedBox(width: 8),
             ],
             Expanded(child: AppButton('🚩 ابلاغ', kind: 'g', compact: true, onPressed: () => reportChat(context, kind: 'user', where: p!.name, peer: widget.uid))),
