@@ -226,7 +226,7 @@ class _ToolsState extends State<ToolsScreen> {
         _t(Icons.manage_accounts_outlined, 'الحسابات', () => go(const AccountsScreen()), sub: 'بحث باللقب أو الـID وعرض الملف'),
         _t(Icons.swap_vert_circle_outlined, 'سحب / إعطاء', () => go(const GiveTakeScreen()), sub: 'ابحث بلقب أو ID وعدّل رصيد العضو'),
         _t(Icons.account_balance_outlined, 'البنك', () => go(const BankScreen()), sub: 'سحب رصيد لنفسك'),
-        _t(Icons.toggle_off_outlined, 'إيقاف استعمال', () => go(const FeatureSwitchScreen()), sub: 'إيقاف العجلة أو الهدية اليومية مؤقتاً'),
+        _t(Icons.toggle_off_outlined, 'إيقاف استعمال', () => go(const FeatureSwitchScreen()), sub: 'إيقاف العجلة أو الهدية أو الألعاب مؤقتاً'),
         _t(Icons.link, 'الروابط', () => go(const LinksScreen()), sub: 'رابط النشر، منع النشر، إعادة تعيين'),
         _t(Icons.hourglass_bottom, 'عرض جلسات (العالقون)', () => go(const StuckScreen()), sub: 'سجّلوا ولم يدخلوا نقابة — حظر أو إدخال'),
         _t(Icons.shield, 'تشغيل الحماية القصوى', () => toggleMaxGuard(), sub: 'حظر مباشر لتكرار التسجيل والاستنساخ'),

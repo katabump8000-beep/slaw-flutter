@@ -206,6 +206,11 @@ class FeatureSwitchScreen extends StatelessWidget {
   static const items = <List<String>>[
     ['roulette', 'عجلة الحظ 🎡'],
     ['gift', 'الهدية اليومية 🎁'],
+    ['flags', 'الأعلام 🏳️'],
+    ['balloon', 'البالونات 🎈'],
+    ['lucky', 'بطاقة الحظ ❓'],
+    ['crystal', 'الكريستال 💎'],
+    ['cups', 'الأكواب 🥤'],
   ];
 
   @override

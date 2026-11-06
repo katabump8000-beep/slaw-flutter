@@ -1,3 +1,4 @@
+import 'solo.dart';
 import 'servertime.dart';
 import 'unread.dart';
 import 'visuals.dart';
@@ -1465,10 +1466,7 @@ class _ChatScreenState extends State<ChatScreen> {
 }
 
 Future<void> showGamesSheet(BuildContext context, String gid) async {
-  if (!await canPlay(gid)) {
-    toast('ليس لديك صلاحية الألعاب', bad: true);
-    return;
-  }
+  final can = await canPlay(gid);
   if (!context.mounted) return;
   showAppSheet<void>(context, (sc) {
     Widget b(String t, String cmd) => AppButton(t, kind: 'g', onPressed: () {
@@ -1476,14 +1474,18 @@ Future<void> showGamesSheet(BuildContext context, String gid) async {
           runCommand(context, gid, '.$cmd');
         });
     return [
-      const Text('🎮 اختر لعبة', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-      b('💎 كريستال', 'كريستال'),
-      b('🎈 البالونات', 'بالونات'),
-      b('🏳️ تخمين الأعلام', 'اعلام'),
-      b('⌨️ سرعة الكتابة', 'كتابة'),
-      b('🎨 لعبة الألوان', 'الوان'),
-      b('🐾 فعالية الحيوانات', 'حيوانات'),
-      b('🎭 تخمين الشخصيات', 'شخصيات'),
+      const Text('🎮 الألعاب', textAlign: TextAlign.center, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+      AppButton('🎯 لعب منفرد وكازينو رهانات', glow: true, onPressed: () {
+        Navigator.of(sc).pop();
+        Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SoloHubScreen()));
+      }),
+      if (can) ...[
+        const Text('فعاليات جماعية', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: kMu)),
+        b('⌨️ سرعة الكتابة', 'كتابة'),
+        b('🎨 لعبة الألوان', 'الوان'),
+        b('🐾 فعالية الحيوانات', 'حيوانات'),
+        b('🎭 تخمين الشخصيات', 'شخصيات'),
+      ],
     ];
   });
 }

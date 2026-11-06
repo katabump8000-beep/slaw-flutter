@@ -1,3 +1,4 @@
+import 'solo.dart';
 import 'servertime.dart';
 import 'dart:async';
 import 'dart:math';
@@ -47,7 +48,7 @@ const List<String> _cmds = [
   'تفاصيلي', 'رصيدي', 'رصيد', 'معلوماته', 'تفاصيله', 'اوامر', 'العاب', 'كريستال', 'بالونات', 'اعلام', 'كتابه', 'تفكيك', 'الغاء', 'الوان', 'رهانات', 'رهان', 'تحويل',
   'المتصدرين', 'المتجر', 'حيوانات', 'شخصيات', 'فخر',
 ];
-const Set<String> _gameCmds = {'العاب', 'كريستال', 'بالونات', 'اعلام', 'كتابه', 'تفكيك', 'الوان', 'رهانات', 'حيوانات', 'شخصيات'};
+const Set<String> _gameCmds = {'كتابه', 'تفكيك', 'الوان', 'رهانات', 'حيوانات', 'شخصيات'};
 
 bool isCommandText(String t) => RegExp(r'^\s*\.\s*[\u0600-\u06FFa-zA-Z]').hasMatch(t);
 
@@ -126,16 +127,17 @@ Future<void> runCommand(BuildContext ctx, String gid, String raw) async {
       await _board(gid);
       break;
     case 'العاب':
+      push(const SoloHubScreen());
       await botSay(gid, '🎮 الألعاب:\n💎 .كريستال [مبلغ]\n🎈 .بالونات\n🏳️ .اعلام\n⌨️ .كتابة\n🧩 .تفكيك\n🎨 .الوان\n🎈 .رهانات\n🐾 .حيوانات\n🎭 .شخصيات');
       break;
     case 'كريستال':
-      push(CrystalScreen(gid: gid, preset: int.tryParse(normDigits(args)) ?? 50));
+      push(const CrystalGameScreen());
       break;
     case 'بالونات':
-      push(BalloonScreen(gid: gid));
+      push(const BalloonGameScreen());
       break;
     case 'اعلام':
-      push(QuickQuizScreen(gid: gid, kind: 'flags'));
+      push(const FlagsGameScreen());
       break;
     case 'كتابه':
       await EventsHost.start(gid, 'type');
