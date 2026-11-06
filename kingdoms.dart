@@ -6,6 +6,7 @@ import 'chat.dart';
 import 'core.dart';
 import 'data.dart';
 import 'home.dart';
+import 'sorter.dart' show syncMulti;
 import 'widgets.dart';
 
 /// إنشاء مملكة من عدة نقابات (للإمبراطور فقط)
@@ -216,13 +217,16 @@ Future<void> createAdminsGroup() async {
     } catch (_) {}
     final up = <String, Object?>{};
     if (isNew) {
-      up['groups/$gid'] = <String, Object?>{'name': nm, 'kind': 'main', 'locked': false, 'desc': 'جروب الإدارة', 'ts': ServerValue.timestamp, 'by': myUid};
+      up['groups/$gid'] = <String, Object?>{'name': nm, 'kind': 'main', 'adm': true, 'locked': false, 'desc': 'جروب الإدارة', 'ts': ServerValue.timestamp, 'by': myUid};
     }
     for (final u in uids) {
       up['members/$gid/$u'] = true;
       up['groupAdmins/$gid/$u'] = true;
     }
     await db.ref().update(up);
+    for (final u in uids) {
+      await syncMulti(u);
+    }
     toast('تم تجهيز جروب ADMINS (${uids.length} عضو) ✅');
   } catch (e) {
     err(e);

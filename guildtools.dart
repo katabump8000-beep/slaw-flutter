@@ -105,6 +105,16 @@ Future<void> mergeGuilds(BuildContext context) async {
               final t = list.first;
               try {
                 final up = <String, Object?>{'groups/$t/name': name};
+                var atk = 0, def = 0;
+                for (final g in list) {
+                  final gv = (await ref('guildStats/$g').get()).value;
+                  if (gv is Map) {
+                    atk += (gv['atk'] as num?)?.toInt() ?? 0;
+                    def += (gv['def'] as num?)?.toInt() ?? 0;
+                  }
+                }
+                up['guildStats/$t/atk'] = atk.clamp(1, 9999);
+                up['guildStats/$t/def'] = def.clamp(1, 9999);
                 for (final g in list.skip(1)) {
                   final ms = (await ref('members/$g').get()).value;
                   if (ms is Map) {

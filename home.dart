@@ -42,6 +42,7 @@ const Map<String, String> kKinds = {
   'news': 'الصحيفة',
   'upd': 'التحديثات',
   'work': 'الوورك',
+  'adm': 'قروب اجتماع',
 };
 
 /// القروبات المحمّلة وعضويتي فيها (true أو 'v' للزائر)
@@ -61,7 +62,14 @@ String groupColor(String g) {
 }
 
 String groupName(String g) => (groupsCache[g]?['name'] ?? 'قروب').toString();
-String groupKind(String g) => (groupsCache[g]?['kind'] ?? 'main').toString();
+/// اسم جروب الإدارة (قروب اجتماع وليس نقابة)
+const String kAdminsName = '𝑨𝑫𝑴𝑰𝑵𝑺';
+
+String groupKind(String g) {
+  final m = groupsCache[g];
+  if (m != null && (m['adm'] == true || m['name'] == kAdminsName)) return 'adm';
+  return (m?['kind'] ?? 'main').toString();
+}
 
 Future<void> loadGroups() async {
   final gs = await ref('groups').get();
@@ -203,6 +211,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool loading = true;
   Timer? devTimer;
+  Timer? _boardT;
   Timer? _idleOff;
   StreamSubscription<DatabaseEvent>? presenceSub;
 
@@ -218,6 +227,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       Board.sync();
       if (mounted) checkUpdate(context);
       if (mounted) checkSupportReply(context);
+    });
+    _boardT = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted && !appInBackground()) Board.sync();
     });
     Sfx.syncBgm();
     reportIp();
@@ -285,6 +297,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     devTimer?.cancel();
+    _boardT?.cancel();
     _idleOff?.cancel();
     presenceSub?.cancel();
     WarWatcher.stop();
@@ -461,7 +474,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                   const GuideButton(),
                   IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const FriendsScreen())), icon: const Icon(Icons.person_add_alt_1)),
-                  IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ShopScreen())), icon: const Icon(Icons.shopping_bag_outlined)),
+                  if (Session.isDev) IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ShopScreen())), icon: const Icon(Icons.shopping_bag_outlined)),
                   const BellButton(),
                   Stack(clipBehavior: Clip.none, children: [
                     IconButton(onPressed: _openSettings, icon: const Icon(Icons.settings_outlined)),

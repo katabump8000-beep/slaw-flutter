@@ -142,15 +142,22 @@ class _RouletteScreenState extends State<RouletteScreen> with SingleTickerProvid
       if (v is Map && v['id'] == rid && !done.isCompleted) done.complete(v);
     }, onError: (_) {});
     Map<dynamic, dynamic>? res;
+    String why = '';
     try {
       await ref('spinReq/$rid').set(<String, Object?>{'u': myUid, 'ts': ServerValue.timestamp}).timeout(const Duration(seconds: 8));
-      res = await done.future.timeout(const Duration(seconds: 15));
-    } catch (_) {
-      res = null;
+    } catch (e) {
+      why = e.toString().toLowerCase().contains('permission') ? 'rules' : 'net';
+    }
+    if (why.isEmpty) {
+      try {
+        res = await done.future.timeout(const Duration(seconds: 30));
+      } catch (_) {
+        res = null;
+      }
     }
     await sub.cancel();
     if (res == null) {
-      toast('الاتصال ضعيف، لم تكتمل اللفة. إن وصل طلبك ستُضاف جائزتك تلقائياً', bad: true);
+      toast(why == 'rules' ? 'قواعد قاعدة البيانات لم تُحدَّث بعد (spinReq) — انشر ملف القواعد في Firebase' : why == 'net' ? 'لا يوجد اتصال بالإنترنت' : 'سيرفر المنصة لا يستجيب الآن (قد يكون نائماً)، حاول بعد دقيقة. إن وصل طلبك ستُضاف جائزتك تلقائياً', bad: true);
       await _check();
       if (mounted) setState(() => busy = false);
       return;
@@ -158,7 +165,7 @@ class _RouletteScreenState extends State<RouletteScreen> with SingleTickerProvid
     if (res['err'] != null) {
       final l = (res['left'] as num?)?.toInt() ?? 0;
       if (l > 0) nextAt = nowMs() + l;
-      toast(res['err'] == 'banned' ? 'حسابك محظور' : 'اللفة القادمة بعد ${_fmt(l)}', bad: true);
+      toast(res['err'] == 'banned' ? 'حسابك محظور' : res['err'] == 'off' ? 'عذراً قام أحد المطورين بإيقاف هذه!' : 'اللفة القادمة بعد ${_fmt(l)}', bad: true);
       if (mounted) setState(() => busy = false);
       return;
     }

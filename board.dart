@@ -1,10 +1,13 @@
 import 'servertime.dart';
+import 'dart:async';
 import 'dart:math';
 
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'data.dart';
+import 'home.dart' show groupsCache, groupName;
 import 'profile.dart' show viewProfile;
 import 'widgets.dart';
 
@@ -31,7 +34,7 @@ class Board {
           if (rs['a'] == true) prefs.setInt('br_a', await n('msgTotal/$myUid'));
         }
       }
-      if (!fresh && now - (prefs.getInt('board_ts') ?? 0) < 300000) return;
+      if (!fresh && now - (prefs.getInt('board_ts') ?? 0) < 25000) return;
       prefs.setInt('board_ts', now);
       // المطورون لا يدخلون قوائم الربح والخسارة، فقط التفاعل
       final b = Session.isDev ? 0 : max(0, await n('wallets/$myUid/bal') - (prefs.getInt('br_b') ?? 0));
@@ -48,26 +51,55 @@ class BoardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('المتصدرون'),
-          bottom: const TabBar(isScrollable: true, tabs: [Tab(text: 'الأكثر ربحاً'), Tab(text: 'الأكثر خسارة'), Tab(text: 'الأفضل تفاعلاً')]),
+          bottom: const TabBar(isScrollable: true, tabs: [Tab(text: 'الأكثر ربحاً'), Tab(text: 'الأكثر خسارة'), Tab(text: 'الأفضل تفاعلاً'), Tab(text: 'النقابات')]),
         ),
-        body: const TabBarView(children: [_BoardList('b', 'رصيد'), _BoardList('l', 'خسارة'), _BoardList('a', 'رسالة')]),
+        body: const TabBarView(children: [_BoardList('b', 'رصيد'), _BoardList('l', 'خسارة'), _BoardList('a', 'رسالة'), _GuildBoard()]),
       ),
     );
   }
 }
 
-class _BoardList extends StatelessWidget {
+class _BoardList extends StatefulWidget {
   final String f;
   final String unit;
   const _BoardList(this.f, this.unit);
 
-  Future<List<MapEntry<String, int>>> _load() async {
-    final s = await ref('board').orderByChild(f).limitToLast(f == 'a' ? 15 : 60).get();
-    final v = s.value;
+  @override
+  State<_BoardList> createState() => _BoardListState();
+}
+
+class _BoardListState extends State<_BoardList> {
+  List<MapEntry<String, int>>? data;
+  StreamSubscription<DatabaseEvent>? sub;
+  int _gen = 0;
+
+  String get f => widget.f;
+  String get unit => widget.unit;
+
+  @override
+  void initState() {
+    super.initState();
+    // تحديث مباشر: أي تغيير في الأرقام يظهر فوراً دون إعادة فتح الصفحة
+    sub = ref('board').orderByChild(f).limitToLast(f == 'a' ? 15 : 60).onValue.listen((e) async {
+      final g = ++_gen;
+      final l = await _process(e.snapshot.value);
+      if (mounted && g == _gen) setState(() => data = l);
+    }, onError: (_) {
+      if (mounted && data == null) setState(() => data = <MapEntry<String, int>>[]);
+    });
+  }
+
+  @override
+  void dispose() {
+    sub?.cancel();
+    super.dispose();
+  }
+
+  Future<List<MapEntry<String, int>>> _process(Object? v) async {
     final out = <MapEntry<String, int>>[];
     if (v is Map) {
       v.forEach((k, x) {
@@ -88,12 +120,9 @@ class _BoardList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<MapEntry<String, int>>>(
-      future: _load(),
-      builder: (c, s) {
-        if (s.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator());
-        final l = s.data ?? <MapEntry<String, int>>[];
-        if (l.isEmpty) return const Center(child: Text('لا توجد بيانات بعد', style: TextStyle(color: kMu)));
+    final l = data;
+    if (l == null) return const Center(child: CircularProgressIndicator());
+    if (l.isEmpty) return const Center(child: Text('لا توجد بيانات بعد', style: TextStyle(color: kMu)));
         const ring = [Color(0xFFFFD54A), Color(0xFFD7DEE8), Color(0xFFCD7F32)];
         return ListView.builder(
           padding: const EdgeInsets.all(12),
@@ -124,6 +153,53 @@ class _BoardList extends StatelessWidget {
             ]),
           ),
           ),
+        );
+  }
+}
+
+/// ترتيب النقابات (أول 20): القوة = عدد الأعضاء + التفاعل (يحدّثها سيرفر الإشعارات كل دقيقة)
+class _GuildBoard extends StatelessWidget {
+  const _GuildBoard();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DatabaseEvent>(
+      stream: ref('guildBoard').onValue,
+      builder: (c, s) {
+        if (!s.hasData) return const Center(child: CircularProgressIndicator());
+        final v = s.data!.snapshot.value;
+        final rows = <MapEntry<String, Map<dynamic, dynamic>>>[];
+        if (v is Map) {
+          v.forEach((k, x) {
+            if (x is Map && groupsCache.containsKey(k.toString())) rows.add(MapEntry(k.toString(), x));
+          });
+        }
+        int score(Map<dynamic, dynamic> x) => ((x['n'] as num?)?.toInt() ?? 0) * 100 + ((x['m'] as num?)?.toInt() ?? 0);
+        rows.sort((a, b) => score(b.value).compareTo(score(a.value)));
+        final top = rows.take(20).toList();
+        if (top.isEmpty) return const Center(child: Text('لا توجد بيانات بعد', style: TextStyle(color: kMu)));
+        const ring = [Color(0xFFFFD54A), Color(0xFFD7DEE8), Color(0xFFCD7F32)];
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: top.length,
+          itemBuilder: (c, i) {
+            final x = top[i].value;
+            return Container(
+              margin: const EdgeInsets.symmetric(vertical: 5),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color.fromRGBO(0, 0, 0, .28),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: i < 3 ? ring[i].withAlpha(160) : kLine),
+              ),
+              child: Row(children: [
+                SizedBox(width: 30, child: Text('${i + 1}', textAlign: TextAlign.center, style: TextStyle(fontSize: i < 3 ? 22 : 17, fontWeight: FontWeight.w900, color: i < 3 ? ring[i] : kMu))),
+                const SizedBox(width: 8),
+                Expanded(child: Text(groupName(top[i].key), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w800, fontSize: i < 3 ? 16 : 14.5))),
+                Text('👥 ${fmtN((x['n'] as num?) ?? 0)}   💬 ${fmtN((x['m'] as num?) ?? 0)}', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: context.accent2)),
+              ]),
+            );
+          },
         );
       },
     );

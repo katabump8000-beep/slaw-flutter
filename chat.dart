@@ -1,6 +1,7 @@
 import 'servertime.dart';
 import 'unread.dart';
 import 'visuals.dart';
+import 'shop.dart' show ShopScreen;
 import 'stickers.dart';
 import 'vip.dart';
 import 'dart:async';
@@ -106,6 +107,8 @@ class _ChatScreenState extends State<ChatScreen> {
   final Set<String> _warHidden = {};
   String _jumpId = '';
   String _hlId = '';
+  bool _live = false;
+  final Set<String> _fresh = <String>{};
   Timer? _hlT;
   List<String> _mentionMids = <String>[];
   int _lastMention = 0;
@@ -115,7 +118,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String get kind => groupKind(gid);
   bool get visitor => memCache[gid] == 'v';
   bool get isStaff => Session.isDev || admins[myUid] == true;
-  bool get canWrite => Session.isDev || (kind == 'main' && (!locked || isStaff));
+  bool get canWrite => Session.isDev || ((kind == 'main' || kind == 'adm') && (!locked || isStaff));
   bool get muted => muteUntil > nowMs();
 
   @override
@@ -180,6 +183,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _expTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted && (_eidOf.isNotEmpty || _myScore.isNotEmpty)) setState(() {});
     });
+    Future<void>.delayed(const Duration(milliseconds: 2500), () => _live = true);
     _welcome();
     _entranceTriggers();
     if (widget.focusMid.isNotEmpty) Future<void>.delayed(const Duration(milliseconds: 900), () => _focus(0));
@@ -224,6 +228,12 @@ class _ChatScreenState extends State<ChatScreen> {
     final m = Map<String, dynamic>.from(v);
     _checkWin(k, m);
     _trackScore(m);
+    if (_live && !msgs.containsKey(k) && (m['type'] ?? 'text') != 'sys') {
+      final mine = (m['from'] ?? '').toString() == myUid;
+      Sfx.msg(mine);
+      if (_fresh.length > 300) _fresh.clear();
+      _fresh.add(k);
+    }
     setState(() {
       msgs[k] = m;
       if (oldest.isEmpty || k.compareTo(oldest) < 0) oldest = k;
@@ -1227,7 +1237,12 @@ class _ChatScreenState extends State<ChatScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(14),
         color: kBg2,
-        child: SafeArea(top: false, child: Text(kind == 'main' ? 'الشات مقفل من المشرفين 🔒' : 'للقراءة فقط', textAlign: TextAlign.center, style: const TextStyle(color: kMu))),
+        child: SafeArea(
+          top: false,
+          child: kind == 'shop'
+              ? AppButton('🛒 تسوّق', glow: true, onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ShopScreen())))
+              : Text(kind == 'main' ? 'الشات مقفل من المشرفين 🔒' : 'للقراءة فقط', textAlign: TextAlign.center, style: const TextStyle(color: kMu)),
+        ),
       );
     }
     if (muted) {
@@ -1403,7 +1418,20 @@ class _ChatScreenState extends State<ChatScreen> {
                 key: (id == widget.focusMid || id == _jumpId) ? keys.putIfAbsent(id, () => GlobalKey()) : ValueKey<String>(id),
                 duration: const Duration(milliseconds: 300),
                 decoration: BoxDecoration(color: id == _hlId ? const Color(0xB3000000) : Colors.transparent, borderRadius: BorderRadius.circular(14)),
-                child: bubble,
+                child: _fresh.contains(id)
+                    ? TweenAnimationBuilder<double>(
+                        tween: Tween<double>(begin: 0, end: 1),
+                        duration: const Duration(milliseconds: 320),
+                        curve: Curves.easeOutCubic,
+                        child: bubble,
+                        builder: (ctx, v, ch) {
+                          final rtl = Directionality.of(ctx) == TextDirection.rtl;
+                          final dx = from == myUid ? 0.0 : (rtl ? 70.0 : -70.0) * (1 - v);
+                          final dy = from == myUid ? 40.0 * (1 - v) : 0.0;
+                          return Opacity(opacity: v, child: Transform.translate(offset: Offset(dx, dy), child: ch));
+                        },
+                      )
+                    : bubble,
               );
             },
           ),

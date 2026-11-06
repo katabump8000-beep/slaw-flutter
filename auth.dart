@@ -249,7 +249,7 @@ Future<String> registerAccount({
       'color': '#ff7a1a',
     });
     try {
-      await ref('nameIdx/${refG.isEmpty ? '_' : refG}/${nameKey(name)}').set(uid);
+      await ref('nameIdx/${refG.isEmpty ? '_' : refG}/${nameKeyFine(name)}').set(uid);
     } catch (_) {}
     await db.ref().update(<String, Object?>{
       'wallets/$uid/bal': 100,

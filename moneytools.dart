@@ -197,3 +197,53 @@ class _BankState extends State<BankScreen> {
     );
   }
 }
+
+
+/// «إيقاف استعمال»: يوقف العجلة أو الهدية اليومية عن جميع الأعضاء (يظهر الخيار الموقوف بالفضي)
+class FeatureSwitchScreen extends StatelessWidget {
+  const FeatureSwitchScreen({super.key});
+
+  static const items = <List<String>>[
+    ['roulette', 'عجلة الحظ 🎡'],
+    ['gift', 'الهدية اليومية 🎁'],
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('إيقاف استعمال')),
+      body: StreamBuilder<DatabaseEvent>(
+        stream: ref('config/off').onValue,
+        builder: (c, s) {
+          final v = s.data?.snapshot.value;
+          final off = v is Map ? v : const {};
+          return ListView(padding: const EdgeInsets.all(14), children: [
+            const Text('أوقف أي عنصر مؤقتاً، وسيظهر للأعضاء: «عذراً قام أحد المطورين بإيقاف هذه!». أعد التشغيل متى شئت.', style: TextStyle(color: kMu, fontSize: 12.5, height: 1.7)),
+            const SizedBox(height: 10),
+            for (final it in items)
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 5),
+                decoration: BoxDecoration(
+                  color: off[it[0]] == true ? const Color(0x33C0C8D2) : const Color.fromRGBO(0, 0, 0, .28),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: off[it[0]] == true ? const Color(0xFFC0C8D2) : kLine),
+                ),
+                child: SwitchListTile(
+                  title: Text(it[1], style: TextStyle(fontWeight: FontWeight.w800, color: off[it[0]] == true ? const Color(0xFFC0C8D2) : null)),
+                  subtitle: Text(off[it[0]] == true ? 'موقوف' : 'يعمل', style: const TextStyle(fontSize: 12, color: kMu)),
+                  value: off[it[0]] == true,
+                  onChanged: (x) async {
+                    try {
+                      await ref('config/off/${it[0]}').set(x ? true : null);
+                    } catch (e) {
+                      err(e);
+                    }
+                  },
+                ),
+              ),
+          ]);
+        },
+      ),
+    );
+  }
+}

@@ -44,6 +44,18 @@ class Sfx {
   static final AudioPlayer _ck = AudioPlayer();
   static int _lastCk = 0;
 
+  static final AudioPlayer _mp = AudioPlayer();
+  static int _lastMp = 0;
+
+  /// صوت خفيف جداً لإرسال/استلام رسالة في الشات
+  static void msg(bool mine) {
+    if (fxOff || _block.isNotEmpty) return;
+    final n = DateTime.now().millisecondsSinceEpoch;
+    if (n - _lastMp < 250) return;
+    _lastMp = n;
+    _mp.stop().then((_) => _mp.setVolume(.22)).then((_) => _mp.play(AssetSource(mine ? 'audio/msg_send.wav' : 'audio/msg_recv.wav'))).catchError((_) {});
+  }
+
   /// صوت النقر
   static void click() {
     if (fxOff || _block.isNotEmpty) return;

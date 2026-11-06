@@ -31,6 +31,21 @@ String nameKey(String raw) {
   return k.replaceAll(RegExp(r'[.#$\[\]/]'), '_');
 }
 
+/// مفتاح دقيق للألقاب العادية: يوحّد أشكال الحروف فقط (أ/ا، ة/ه، ى/ي) ويدمج التكرار، دون حذف الحروف اللينة،
+/// فيُميَّز «ايتاشي» عن «ايتوشي». المفتاح الأشمل nameKey يبقى لألقاب المطورين فقط.
+String nameKeyFine(String raw) {
+  var t = raw.replaceAll(RegExp(r'[\u064B-\u065F\u0670\u0640\s]'), '');
+  t = t
+      .replaceAll(RegExp('[أإآٱ]'), 'ا')
+      .replaceAll('ة', 'ه')
+      .replaceAll('ى', 'ي')
+      .replaceAll('ؤ', 'و')
+      .replaceAll('ئ', 'ي')
+      .toLowerCase();
+  t = t.replaceAllMapped(RegExp(r'(.)\1+'), (m) => m.group(1)!);
+  return t.replaceAll(RegExp(r'[.#$\[\]/]'), '_');
+}
+
 /// يسجّل آخر ظهور ونسخة التطبيق، ويحجز لقب العضو في فهرس الألقاب
 /// هل التطبيق يعمل داخل بيئة مستنسخة/افتراضية؟ (كشف تقريبي لا يحظر أحداً)
 /// اسم حزمة التطبيق الرسمي (org + project-name في ملف البناء). إن تغيّر عدّله هنا.
@@ -172,12 +187,13 @@ Future<void> markSeen() async {
     await ref('seen/$myUid').set(<String, Object?>{'t': ServerValue.timestamp, 'b': kBuild});
   } catch (_) {}
   final key = nameKey(Session.me.name);
-  if (key.isEmpty) return;
+  final fkey = nameKeyFine(Session.me.name);
+  if (key.isEmpty || fkey.isEmpty) return;
   final scopes = <String>[...mainGroups()];
   if (Session.isDev) scopes.add('_dev');
   for (final g in scopes) {
     try {
-      await ref('nameIdx/$g/$key').set(myUid);
+      await ref('nameIdx/$g/${g == '_dev' ? key : fkey}').set(myUid);
     } catch (_) {}
   }
 }
@@ -185,6 +201,7 @@ Future<void> markSeen() async {
 /// هل اللقب مستخدم؟ (نقابة التسجيل + ألقاب المطورين في كل مكان)
 Future<bool> nameTaken(String name, String guild, String uid) async {
   final key = nameKey(name);
+  final fk = nameKeyFine(name);
   // ألقاب المطورين: يُمنع المطابق والمتشابه (لقب جزئي أو أطول منه)
   try {
     final dv = (await ref('nameIdx/_dev').get()).value;
@@ -198,7 +215,7 @@ Future<bool> nameTaken(String name, String guild, String uid) async {
       }
     }
   } catch (_) {}
-  final paths = <String>[if (guild.isNotEmpty) 'nameIdx/$guild/$key'];
+  final paths = <String>[if (guild.isNotEmpty) 'nameIdx/$guild/$fk'];
   for (final p in paths) {
     try {
       final s = await ref(p).get();
@@ -219,7 +236,7 @@ Future<bool> nameTaken(String name, String guild, String uid) async {
           }
         }));
         for (final n in names) {
-          if (n.isNotEmpty && nameKey(n) == key) return true;
+          if (n.isNotEmpty && nameKeyFine(n) == fk) return true;
         }
       }
     } catch (_) {}

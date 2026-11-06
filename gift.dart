@@ -136,17 +136,24 @@ class _GiftScreenState extends State<GiftScreen> {
       if (v is Map && v['id'] == rid && !done.isCompleted) done.complete(v);
     }, onError: (_) {});
     Map<dynamic, dynamic>? res;
+    String why = '';
     try {
       await ref('giftReq/$rid').set(<String, Object?>{'u': myUid, 'ts': ServerValue.timestamp}).timeout(const Duration(seconds: 8));
-      res = await done.future.timeout(const Duration(seconds: 15));
-    } catch (_) {
-      res = null;
+    } catch (e) {
+      why = e.toString().toLowerCase().contains('permission') ? 'rules' : 'net';
+    }
+    if (why.isEmpty) {
+      try {
+        res = await done.future.timeout(const Duration(seconds: 30));
+      } catch (_) {
+        res = null;
+      }
     }
     await sub.cancel();
     if (res == null) {
-      toast('الاتصال ضعيف، لم تكتمل العملية. إن وصل طلبك ستُضاف هديتك تلقائياً', bad: true);
+      toast(why == 'rules' ? 'قواعد قاعدة البيانات لم تُحدَّث بعد (giftReq) — انشر ملف القواعد في Firebase' : why == 'net' ? 'لا يوجد اتصال بالإنترنت' : 'سيرفر المنصة لا يستجيب الآن (قد يكون نائماً)، حاول بعد دقيقة. إن وصل طلبك ستُضاف جائزتك تلقائياً', bad: true);
     } else if (res['err'] != null) {
-      toast('لا يمكنك استلام الهدية الآن', bad: true);
+      toast(res['err'] == 'off' ? 'عذراً قام أحد المطورين بإيقاف هذه!' : 'لا يمكنك استلام الهدية الآن', bad: true);
     } else if (res['elite'] == true) {
       toast('🏅 حصلت على لقب نخبة و 1500 رصيد!');
     } else {

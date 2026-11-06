@@ -89,7 +89,8 @@ class _FxState extends State<FxScreen> with SingleTickerProviderStateMixin {
       canPop: false,
       child: Scaffold(
         backgroundColor: Colors.black,
-        body: AbsorbPointer(
+        body: Stack(fit: StackFit.expand, children: [
+          AbsorbPointer(
           child: Stack(fit: StackFit.expand, children: [
             CustomPaint(painter: _FxPainter(widget.kind, c, secs)),
             AnimatedBuilder(
@@ -111,7 +112,23 @@ class _FxState extends State<FxScreen> with SingleTickerProviderStateMixin {
               },
             ),
           ]),
-        ),
+          ),
+          Positioned(
+            bottom: 36,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 9),
+                  decoration: BoxDecoration(color: const Color(0x4DC0C8D2), borderRadius: BorderRadius.circular(22), border: Border.all(color: const Color(0x66FFFFFF))),
+                  child: const Text('تخطي', style: TextStyle(color: Color(0xCCFFFFFF), fontWeight: FontWeight.w800, fontSize: 14)),
+                ),
+              ),
+            ),
+          ),
+        ]),
       ),
     );
   }

@@ -33,6 +33,9 @@
    "maxGuard": {
     ".write": "auth!=null&&(root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val())",
     ".validate": "newData.isBoolean()"
+   },
+   "off": {
+    ".write": "auth!=null&&(root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val())"
    }
   },
   "roles": {
@@ -432,6 +435,9 @@
     },
     "prot": {
      ".validate": "newData.isNumber()"
+    },
+    "adm": {
+     ".validate": "newData.isBoolean()"
     },
     "$other": {
      ".validate": false
@@ -1588,6 +1594,10 @@
      ".validate": false
     }
    }
+  },
+  "guildBoard": {
+   ".read": "auth!=null",
+   ".write": false
   }
  }
 }
