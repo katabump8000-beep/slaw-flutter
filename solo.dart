@@ -850,3 +850,130 @@ class _CupsState extends State<CupsGameScreen> with TickerProviderStateMixin {
     );
   }
 }
+
+// ---------------------------------------------------------------------
+// الفعاليات الجماعية: السيرفر يديرها، والتطبيق يرسل طلب البدء فقط
+// ---------------------------------------------------------------------
+Future<void> startEvent(String gid, String kind) async {
+  final rid = ref('evReq').push().key!;
+  final done = Completer<Map<dynamic, dynamic>>();
+  final sub = ref('evRes/$myUid').onValue.listen((e) {
+    final v = e.snapshot.value;
+    if (v is Map && v['id'] == rid && !done.isCompleted) done.complete(v);
+  }, onError: (_) {});
+  String why = '';
+  try {
+    await ref('evReq/$rid').set(<String, Object?>{'u': myUid, 'ts': ServerValue.timestamp, 'g': gid, 'k': kind}).timeout(const Duration(seconds: 8));
+  } catch (e) {
+    why = e.toString().toLowerCase().contains('permission') ? 'rules' : 'net';
+  }
+  Map<dynamic, dynamic>? r;
+  if (why.isEmpty) {
+    try {
+      r = await done.future.timeout(const Duration(seconds: 30));
+    } catch (_) {
+      r = null;
+    }
+  }
+  await sub.cancel();
+  final err = r == null ? (why.isNotEmpty ? why : 'timeout') : (r['err'] ?? '').toString();
+  switch (err) {
+    case '':
+      return;
+    case 'rules':
+      toast('قواعد قاعدة البيانات لم تُحدَّث بعد (evReq)', bad: true);
+      break;
+    case 'net':
+      toast('لا يوجد اتصال بالإنترنت', bad: true);
+      break;
+    case 'timeout':
+      toast('سيرفر المنصة لا يستجيب الآن، حاول بعد دقيقة', bad: true);
+      break;
+    case 'off':
+      toast('عذرا قام أحد المطورين بإيقاف هذه!', bad: true);
+      break;
+    case 'busy':
+      toast('هناك فعالية قيد التشغيل في هذا القروب', bad: true);
+      break;
+    case 'perm':
+      toast('ليس لديك صلاحية الألعاب', bad: true);
+      break;
+    default:
+      toast('تعذر بدء الفعالية', bad: true);
+  }
+}
+
+/// «تعديل جوائز»: جائزة كل فعالية جماعية (للمطورين والإمبراطور)
+class EventPrizesScreen extends StatefulWidget {
+  const EventPrizesScreen({super.key});
+
+  @override
+  State<EventPrizesScreen> createState() => _EventPrizesState();
+}
+
+class _EventPrizesState extends State<EventPrizesScreen> {
+  static const items = <List<String>>[
+    ['colors', 'فعالية الألوان 🎨'],
+    ['type', 'فعالية الكتابة ⌨️'],
+    ['scramble', 'فعالية التفكيك 🧩'],
+    ['emoji', 'فعالية الايموجي 😀'],
+  ];
+  final Map<String, TextEditingController> cs = {for (final i in items) i[0]: TextEditingController(text: '40')};
+  bool saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    ref('config/evPrize').get().then((s) {
+      final v = s.value;
+      if (v is Map && mounted) {
+        v.forEach((k, x) {
+          if (cs[k.toString()] != null && x is num) cs[k.toString()]!.text = x.toInt().toString();
+        });
+        setState(() {});
+      }
+    }).catchError((_) {});
+  }
+
+  @override
+  void dispose() {
+    for (final c in cs.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => saving = true);
+    try {
+      final up = <String, Object?>{};
+      cs.forEach((k, c) {
+        final n = int.tryParse(normDigits(c.text.trim())) ?? 40;
+        up['config/evPrize/$k'] = n.clamp(0, 100000);
+      });
+      await db.ref().update(up);
+      toast('تم حفظ الجوائز', accent: true);
+    } catch (e) {
+      err(e);
+    }
+    if (mounted) setState(() => saving = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('تعديل جوائز')),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        const Text('جائزة الفائز بكل فعالية جماعية (رصيد). الرهانات مثل الكريستال لها جوائزها الثابتة.', style: TextStyle(color: kMu, fontSize: 12.5, height: 1.7)),
+        const SizedBox(height: 10),
+        for (final i in items)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: TextField(controller: cs[i[0]], keyboardType: TextInputType.number, decoration: InputDecoration(labelText: i[1])),
+          ),
+        const SizedBox(height: 10),
+        AppButton(saving ? '...' : 'حفظ', glow: true, onPressed: saving ? null : _save),
+      ]),
+    );
+  }
+}

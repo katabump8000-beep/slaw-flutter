@@ -46,9 +46,9 @@ int _lev(String a, String b) {
 
 const List<String> _cmds = [
   'تفاصيلي', 'رصيدي', 'رصيد', 'معلوماته', 'تفاصيله', 'اوامر', 'العاب', 'كريستال', 'بالونات', 'اعلام', 'كتابه', 'تفكيك', 'الغاء', 'الوان', 'رهانات', 'رهان', 'تحويل',
-  'المتصدرين', 'المتجر', 'حيوانات', 'شخصيات', 'فخر',
+  'المتصدرين', 'المتجر', 'حيوانات', 'شخصيات', 'فخر', 'ايموجي',
 ];
-const Set<String> _gameCmds = {'كتابه', 'تفكيك', 'الوان', 'رهانات', 'حيوانات', 'شخصيات'};
+const Set<String> _gameCmds = {'ايموجي', 'كتابه', 'تفكيك', 'الوان', 'رهانات', 'حيوانات', 'شخصيات'};
 
 bool isCommandText(String t) => RegExp(r'^\s*\.\s*[\u0600-\u06FFa-zA-Z]').hasMatch(t);
 
@@ -140,13 +140,16 @@ Future<void> runCommand(BuildContext ctx, String gid, String raw) async {
       push(const FlagsGameScreen());
       break;
     case 'كتابه':
-      await EventsHost.start(gid, 'type');
+      await startEvent(gid, 'type');
       break;
     case 'تفكيك':
-      await EventsHost.start(gid, 'scramble');
+      await startEvent(gid, 'scramble');
       break;
     case 'الوان':
-      await EventsHost.start(gid, 'colors');
+      await startEvent(gid, 'colors');
+      break;
+    case 'ايموجي':
+      await startEvent(gid, 'emoji');
       break;
     case 'تحويل':
       if (args.contains('@')) {

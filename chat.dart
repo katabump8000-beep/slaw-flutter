@@ -104,6 +104,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final Map<String, int> evEnds = {};
   final Map<String, String> _eidOf = {};
   Timer? _evTimer;
+  int _lockUntil = 0;
   Timer? _expTimer;
   final Set<String> _warHidden = {};
   String _jumpId = '';
@@ -152,6 +153,10 @@ class _ChatScreenState extends State<ChatScreen> {
     }, onError: (_) {}));
     subs.add(ref('groupStatus/$gid/t').onValue.listen((e) {
       if (mounted) setState(() => status = e.snapshot.value?.toString() ?? '');
+    }, onError: (_) {}));
+    subs.add(ref('evLock/$gid/until').onValue.listen((e) {
+      final v = e.snapshot.value;
+      _lockUntil = v is num ? v.toInt() : 0;
     }, onError: (_) {}));
     subs.add(ref('evEnd/$gid').onValue.listen((e) {
       final v = e.snapshot.value;
@@ -518,6 +523,10 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _sendText() async {
     final t = ctrl.text.trim();
     if (t.isEmpty || !_gate()) return;
+    if (_lockUntil > nowMs() && !Session.isDev) {
+      toast('الشات مقفل لحظات بسبب بدء الفعالية 🔒', bad: true);
+      return;
+    }
     final lv = badLevel(t);
     if (lv > 0) {
       ctrl.clear();
@@ -1483,6 +1492,8 @@ Future<void> showGamesSheet(BuildContext context, String gid) async {
         const Text('فعاليات جماعية', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: kMu)),
         b('⌨️ سرعة الكتابة', 'كتابة'),
         b('🎨 لعبة الألوان', 'الوان'),
+        b('🧩 فعالية التفكيك', 'تفكيك'),
+        b('😀 فعالية الايموجي', 'ايموجي'),
         b('🐾 فعالية الحيوانات', 'حيوانات'),
         b('🎭 تخمين الشخصيات', 'شخصيات'),
       ],
