@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'data.dart';
+import 'sfx.dart';
 import 'widgets.dart';
 
 // ======================================================================
@@ -38,6 +39,46 @@ Future<Map<dynamic, dynamic>> gameCall(String g, String a, [Map<String, Object?>
   await sub.cancel();
   if (res != null) return res;
   return <dynamic, dynamic>{'err': why.isNotEmpty ? why : 'timeout'};
+}
+
+/// مؤثر صوتي قصير (يُحرَّر المشغّل بعد انتهائه)
+void _sfx(String name, {double volume = 1}) {
+  Sfx.start(name, volume: volume).then((p) {
+    Future<void>.delayed(const Duration(seconds: 7), () {
+      try {
+        p.dispose();
+      } catch (_) {}
+    });
+  }).catchError((_) {});
+}
+
+/// بطاقة نتيجة واضحة بزر إغلاق (بدل الرسائل الصغيرة)
+Future<void> showResultCard(BuildContext context, {required String emoji, required String title, required List<String> lines, required Color color}) {
+  return showDialog<void>(
+    context: context,
+    builder: (c) => Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
+        decoration: BoxDecoration(
+          color: kCard,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: color, width: 2),
+          boxShadow: [BoxShadow(color: color.withAlpha(110), blurRadius: 26)],
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(emoji, style: const TextStyle(fontSize: 64)),
+          const SizedBox(height: 6),
+          Text(title, textAlign: TextAlign.center, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: color)),
+          const SizedBox(height: 10),
+          for (final l in lines.where((x) => x.isNotEmpty))
+            Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(l, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, height: 1.4))),
+          const SizedBox(height: 16),
+          SizedBox(width: double.infinity, child: AppButton('إغلاق', onPressed: () => Navigator.of(c).pop())),
+        ]),
+      ),
+    ),
+  );
 }
 
 String _fmtLeft(int ms) {
@@ -311,8 +352,9 @@ class _BalloonState extends State<BalloonGameScreen> {
   bool active = false;
   bool over = false;
   String msg = 'اضغط ابدأ ثم افقع 3 بالونات. يوجد قنبلتان مخفيتان!';
-  final Map<int, String> shown = {}; // الخلية -> نص ظاهر (إيموجي + قيمة)
+  final Map<int, String> shown = {};
   final Set<int> bombs = {};
+  final List<String> pops = [];
   int sum = 0;
 
   Future<void> _start() async {
@@ -327,6 +369,7 @@ class _BalloonState extends State<BalloonGameScreen> {
     setState(() {
       shown.clear();
       bombs.clear();
+      pops.clear();
       sum = 0;
       active = true;
       over = false;
@@ -349,15 +392,22 @@ class _BalloonState extends State<BalloonGameScreen> {
         bombs.add((b as num).toInt());
       }
       bombs.add(i);
+      _sfx('boom.wav');
       setState(() {
         active = false;
         over = true;
         busy = false;
         msg = '💥 قنبلة! خسرت جولتك';
       });
+      await showResultCard(context, emoji: '💥', title: 'انفجرت القنبلة!', color: const Color(0xFFFF3B3B), lines: [
+        if (pops.isNotEmpty) 'ضاعت مكاسب هذه الجولة: ${r['lost'] ?? sum}',
+        'حاول مجدداً في الجولة القادمة',
+      ]);
       return;
     }
+    _sfx('pop.wav');
     shown[i] = '${r['e']}\n+${r['v']}';
+    pops.add('${r['e']}  +${r['v']}');
     sum = (r['sum'] as num?)?.toInt() ?? (r['win'] as num?)?.toInt() ?? sum;
     if (r['done'] == true) {
       setState(() {
@@ -366,6 +416,8 @@ class _BalloonState extends State<BalloonGameScreen> {
         busy = false;
         msg = '🎉 ربحت $sum رصيد!';
       });
+      _sfx('win.wav');
+      await showResultCard(context, emoji: '🎈', title: 'أحسنت! ربحت', color: const Color(0xFF39FF88), lines: [...pops, 'الجائزة: $sum']);
       return;
     }
     setState(() {
@@ -379,17 +431,22 @@ class _BalloonState extends State<BalloonGameScreen> {
     final txt = isBomb ? '💣' : shown[i];
     return GestureDetector(
       onTap: () => _pop(i),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
+      child: Container(
         decoration: BoxDecoration(
           color: txt != null ? kCard : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: txt != null ? kLine : Colors.transparent),
         ),
         alignment: Alignment.center,
         child: txt != null
-            ? Text(txt, textAlign: TextAlign.center, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, height: 1.2))
-            : const Text('🎈', style: TextStyle(fontSize: 46)),
+            ? TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: .3, end: 1),
+                duration: const Duration(milliseconds: 380),
+                curve: Curves.elasticOut,
+                builder: (_, v, ch) => Transform.scale(scale: v, child: ch),
+                child: Text(txt, textAlign: TextAlign.center, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, height: 1.2)),
+              )
+            : const FittedBox(child: Padding(padding: EdgeInsets.all(2), child: Text('🎈', style: TextStyle(fontSize: 92)))),
       ),
     );
   }
@@ -398,28 +455,29 @@ class _BalloonState extends State<BalloonGameScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('🎈 البالونات')),
-      body: ListView(padding: const EdgeInsets.all(18), children: [
-        Center(child: Text(msg, textAlign: TextAlign.center, style: TextStyle(color: context.accent2, fontWeight: FontWeight.w800))),
-        const SizedBox(height: 14),
+      body: ListView(padding: const EdgeInsets.all(14), children: [
+        Center(child: Text(msg, textAlign: TextAlign.center, style: TextStyle(color: context.accent2, fontWeight: FontWeight.w800, fontSize: 15))),
+        const SizedBox(height: 10),
         GridView.count(
           crossAxisCount: 3,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          childAspectRatio: .86,
           children: [for (var i = 0; i < cells; i++) _cell(i)],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
         if (!active) AppButton(busy ? '...' : (over ? 'جولة جديدة' : 'ابدأ'), glow: true, onPressed: busy ? null : _start),
         const SizedBox(height: 10),
-        const Center(child: Text('☘️ +10    ⭐ +20    💎 +50', style: TextStyle(color: kMu, fontSize: 12))),
+        const Center(child: Text('☘️ +10    ⭐ +20    💎 +50', style: TextStyle(color: kMu, fontSize: 13))),
       ]),
     );
   }
 }
 
 // ---------------------------------------------------------------------
-// بطاقة الحظ الصفراء
+// بطاقة الحظ: بطاقة فوسفورية تمسحها بإصبعك فيظهر الإيموجي تدريجياً
 // ---------------------------------------------------------------------
 class LuckyCardScreen extends StatefulWidget {
   const LuckyCardScreen({super.key});
@@ -428,87 +486,169 @@ class LuckyCardScreen extends StatefulWidget {
   State<LuckyCardScreen> createState() => _LuckyState();
 }
 
-class _LuckyState extends State<LuckyCardScreen> with SingleTickerProviderStateMixin {
-  late final AnimationController c = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+class _LuckyState extends State<LuckyCardScreen> {
+  static const int cols = 8;
+  static const int rows = 10;
   bool busy = false;
+  bool hasCard = false;
+  bool done = false;
   String emoji = '';
   int value = 0;
   int left = -1;
+  final List<List<Offset>> strokes = [];
+  final Set<int> hit = {};
+  int _lastSfx = 0;
 
-  @override
-  void dispose() {
-    c.dispose();
-    super.dispose();
-  }
-
-  Future<void> _play() async {
+  Future<void> _get() async {
     if (busy) return;
-    setState(() {
-      busy = true;
-      emoji = '';
-    });
+    setState(() => busy = true);
     final r = await gameCall('lucky', 'play');
     if (!mounted) return;
     if (soloErr(r)) {
       setState(() => busy = false);
       return;
     }
-    c.reset();
-    await c.forward();
-    if (!mounted) return;
     setState(() {
       emoji = (r['e'] ?? '').toString();
       value = (r['v'] as num?)?.toInt() ?? 0;
       left = (r['left'] as num?)?.toInt() ?? 0;
+      strokes.clear();
+      hit.clear();
+      hasCard = true;
+      done = false;
       busy = false;
     });
-    toast('🎉 ربحت $value رصيد');
+  }
+
+  void _touch(Offset p, Size sz, {bool start = false}) {
+    if (done || !hasCard) return;
+    if (start) strokes.add(<Offset>[]);
+    strokes.last.add(p);
+    final cx = (p.dx / sz.width * cols).floor().clamp(0, cols - 1);
+    final cy = (p.dy / sz.height * rows).floor().clamp(0, rows - 1);
+    for (var dx = -1; dx <= 1; dx++) {
+      for (var dy = -1; dy <= 1; dy++) {
+        final x = cx + dx;
+        final y = cy + dy;
+        if (x >= 0 && x < cols && y >= 0 && y < rows) hit.add(y * cols + x);
+      }
+    }
+    final n = nowMs();
+    if (n - _lastSfx > 210) {
+      _lastSfx = n;
+      _sfx('scratch.wav', volume: .55);
+    }
+    if (hit.length >= (cols * rows * .62).round()) {
+      done = true;
+      _sfx('win.wav');
+      setState(() {});
+      Future<void>.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          showResultCard(context, emoji: emoji, title: 'بطاقة الحظ', color: const Color(0xFFD4FF00), lines: ['ظهر لك $emoji', 'الجائزة: $value رصيد']);
+        }
+      });
+      return;
+    }
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
+    final w = math.min(MediaQuery.of(context).size.width - 36, 360.0);
+    final h = w * 1.28;
+    final sz = Size(w, h);
     return Scaffold(
       appBar: AppBar(title: const Text('❓ بطاقة الحظ')),
-      body: Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          AnimatedBuilder(
-            animation: c,
-            builder: (_, __) {
-              final flip = c.value;
-              final showFront = flip > .5 && emoji.isNotEmpty;
-              return Transform(
-                alignment: Alignment.center,
-                transform: Matrix4.identity()
-                  ..setEntry(3, 2, 0.001)
-                  ..rotateY((flip < .5 ? flip : flip - 1) * math.pi),
-                child: Container(
-                  width: 190,
-                  height: 250,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFFFE680), Color(0xFFFFB000)]),
-                    borderRadius: BorderRadius.circular(22),
-                    boxShadow: const [BoxShadow(color: Color(0x88FFB000), blurRadius: 24)],
-                  ),
-                  child: showFront
-                      ? Column(mainAxisSize: MainAxisSize.min, children: [
-                          Text(emoji, style: const TextStyle(fontSize: 70)),
-                          Text('+$value', style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: Color(0xFF3A2400))),
-                        ])
-                      : const Text('؟', style: TextStyle(fontSize: 120, fontWeight: FontWeight.w900, color: Color(0xFF3A2400))),
-                ),
-              );
-            },
+      body: ListView(padding: const EdgeInsets.all(18), children: [
+        Center(
+          child: SizedBox(
+            width: w,
+            height: h,
+            child: !hasCard
+                ? Container(
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: kCard, borderRadius: BorderRadius.circular(22), border: Border.all(color: kLine)),
+                    child: const Text('اضغط «بطاقة جديدة»\nثم امسحها بإصبعك', textAlign: TextAlign.center, style: TextStyle(color: kMu, fontSize: 16, height: 1.7)),
+                  )
+                : Stack(children: [
+                    // الجائزة تحت الطبقة
+                    Container(
+                      width: w,
+                      height: h,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(color: const Color(0xFF0B1A0E), borderRadius: BorderRadius.circular(22), border: Border.all(color: const Color(0xFF39FF14), width: 2)),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        Text(emoji, style: const TextStyle(fontSize: 120)),
+                        Text('+$value', style: const TextStyle(fontSize: 44, fontWeight: FontWeight.w900, color: Color(0xFFD4FF00))),
+                      ]),
+                    ),
+                    // طبقة المسح الفوسفورية
+                    Positioned.fill(
+                      child: AnimatedOpacity(
+                        opacity: done ? 0 : 1,
+                        duration: const Duration(milliseconds: 500),
+                        child: GestureDetector(
+                          onPanStart: (d) => _touch(d.localPosition, sz, start: true),
+                          onPanUpdate: (d) => _touch(d.localPosition, sz),
+                          child: CustomPaint(size: sz, painter: _ScratchPainter(strokes, 26)),
+                        ),
+                      ),
+                    ),
+                  ]),
           ),
-          const SizedBox(height: 22),
-          const Text('💎 20   ⭐ 10   🏆 30', style: TextStyle(color: kMu)),
-          const SizedBox(height: 14),
-          SizedBox(width: 220, child: AppButton(busy ? '...' : 'اكشف البطاقة', glow: true, onPressed: busy ? null : _play)),
-          if (left >= 0) Padding(padding: const EdgeInsets.only(top: 10), child: Text('متبقي لك $left من 3', style: const TextStyle(color: kMu, fontSize: 12))),
-        ]),
-      ),
+        ),
+        const SizedBox(height: 16),
+        const Center(child: Text('💎 20   ⭐ 10   🏆 30', style: TextStyle(color: kMu))),
+        const SizedBox(height: 12),
+        if (!hasCard || done) AppButton(busy ? '...' : 'بطاقة جديدة', glow: true, onPressed: busy ? null : _get),
+        if (left >= 0) Padding(padding: const EdgeInsets.only(top: 10), child: Center(child: Text('متبقي لك $left من 3', style: const TextStyle(color: kMu, fontSize: 12)))),
+      ]),
     );
   }
+}
+
+class _ScratchPainter extends CustomPainter {
+  _ScratchPainter(this.strokes, this.r);
+  final List<List<Offset>> strokes;
+  final double r;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    canvas.saveLayer(rect, Paint());
+    final rr = RRect.fromRectAndRadius(rect, const Radius.circular(22));
+    canvas.drawRRect(
+      rr,
+      Paint()..shader = const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF39FF14), Color(0xFFD4FF00), Color(0xFF00FFAA)]).createShader(rect),
+    );
+    final tp = TextPainter(
+      text: const TextSpan(text: '؟', style: TextStyle(fontSize: 170, fontWeight: FontWeight.w900, color: Color(0x5500330A))),
+      textDirection: TextDirection.rtl,
+    )..layout();
+    tp.paint(canvas, Offset((size.width - tp.width) / 2, (size.height - tp.height) / 2));
+    final clear = Paint()
+      ..blendMode = BlendMode.clear
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = r * 2;
+    final dot = Paint()..blendMode = BlendMode.clear;
+    for (final s in strokes) {
+      if (s.length == 1) {
+        canvas.drawCircle(s.first, r, dot);
+      } else {
+        final path = Path()..moveTo(s.first.dx, s.first.dy);
+        for (final p in s.skip(1)) {
+          path.lineTo(p.dx, p.dy);
+        }
+        canvas.drawPath(path, clear);
+      }
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _ScratchPainter old) => true;
 }
 
 // ---------------------------------------------------------------------
@@ -525,14 +665,19 @@ class _CrystalState extends State<CrystalGameScreen> with SingleTickerProviderSt
   late final AnimationController glow = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat(reverse: true);
   final TextEditingController bet = TextEditingController(text: '50');
   bool busy = false;
-  List<String> syms = ['❔', '❔', '❔', '❔'];
+  List<String> syms = ['', '', '', ''];
+  List<bool> pop = [false, false, false, false];
   String hit = '';
   String msg = 'ضع رهانك (10 - 500) ثم لِف';
   Timer? spinT;
+  dynamic spinP;
 
   @override
   void dispose() {
     spinT?.cancel();
+    try {
+      spinP?.stop();
+    } catch (_) {}
     glow.dispose();
     bet.dispose();
     super.dispose();
@@ -549,49 +694,92 @@ class _CrystalState extends State<CrystalGameScreen> with SingleTickerProviderSt
       busy = true;
       hit = '';
       msg = '...';
-    });
-    // دوران بصري فقط أثناء انتظار رد السيرفر
-    const pool = ['⭐', '🍒', '💣', '💎', '💠'];
-    final rr = math.Random();
-    spinT = Timer.periodic(const Duration(milliseconds: 90), (_) {
-      if (mounted) setState(() => syms = List<String>.generate(4, (_) => pool[rr.nextInt(pool.length)]));
+      syms = ['', '', '', ''];
     });
     final r = await gameCall('crystal', 'play', {'bet': b});
-    spinT?.cancel();
     if (!mounted) return;
     if (soloErr(r)) {
       setState(() {
         busy = false;
-        syms = ['❔', '❔', '❔', '❔'];
         msg = 'ضع رهانك (10 - 500) ثم لِف';
       });
       return;
     }
-    final s = ((r['s'] as List?) ?? const []).map((e) => e.toString()).toList();
+    final fin = ((r['s'] as List?) ?? const []).map((e) => e.toString()).toList();
+    if (fin.length != 4) {
+      setState(() => busy = false);
+      return;
+    }
+    // لفّة 5.5 ثانية: الخانات تتوقف واحدة بعد الأخرى على رموز عشوائية ثم الرمز النهائي
+    const pool = ['⭐', '🍒', '💣', '💎', '💠'];
+    const stops = [2200, 3200, 4300, 5500];
+    final rr = math.Random();
+    final done = List<bool>.filled(4, false);
+    final t0 = nowMs();
+    setState(() => msg = 'جاري اللف...');
+    _sfx('spin.wav', volume: .8);
+    final c = Completer<void>();
+    spinT = Timer.periodic(const Duration(milliseconds: 85), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      final el = nowMs() - t0;
+      setState(() {
+        for (var i = 0; i < 4; i++) {
+          if (el < stops[i]) {
+            syms[i] = pool[rr.nextInt(pool.length)];
+          } else if (!done[i]) {
+            done[i] = true;
+            syms[i] = fin[i];
+            pop[i] = true;
+            _sfx('reel_stop.wav', volume: .7);
+            Future<void>.delayed(const Duration(milliseconds: 180), () {
+              if (mounted) setState(() => pop[i] = false);
+            });
+          }
+        }
+      });
+      if (el >= stops[3] + 60 && !c.isCompleted) {
+        t.cancel();
+        c.complete();
+      }
+    });
+    await c.future;
+    if (!mounted) return;
     final out = (r['out'] ?? '').toString();
-    final net = (r['net'] as num?)?.toInt() ?? 0;
+    final back = (r['back'] as num?)?.toInt() ?? 0;
+    final mult = r['mult'];
+    final left = (r['left'] as num?)?.toInt();
     setState(() {
-      if (s.length == 4) syms = s;
       hit = out == 'win' ? (r['hit'] ?? '').toString() : '';
       busy = false;
-      msg = out == 'win'
-          ? '🎉 ربحت ${fmtN(net)} رصيد (×${r['mult']})'
-          : out == 'refund'
-              ? 'لم تربح شيء، تم استرجاع رصيدك'
-              : '💥 خسرت ${fmtN(-net)} رصيد';
+      msg = out == 'win' ? '🎉 فزت!' : (out == 'refund' ? 'تم استرجاع رصيدك' : '💥 لم تربح');
     });
+    final tail = left == null ? '' : 'متبقي لك $left لفّات';
+    if (out == 'win') {
+      _sfx('win.wav');
+      await showResultCard(context, emoji: hit, title: 'ربحت!', color: const Color(0xFF39FF88), lines: ['$hit  ×$mult', '$b × $mult = $back', 'الجائزة: $back', tail]);
+    } else if (out == 'refund') {
+      await showResultCard(context, emoji: '↩️', title: 'تم استرجاع رصيدك', color: const Color(0xFFFFD54A), lines: ['ظهرت قنبلة واحدة بلا 💎 أو 💠', 'لا توجد خسارة أو ربح', tail]);
+    } else {
+      _sfx('lose.wav');
+      final bombs = (r['bombs'] as num?)?.toInt() ?? 0;
+      await showResultCard(context, emoji: '💥', title: 'خسرت', color: const Color(0xFFFF3B3B), lines: [bombs >= 2 ? 'ظهرت $bombs قنابل 💣' : 'لا يوجد تكرار — لم تربح شيئاً', 'خسرت رهانك: $b', tail]);
+    }
   }
 
   void _info() {
     showAppSheet<void>(context, (sc) => [
           const Text('💎 جدول الكريستال', textAlign: TextAlign.center, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-          const Text('⭐ ظهور 25٪ — ×2\n🍒 ظهور 25٪ — ×1.5\n💣 ظهور 40٪ — خسارة الرهان\n💎 ظهور 8٪ — ×3.5\n💠 ظهور 2٪ — ×6', style: TextStyle(height: 1.9, fontSize: 14)),
+          const Text('⭐ ظهور 25٪ — ×2\n🍒 ظهور 30٪ — ×1.5\n💣 ظهور 30٪ — خسارة الرهان\n💎 ظهور 10٪ — ×3.5\n💠 ظهور 5٪ — ×6', style: TextStyle(height: 1.9, fontSize: 14)),
           const Text(
             'يُحسب أكثر إيموجي تكراراً (مرتان فأكثر) ويتوهج.\n'
             '• قنبلتان أو أكثر = خسارة الرهان.\n'
             '• قنبلة واحدة بلا 💎 أو 💠 = استرجاع الرهان.\n'
             '• 💎 أو 💠 تُبطل أثر القنبلة الواحدة.\n'
-            '• بلا تكرار = استرجاع الرهان.',
+            '• بلا تكرار = لا ربح (تخسر رهانك).\n'
+            '• الحد 7 لفّات كل 12 ساعة، والرهان حتى 500.',
             style: TextStyle(color: kMu, height: 1.7, fontSize: 12.5),
           ),
         ]);
@@ -599,10 +787,6 @@ class _CrystalState extends State<CrystalGameScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    final cnt = <String, int>{};
-    for (final s in syms) {
-      cnt[s] = (cnt[s] ?? 0) + 1;
-    }
     return Scaffold(
       appBar: AppBar(title: const Text('💎 الكريستال'), actions: [IconButton(onPressed: _info, icon: const Icon(Icons.info_outline_rounded))]),
       body: ListView(padding: const EdgeInsets.all(18), children: [
@@ -611,19 +795,23 @@ class _CrystalState extends State<CrystalGameScreen> with SingleTickerProviderSt
         AnimatedBuilder(
           animation: glow,
           builder: (_, __) => Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            for (final s in syms)
-              Container(
-                width: 70,
-                height: 84,
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: kCard,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: hit.isNotEmpty && s == hit ? const Color(0xFFFFD54A) : kLine, width: hit.isNotEmpty && s == hit ? 2 : 1),
-                  boxShadow: hit.isNotEmpty && s == hit ? [BoxShadow(color: const Color(0xFFFFB000).withAlpha(120 + (90 * glow.value).toInt()), blurRadius: 10 + 14 * glow.value)] : null,
+            for (var i = 0; i < 4; i++)
+              AnimatedScale(
+                scale: pop[i] ? 1.18 : 1,
+                duration: const Duration(milliseconds: 160),
+                child: Container(
+                  width: 70,
+                  height: 84,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: kCard,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: hit.isNotEmpty && syms[i] == hit ? const Color(0xFFFFD54A) : kLine, width: hit.isNotEmpty && syms[i] == hit ? 2 : 1),
+                    boxShadow: hit.isNotEmpty && syms[i] == hit ? [BoxShadow(color: const Color(0xFFFFB000).withAlpha(120 + (90 * glow.value).toInt()), blurRadius: 10 + 14 * glow.value)] : null,
+                  ),
+                  child: Text(syms[i], style: const TextStyle(fontSize: 38)),
                 ),
-                child: Text(s, style: const TextStyle(fontSize: 38)),
               ),
           ]),
         ),
