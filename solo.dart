@@ -1166,3 +1166,33 @@ class _EventPrizesState extends State<EventPrizesScreen> {
     );
   }
 }
+
+/// أسماء إجابات الفعاليات (إيموجي/ألوان/حيوانات): لا تُعدّ مخالفة أثناء فعالية جارية
+const Set<String> _evSafe = {
+  'كلب', 'قطه', 'قط', 'هره', 'اسد', 'حصان', 'جمل', 'فراشه', 'قنبله', 'نار', 'قلب', 'تاج', 'نجمه', 'قمر', 'هلال', 'شمس', 'ورده',
+  'تفاحه', 'تفاح', 'موزه', 'موز', 'سياره', 'طياره', 'كره', 'هديه', 'مفتاح', 'شجره', 'ساعه', 'منبه', 'جوال', 'هاتف', 'موبايل',
+  'بيت', 'منزل', 'بالون', 'بيتزا', 'برق', 'صاعقه', 'ثلج', 'بطيخ', 'احمر', 'ازرق', 'اخضر', 'اصفر', 'بنفسجي', 'برتقالي', 'بني',
+  'زهري', 'وردي', 'رمادي', 'فضي', 'حمار', 'ثور', 'خنزير', 'تيس', 'ذئب', 'ثعلب', 'قرد', 'فيل', 'نمر', 'دب',
+};
+
+String _evNorm(String s) => s
+    .replaceAll(RegExp('[\u064B-\u0652\u0640]'), '')
+    .replaceAll(RegExp('[أإآٱ]'), 'ا')
+    .replaceAll('ة', 'ه')
+    .replaceAll(RegExp('[يى]'), 'ي')
+    .replaceAll('ؤ', 'و')
+    .replaceAll('ئ', 'ي')
+    .replaceAll(RegExp(r'\s+'), '')
+    .toLowerCase();
+
+bool evSafeWord(String t) => _evSafe.contains(_evNorm(t.trim()));
+
+/// إلغاء الفعالية الجارية في القروب (السيرفر يتحقق من الصلاحية والشروط)
+Future<void> cancelEvent(String gid) async {
+  try {
+    await ref('evReq/${ref('evReq').push().key}').set(<String, Object?>{'u': myUid, 'ts': ServerValue.timestamp, 'g': gid, 'k': 'cancel'}).timeout(const Duration(seconds: 8));
+    toast('تم إرسال طلب الإلغاء');
+  } catch (_) {
+    toast('تعذر إلغاء الفعالية', bad: true);
+  }
+}

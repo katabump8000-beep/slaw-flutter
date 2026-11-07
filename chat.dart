@@ -105,6 +105,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final Map<String, String> _eidOf = {};
   Timer? _evTimer;
   int _lockUntil = 0;
+  bool _evLive = false;
   Timer? _expTimer;
   final Set<String> _warHidden = {};
   String _jumpId = '';
@@ -153,6 +154,9 @@ class _ChatScreenState extends State<ChatScreen> {
     }, onError: (_) {}));
     subs.add(ref('groupStatus/$gid/t').onValue.listen((e) {
       if (mounted) setState(() => status = e.snapshot.value?.toString() ?? '');
+    }, onError: (_) {}));
+    subs.add(ref('evLive/$gid').onValue.listen((e) {
+      _evLive = e.snapshot.value != null;
     }, onError: (_) {}));
     subs.add(ref('evLock/$gid/until').onValue.listen((e) {
       final v = e.snapshot.value;
@@ -527,7 +531,7 @@ class _ChatScreenState extends State<ChatScreen> {
       toast('الشات مقفل لحظات بسبب بدء الفعالية 🔒', bad: true);
       return;
     }
-    final lv = badLevel(t);
+    final lv = (_evLive && evSafeWord(t)) ? 0 : badLevel(t); // أثناء الفعالية: إجابة مثل «كلب» ليست مخالفة
     if (lv > 0) {
       ctrl.clear();
       await _punish(lv == 2 ? 'severe' : 'mild', 'رسالة مخالفة!');
@@ -1706,6 +1710,7 @@ class _MsgBubbleState extends State<MsgBubble> {
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             if (m['edited'] == true) const Text('تم التعديل  ', style: TextStyle(fontSize: 10.5, color: Color(0xB3FFFFFF))),
             Text(hhmm(ts), style: const TextStyle(fontSize: 10.5, color: Color(0xB3FFFFFF))),
+            if (m['ok'] == true) const Text('  ✅', style: TextStyle(fontSize: 12)),
             if (mine && sc > 0) Text('   👁 $sc', style: const TextStyle(fontSize: 10.5, color: Color(0xB3FFFFFF))),
           ]),
         ));
@@ -1770,7 +1775,17 @@ class _MsgBubbleState extends State<MsgBubble> {
     if (card == null && k == 'bot' && (m['d'] ?? '').toString().contains('"ev"')) {
       try {
         final o = Map<String, dynamic>.from(jsonDecode((m['d'] ?? '{}').toString()) as Map);
-        if (o['ev'] == 1) card = EvCard(text: (m['text'] ?? '').toString(), col: (o['col'] ?? '').toString());
+        if (o['ev'] == 1) {
+          card = EvCard(
+            text: (m['text'] ?? '').toString(),
+            col: (o['col'] ?? '').toString(),
+            o: o,
+            at: (m['ts'] as num?)?.toInt() ?? 0,
+            canCancel: isStaff || (o['by'] ?? '').toString() == myUid,
+            cancelLocked: o['hot'] == true && !Session.isDev,
+            onCancel: () => cancelEvent(widget.gid),
+          );
+        }
       } catch (_) {}
     }
     final canReply = widget.onReply != null && (k == 'bot' || k == 'welcome');
