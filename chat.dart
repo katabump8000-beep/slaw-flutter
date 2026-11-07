@@ -1419,6 +1419,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 m: m,
                 mine: from == myUid,
                 admin: admins[from] == true,
+                viewerStaff: isStaff,
                 bio: bio is Map ? Map<String, dynamic>.from(bio) : null,
                 cache: imgCache,
                 onLong: () => _menu(id),
@@ -1596,8 +1597,9 @@ class MsgBubble extends StatefulWidget {
   final VoidCallback? onReply;
   final void Function(String)? onJump;
   final String gid;
+  final bool viewerStaff; // هل من يشاهد الرسالة مشرف أو مطور (لأزرار البطاقات)
 
-  const MsgBubble({super.key, required this.id, required this.m, required this.mine, required this.admin, required this.bio, required this.cache, required this.onLong, required this.onAvatar, this.onReply, this.onJump, this.gid = ''});
+  const MsgBubble({super.key, this.viewerStaff = false, required this.id, required this.m, required this.mine, required this.admin, required this.bio, required this.cache, required this.onLong, required this.onAvatar, this.onReply, this.onJump, this.gid = ''});
 
   @override
   State<MsgBubble> createState() => _MsgBubbleState();
@@ -1781,7 +1783,7 @@ class _MsgBubbleState extends State<MsgBubble> {
             col: (o['col'] ?? '').toString(),
             o: o,
             at: (m['ts'] as num?)?.toInt() ?? 0,
-            canCancel: isStaff || (o['by'] ?? '').toString() == myUid,
+            canCancel: Session.isDev || widget.viewerStaff || (o['by'] ?? '').toString() == myUid,
             cancelLocked: o['hot'] == true && !Session.isDev,
             onCancel: () => cancelEvent(widget.gid),
           );
