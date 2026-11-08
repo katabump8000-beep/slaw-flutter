@@ -1,4 +1,5 @@
 import 'devtools2.dart';
+import 'viewer.dart';
 import 'solo.dart';
 import 'servertime.dart';
 import 'unread.dart';
@@ -2010,7 +2011,7 @@ class ImageViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(backgroundColor: Colors.black, appBar: AppBar(backgroundColor: Colors.black), body: Center(child: InteractiveViewer(child: Image.memory(bytes))));
+    return BigImageViewer(bytes: bytes);
   }
 }
 

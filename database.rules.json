@@ -1897,6 +1897,28 @@
     ".read": "auth!=null&&auth.uid===$uid",
     ".write": false
    }
+  },
+  "kingdomReq": {
+   "$rid": {
+    ".read": false,
+    ".write": "auth!=null&&!data.exists()&&newData.child('u').val()===auth.uid&&newData.child('ts').val()===now&&(root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val())",
+    ".validate": "newData.hasChildren(['u','ts','kid','t'])",
+    "u": {
+     ".validate": "newData.isString()"
+    },
+    "ts": {
+     ".validate": "newData.isNumber()"
+    },
+    "kid": {
+     ".validate": "newData.isString()&&newData.val().length<=40"
+    },
+    "t": {
+     ".validate": "newData.isString()&&newData.val().length>0&&newData.val().length<=300"
+    },
+    "$other": {
+     ".validate": false
+    }
+   }
   }
  }
 }

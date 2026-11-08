@@ -14,6 +14,7 @@ import 'core.dart';
 import 'crop.dart';
 import 'data.dart';
 import 'home.dart';
+import 'solo.dart';
 import 'widgets.dart';
 
 // لا يوجد سقف يومي: اللعب مفتوح للجميع
@@ -70,14 +71,29 @@ class _QuickQuizScreenState extends State<QuickQuizScreen> {
   @override
   void initState() {
     super.initState();
-    final left = 180000 - (nowMs() - (prefs.getInt('cd_${widget.kind}') ?? 0));
-    if (left > 0) {
-      blocked = true;
-      info = 'انتظر ${(left / 1000).ceil()} ثانية قبل إعادة اللعب';
-    } else if (widget.kind != 'typing') {
+    blocked = true; // حتى يردّ السيرفر (المهلة بوقت السيرفر لا بوقت الجهاز)
+    info = 'جاري التحقق...';
+    _gateCheck();
+  }
+
+  Future<void> _gateCheck() async {
+    final r = await gameCall('qcd', widget.kind);
+    if (!mounted) return;
+    final err = (r['err'] ?? '').toString();
+    if (err == 'wait') {
+      final ms = (r['left'] as num?)?.toInt() ?? 0;
+      setState(() => info = 'انتظر ${(ms / 1000).ceil()} ثانية قبل إعادة اللعب');
+      return;
+    }
+    if (err.isNotEmpty) {
+      setState(() => info = 'تعذر بدء اللعبة، تحقق من الاتصال');
+      return;
+    }
+    setState(() => blocked = false);
+    if (widget.kind != 'typing') {
       _next();
     } else {
-      info = 'اكتب الجملة بأسرع ما يمكن';
+      setState(() => info = 'اكتب الجملة بأسرع ما يمكن');
     }
   }
 

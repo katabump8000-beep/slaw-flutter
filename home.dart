@@ -2,6 +2,8 @@ import 'aichat.dart';
 import 'devtools3.dart';
 import 'dino.dart';
 import 'football.dart';
+import 'kingdoms.dart';
+import 'viewer.dart';
 import 'servertime.dart';
 import 'visuals.dart';
 import 'dart:async';
@@ -161,12 +163,7 @@ class GroupPhoto extends StatelessWidget {
         );
         if (!viewable || img == null) return box;
         return GestureDetector(
-          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-              builder: (_) => Scaffold(
-                    backgroundColor: Colors.black,
-                    appBar: AppBar(backgroundColor: Colors.black, title: Text(name)),
-                    body: Center(child: InteractiveViewer(child: Image(image: img))),
-                  ))),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => GroupPhotoViewer(gid: gid))),
           child: box,
         );
       },
@@ -536,8 +533,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               ),
                             if (mains.isNotEmpty) SecCard(title: 'النقابات', children: mains.map(_row).toList()),
                             if (system.isNotEmpty) SecCard(title: 'النظام', children: system.map(_row).toList()),
+                            const KingdomsCard(),
                             if (ids.isEmpty) const Padding(padding: EdgeInsets.all(40), child: Center(child: Text('لا توجد قروبات بعد', style: TextStyle(color: kMu)))),
-                            const FriendsSection(),
                             SecCard(title: 'المساعد', children: [
                               ListTile(
                                 leading: Icon(Icons.smart_toy_outlined, color: context.accent2),
@@ -546,6 +543,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AiChatScreen(staff: false))),
                               ),
                             ]),
+                            const FriendsSection(),
                             const SizedBox(height: 80),
                           ],
                         ),
