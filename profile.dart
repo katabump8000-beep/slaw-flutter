@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'ai.dart';
+import 'devtools2.dart';
 import 'app_state.dart';
 import 'data.dart';
 import 'entrancefx.dart';
@@ -195,6 +196,15 @@ class _ProfileBodyState extends State<_ProfileBody> {
               err(e);
             }
           }),
+        ),
+      if (Session.isDev)
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Row(children: [
+            Expanded(child: AppButton('📜 السجل', kind: 'g', compact: true, onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => LedgerScreen(uid: widget.uid, name: p!.name))))),
+            const SizedBox(width: 8),
+            Expanded(child: AppButton('🏆 الإنجازات', kind: 'g', compact: true, onPressed: () => editAchievement(context, widget.uid))),
+          ]),
         ),
       if (isDevPeer || (Session.isDev && (role == 'dev' || role == 'emp') && widget.uid != myUid))
         Padding(padding: const EdgeInsets.only(top: 10), child: AppButton('مراسلة', kind: 'g', onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => DevDmScreen(peer: widget.uid))))),

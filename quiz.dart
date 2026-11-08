@@ -117,7 +117,7 @@ class _QuickQuizScreenState extends State<QuickQuizScreen> {
     var m = pay > 0 ? '🎉 ربح $pay رصيد' : (raw > 0 ? '🔒 وصلت للسقف اليومي للألعاب' : '💥 لم يربح');
     if (pay > 0) {
       try {
-        await addBalRetry(pay);
+        await addBalRetry(pay, why: 'فعالية الأعلام');
         await _quizPaid(pay);
       } catch (_) {
         m = 'تعذر إضافة الربح';

@@ -1,3 +1,4 @@
+import 'aichat.dart';
 import 'uiprefs.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -215,6 +216,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ChangePasswordScreen())),
           ),
           const SupportTile(),
+          if (Session.isDev)
+            ListTile(
+              leading: const Icon(Icons.smart_toy_outlined),
+              title: const Text('AI'),
+              subtitle: const Text('مساعد الإدارة', style: TextStyle(color: kMu, fontSize: 12)),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AiChatScreen(staff: true))),
+            ),
+          if (Session.isEmp)
+            ListTile(
+              leading: const Icon(Icons.power_settings_new_rounded),
+              title: const Text('حالة Ai'),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AiStatusScreen())),
+            ),
           if (Session.isDev)
             ListTile(
               leading: const Icon(Icons.build_circle_outlined),

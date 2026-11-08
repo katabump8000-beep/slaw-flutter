@@ -15,21 +15,23 @@ Future<num> balanceNow() async {
 }
 
 /// تعديل الرصيد. gain=true يكتب ts الخادم (شرط قاعدة الربح)
-Future<void> addBal(int delta, {bool gain = false}) async {
+Future<void> addBal(int delta, {bool gain = false, String? why}) async {
   final cur = (await balanceNow()).toInt();
   final nb = cur + delta;
   if (nb < 0) throw 'low';
   final up = <String, Object?>{'wallets/$myUid/bal': nb};
   if (gain) up['wallets/$myUid/ts'] = ServerValue.timestamp;
   await db.ref().update(up);
+  // سجل مركزي لعمليات الرصيد (يراه المطورون في «السجل»): لا يعطّل العملية إن فشل
+  db.ref('ledger/$myUid').push().set(<String, Object?>{'a': delta, 'w': why ?? (delta >= 0 ? 'ربح' : 'خصم'), 'ts': ServerValue.timestamp}).catchError((Object _) {});
 }
 
-Future<void> addBalRetry(int d) async {
+Future<void> addBalRetry(int d, {String? why}) async {
   try {
-    await addBal(d, gain: true);
+    await addBal(d, gain: true, why: why);
   } catch (_) {
     await Future<void>.delayed(const Duration(milliseconds: 4500));
-    await addBal(d, gain: true);
+    await addBal(d, gain: true, why: why);
   }
 }
 

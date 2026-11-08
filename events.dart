@@ -37,7 +37,8 @@ class EvCard extends StatefulWidget {
   final bool canCancel;
   final bool cancelLocked;
   final VoidCallback? onCancel;
-  const EvCard({super.key, required this.text, this.col = '', this.o, this.at = 0, this.canCancel = false, this.cancelLocked = false, this.onCancel});
+  final void Function(String act, Map<String, Object?> extra)? onAct;
+  const EvCard({super.key, required this.text, this.col = '', this.o, this.at = 0, this.canCancel = false, this.cancelLocked = false, this.onCancel, this.onAct});
 
   @override
   State<EvCard> createState() => _EvCardState();
@@ -46,6 +47,7 @@ class EvCard extends StatefulWidget {
 class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
   late final AnimationController c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat(reverse: true);
   Timer? _tk;
+  final TextEditingController _betC = TextEditingController();
 
   @override
   void initState() {
@@ -61,6 +63,7 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
   @override
   void dispose() {
     _tk?.cancel();
+    _betC.dispose();
     c.dispose();
     super.dispose();
   }
@@ -87,10 +90,10 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
         ),
       );
 
-  Widget _decor(String s, Color col) => Text(s, textAlign: TextAlign.center, style: TextStyle(color: col, fontWeight: FontWeight.w900, fontSize: 15, height: 1.3));
+  Widget _decor(String s, Color col) => Text(s, textAlign: TextAlign.center, style: TextStyle(color: col, fontWeight: FontWeight.w900, fontSize: 12.5, height: 1.25));
 
-  Widget _row(String k, String v, Color col, {double size = 17}) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+  Widget _row(String k, String v, Color col, {double size = 14.5}) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
         child: Text.rich(
           TextSpan(children: [
             TextSpan(text: '$k  ', style: TextStyle(color: col, fontWeight: FontWeight.w900)),
@@ -130,7 +133,7 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
     final k = (o['k'] ?? '').toString();
     final base = hexOk(o['col']?.toString()) ? hexColor(o['col'].toString()) : const Color(0xFF39FF88);
     final accent = context.accent;
-    final edge = (k == 'result' || k == 'ann') ? accent : base;
+    final edge = (k == 'hs_result' && hexOk(o['hc']?.toString())) ? hexColor(o['hc'].toString()) : ((k == 'result' || k == 'ann') ? accent : base);
     final left = o['cd'] is num ? max(0, (((o['cd'] as num).toInt() - nowMs()) / 1000).ceil()) : 0;
     final kids = <Widget>[];
     if (k == 'intro') {
@@ -138,62 +141,62 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
       kids.add(const SizedBox(height: 8));
       kids.add(ShaderMask(
         shaderCallback: (r) => const LinearGradient(colors: [Color(0xFFFF3B3B), Color(0xFFFFD83B), Color(0xFF2EE07A), Color(0xFF3B7BFF), Color(0xFFA64BFF), Color(0xFFFF6FB5)]).createShader(r),
-        child: Text((o['title'] ?? '').toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w900, color: Colors.white)),
+        child: Text((o['title'] ?? '').toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900, color: Colors.white)),
       ));
-      kids.add(const SizedBox(height: 10));
-      kids.add(Text('الشرح: ${o['how'] ?? ''}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, height: 1.7, fontWeight: FontWeight.w700, color: Colors.white)));
+      kids.add(const SizedBox(height: 6));
+      kids.add(Text('الشرح: ${o['how'] ?? ''}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 13.5, height: 1.55, fontWeight: FontWeight.w700, color: Colors.white)));
       final ex = o['ex'];
       if (ex is Map) {
-        kids.add(const SizedBox(height: 10));
-        kids.add(Text('مثال عن الفعالية:', textAlign: TextAlign.center, style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w900, color: base)));
-        kids.add(Text((ex['a'] ?? '').toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, height: 1.6, color: Colors.white70)));
-        if (hexOk(ex['ball']?.toString())) kids.add(Padding(padding: const EdgeInsets.symmetric(vertical: 14), child: Center(child: _ball(hexColor(ex['ball'].toString()), 52))));
-        if ((ex['big'] ?? '').toString().isNotEmpty) kids.add(Text(ex['big'].toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 54)));
-        kids.add(Text((ex['b'] ?? '').toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, height: 1.6, color: Colors.white70)));
+        kids.add(const SizedBox(height: 6));
+        kids.add(Text('مثال عن الفعالية:', textAlign: TextAlign.center, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900, color: base)));
+        kids.add(Text((ex['a'] ?? '').toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 12.5, height: 1.5, color: Colors.white70)));
+        if (hexOk(ex['ball']?.toString())) kids.add(Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Center(child: _ball(hexColor(ex['ball'].toString()), 34))));
+        if ((ex['big'] ?? '').toString().isNotEmpty) kids.add(Text(ex['big'].toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 36)));
+        kids.add(Text((ex['b'] ?? '').toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 12.5, height: 1.5, color: Colors.white70)));
       }
-      kids.add(const SizedBox(height: 12));
-      kids.add(Text('ستبدأ الفعالية بعد:  $left', textAlign: TextAlign.center, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: Color(0xFF39FF14))));
-      kids.add(const SizedBox(height: 6));
+      kids.add(const SizedBox(height: 8));
+      kids.add(Text('ستبدأ الفعالية بعد:  $left', textAlign: TextAlign.center, style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w900, color: Color(0xFF39FF14))));
+      kids.add(const SizedBox(height: 4));
       kids.add(_decor('❆━━━━━═⏣⊰🎮⊱⏣═━━━━━❆', base));
     } else if (k == 'round') {
       kids.add(_decor('╗══════════════════╔', base));
       kids.add(const SizedBox(height: 8));
-      kids.add(Text((o['q'] ?? '').toString(), textAlign: TextAlign.center, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: base)));
-      kids.add(const SizedBox(height: 10));
+      kids.add(Text((o['q'] ?? '').toString(), textAlign: TextAlign.center, style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w900, color: base)));
+      kids.add(const SizedBox(height: 6));
       final big = (o['big'] ?? '').toString();
       if (big == 'ball') {
-        kids.add(Padding(padding: const EdgeInsets.symmetric(vertical: 22), child: Center(child: _ball(base, 118))));
+        kids.add(Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Center(child: _ball(base, 84))));
       } else if (big == 'emoji') {
-        kids.add(Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text((o['e'] ?? '').toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 112))));
+        kids.add(Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text((o['e'] ?? '').toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 80))));
       } else {
         kids.add(Padding(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          child: Text((o['w'] ?? '').toString(), textAlign: TextAlign.center, style: TextStyle(fontSize: 38, fontWeight: FontWeight.w900, height: 1.4, color: accent, shadows: [Shadow(color: accent.withAlpha(180), blurRadius: 16)])),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Text((o['w'] ?? '').toString(), textAlign: TextAlign.center, style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, height: 1.4, color: accent, shadows: [Shadow(color: accent.withAlpha(180), blurRadius: 16)])),
         ));
       }
-      kids.add(Text('المدة:  $left', textAlign: TextAlign.center, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: left <= 5 ? const Color(0xFFFF6B6B) : base)));
+      kids.add(Text('المدة:  $left', textAlign: TextAlign.center, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900, color: left <= 5 ? const Color(0xFFFF6B6B) : base)));
       final first = (o['first'] ?? '').toString();
       if (first.isNotEmpty) {
-        kids.add(const SizedBox(height: 8));
-        kids.add(Text('أول من أجاب:  $first', textAlign: TextAlign.center, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Color(0xFF4CE07A))));
+        kids.add(const SizedBox(height: 4));
+        kids.add(Text('أول من أجاب:  $first', textAlign: TextAlign.center, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900, color: Color(0xFF4CE07A))));
       }
-      kids.add(const SizedBox(height: 8));
+      kids.add(const SizedBox(height: 4));
       kids.add(_decor('╝══════════════════╚', base));
     } else if (k == 'result' || k == 'ann') {
       kids.add(_decor('╗══════════════════╔', accent));
-      if (k == 'ann') kids.add(Text('إنتهت!', textAlign: TextAlign.center, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: accent)));
-      kids.add(const SizedBox(height: 8));
+      if (k == 'ann') kids.add(Text('إنتهت!', textAlign: TextAlign.center, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: accent)));
+      kids.add(const SizedBox(height: 4));
       final w = (o['winner'] ?? '').toString();
       if (w.isNotEmpty) {
         kids.add(Center(
           child: Container(
             decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: accent, width: 3), boxShadow: [BoxShadow(color: accent.withAlpha(150), blurRadius: 18)]),
-            child: UserAvatar(w, size: 84),
+            child: UserAvatar(w, size: 64),
           ),
         ));
         kids.add(const SizedBox(height: 8));
       }
-      kids.add(_row('الفائز:', (o['wn'] ?? '').toString(), accent, size: 20));
+      kids.add(_row('الفائز:', (o['wn'] ?? '').toString(), accent, size: 17));
       kids.add(_row('الجائزة:', '${o['prize'] ?? ''} رصيد', accent));
       if (k == 'ann') {
         kids.add(_row('كمية الفوز:', '${o['wins'] ?? 0}', accent));
@@ -205,20 +208,179 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
       if (k == 'result') kids.add(_row('منشأ الفعالية:', (o['bn'] ?? '').toString(), accent));
       kids.add(const SizedBox(height: 6));
       kids.add(_decor('╝══════════════════╚', accent));
+    } else if (k == 'hs_lobby') {
+      final parts = (o['parts'] is List) ? (o['parts'] as List) : <dynamic>[];
+      final joined = parts.any((p) => p is Map && p['u'] == myUid);
+      final bet = (o['bet'] as num?)?.toInt() ?? 0;
+      kids.add(_decor('╗══════════════════╔', base));
+      kids.add(const SizedBox(height: 6));
+      kids.add(Text('💛 الحدس', textAlign: TextAlign.center, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: base)));
+      kids.add(const SizedBox(height: 4));
+      kids.add(const Text('بكل بساطة النظام يرسل لكم 5 قلوب وانتم يجب عليكم تحديد لون القلب الذي تظنون أنه القلب الفائز.. الفعالية تعتمد على حدسك', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, height: 1.55, color: Colors.white, fontWeight: FontWeight.w700)));
+      kids.add(const SizedBox(height: 6));
+      kids.add(Text('العدد:  ${parts.length}   •   أقل رهان:  $bet', textAlign: TextAlign.center, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900, color: base)));
+      kids.add(const SizedBox(height: 6));
+      for (final p in parts) {
+        if (p is! Map) continue;
+        kids.add(Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(children: [
+            UserAvatar(p['u'].toString(), size: 24),
+            const SizedBox(width: 8),
+            Expanded(child: Text((p['n'] ?? '').toString(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white))),
+            Text('${p['b']}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: base)),
+          ]),
+        ));
+      }
+      if (!joined) {
+        kids.add(const SizedBox(height: 8));
+        kids.add(Row(children: [
+          Expanded(
+            child: TextField(
+              controller: _betC,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(fontSize: 14, color: Colors.white),
+              decoration: InputDecoration(isDense: true, hintText: 'رهانك (لا يقل عن $bet)', hintStyle: const TextStyle(fontSize: 12, color: Colors.white54)),
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () => widget.onAct?.call('hsjoin', {'bet': int.tryParse(normDigits(_betC.text.trim())) ?? bet}),
+            child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9), decoration: BoxDecoration(color: base, borderRadius: BorderRadius.circular(10)), child: const Text('مشاركة', style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black, fontSize: 13))),
+          ),
+        ]));
+      }
+      if (widget.canCancel && parts.length >= ((o['min'] as num?)?.toInt() ?? 3)) {
+        kids.add(Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Center(
+            child: GestureDetector(
+              onTap: () => widget.onAct?.call('hsstart', {}),
+              child: Container(padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 9), decoration: BoxDecoration(color: const Color(0xFF2EE07A), borderRadius: BorderRadius.circular(12)), child: const Text('بدأ', style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black, fontSize: 14))),
+            ),
+          ),
+        ));
+      }
+      kids.add(_cancel(o));
+      kids.add(const SizedBox(height: 4));
+      kids.add(_decor('╝══════════════════╚', base));
+    } else if (k == 'hs_play') {
+      const hearts = <List<Object>>[
+        ['💛', 0xFFFFD83B],
+        ['💙', 0xFF3B7BFF],
+        ['❤️', 0xFFFF3B3B],
+        ['💚', 0xFF2EE07A],
+        ['💜', 0xFFA64BFF],
+      ];
+      final order = (o['order'] is List) ? (o['order'] as List).map((x) => (x as num).toInt()).toList() : <int>[0, 1, 2, 3, 4];
+      final fade = (o['fade'] is List) ? (o['fade'] as List).map((x) => (x as num).toInt()).toList() : <int>[];
+      final picks = (o['picks'] is List) ? (o['picks'] as List) : <dynamic>[];
+      final parts = (o['parts'] is List) ? (o['parts'] as List) : <dynamic>[];
+      final iAmIn = parts.any((p) => p is Map && p['u'] == myUid);
+      final iPicked = picks.any((p) => p is Map && p['u'] == myUid);
+      final closed = o['closed'] == true || fade.isNotEmpty;
+      Widget heart(int pos) {
+        final h = hearts[order[pos]];
+        final col = Color(h[1] as int);
+        final gone = fade.contains(pos);
+        return GestureDetector(
+          onTap: (iAmIn && !iPicked && !closed) ? () => widget.onAct?.call('hspick', {'i': pos}) : null,
+          child: AnimatedOpacity(
+            opacity: gone ? 0.0 : 1.0,
+            duration: const Duration(milliseconds: 900),
+            child: AnimatedBuilder(
+              animation: c,
+              builder: (_, __) => Container(
+                width: 62,
+                height: 62,
+                margin: const EdgeInsets.all(5),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: col.withAlpha(120 + (90 * c.value).toInt()), blurRadius: 14 + 14 * c.value, spreadRadius: 1)]),
+                child: Text(h[0] as String, style: const TextStyle(fontSize: 44)),
+              ),
+            ),
+          ),
+        );
+      }
+
+      kids.add(_decor('╗══════════════════╔', base));
+      kids.add(const SizedBox(height: 6));
+      kids.add(const Text('رجاءا من كل مشارك تحديد القلب الذي يحس بأنه القلب الصحيح وليس المزيف (اتبع حدسك!):', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, height: 1.55, color: Colors.white, fontWeight: FontWeight.w800)));
+      kids.add(const SizedBox(height: 8));
+      kids.add(Row(mainAxisAlignment: MainAxisAlignment.center, children: [heart(0), heart(1)]));
+      kids.add(Row(mainAxisAlignment: MainAxisAlignment.center, children: [heart(2)]));
+      kids.add(Row(mainAxisAlignment: MainAxisAlignment.center, children: [heart(3), heart(4)]));
+      kids.add(const SizedBox(height: 4));
+      kids.add(Text(closed ? 'جاري الكشف عن النتيجة...' : (iAmIn ? (iPicked ? 'تم تسجيل اختيارك ✅' : 'المدة:  $left') : 'المدة:  $left'), textAlign: TextAlign.center, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: base)));
+      if (picks.isNotEmpty) {
+        kids.add(const SizedBox(height: 6));
+        kids.add(Text('الاختيارات:', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: base)));
+        for (final p in picks) {
+          if (p is! Map) continue;
+          final hi = (p['h'] as num?)?.toInt() ?? 0;
+          final pos = order.indexOf(hi);
+          kids.add(AnimatedOpacity(
+            opacity: fade.contains(pos) ? 0.0 : 1.0,
+            duration: const Duration(milliseconds: 900),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                UserAvatar(p['u'].toString(), size: 22),
+                const SizedBox(width: 8),
+                Text('${p['n']}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(hearts[hi][1] as int))),
+                const SizedBox(width: 8),
+                Text(hearts[hi][0] as String, style: const TextStyle(fontSize: 16)),
+              ]),
+            ),
+          ));
+        }
+      }
+      kids.add(const SizedBox(height: 4));
+      kids.add(_decor('╝══════════════════╚', base));
+    } else if (k == 'hs_result') {
+      final hc = hexOk(o['hc']?.toString()) ? hexColor(o['hc'].toString()) : base;
+      final mode = (o['mode'] ?? 'none').toString();
+      final winners = (o['winners'] is List) ? (o['winners'] as List) : <dynamic>[];
+      kids.add(_decor('╗═════════════════╔', hc));
+      kids.add(const SizedBox(height: 6));
+      if (mode == 'win' && winners.isNotEmpty) {
+        final w0 = winners.first as Map;
+        kids.add(Center(child: Container(decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: hc, width: 3), boxShadow: [BoxShadow(color: hc.withAlpha(150), blurRadius: 16)]), child: UserAvatar(w0['u'].toString(), size: 60))));
+        kids.add(const SizedBox(height: 6));
+        for (final w in winners) {
+          if (w is! Map) continue;
+          kids.add(Text.rich(TextSpan(children: [const TextSpan(text: 'الفائز:  ', style: TextStyle(color: Colors.white)), TextSpan(text: '${w['n']}', style: TextStyle(color: hc, fontWeight: FontWeight.w900))]), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)));
+        }
+        if (((o['wcount'] as num?)?.toInt() ?? 0) > winners.length) kids.add(Text('و ${(o['wcount'] as num).toInt() - winners.length} آخرين', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12.5, color: Colors.white70)));
+        kids.add(_row('اختياره:', (o['he'] ?? '').toString(), hc, size: 15));
+        kids.add(_row('الجائزة:', '${o['prize'] ?? 0} رصيد', hc, size: 15));
+      } else if (mode == 'refund') {
+        kids.add(Text('اختار الجميع القلب نفسه ${o['he'] ?? ''}\nتم إرجاع رصيد كل مشارك', textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, height: 1.6, fontWeight: FontWeight.w800, color: Colors.white)));
+      } else {
+        kids.add(const Text('حدسكم من سوق الجمعة 🤣\nلا يوجد فائز او شخص اصاب حدسه.', textAlign: TextAlign.center, style: TextStyle(fontSize: 15, height: 1.6, fontWeight: FontWeight.w800, color: Colors.white)));
+      }
+      kids.add(_row('الوقت:', _ago((o['at'] as num?)?.toInt() ?? 0), hc, size: 14));
+      kids.add(_row('منشئ الفعالية:', (o['bn'] ?? '').toString(), hc, size: 14));
+      kids.add(const SizedBox(height: 4));
+      kids.add(_decor('╝═════════════════╚', hc));
     } else {
       kids.add(Text(widget.text, textAlign: TextAlign.center, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: base)));
     }
     if (k == 'intro' || k == 'round') kids.add(_cancel(o));
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 700),
+      curve: Curves.easeInOut,
+      alignment: Alignment.topCenter,
+      child: Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
       decoration: BoxDecoration(
         color: Colors.black,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: edge.withAlpha(200), width: 1.6),
         boxShadow: [BoxShadow(color: edge.withAlpha(95), blurRadius: 22, spreadRadius: 1)],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: kids),
-    );
+    ));
   }
 
   @override

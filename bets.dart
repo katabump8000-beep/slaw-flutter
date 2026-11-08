@@ -13,12 +13,12 @@ import 'data.dart';
 import 'widgets.dart';
 
 /// إضافة رصيد على دفعات (القواعد تسمح بـ 1000 كحد أقصى للمرة الواحدة)
-Future<void> creditChunks(int total) async {
+Future<void> creditChunks(int total, {String? why}) async {
   var left = total;
   while (left > 0) {
     final c = left > 1000 ? 1000 : left;
     try {
-      await addBalRetry(c);
+      await addBalRetry(c, why: why ?? 'فعالية');
     } catch (_) {
       break;
     }

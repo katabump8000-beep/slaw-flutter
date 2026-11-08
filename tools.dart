@@ -1,3 +1,9 @@
+import 'dart:async';
+
+import 'devperms.dart';
+import 'devtools3.dart';
+import 'football.dart';
+import 'devtools2.dart';
 import 'solo.dart';
 import 'shop.dart';
 import 'kingdoms.dart';
@@ -101,6 +107,24 @@ class ToolsScreen extends StatefulWidget {
 }
 
 class _ToolsState extends State<ToolsScreen> {
+  Map<dynamic, dynamic> _hide = {};
+  StreamSubscription<DatabaseEvent>? _hs;
+
+  @override
+  void initState() {
+    super.initState();
+    _hs = ref('config/hideTools/$myUid').onValue.listen((e) {
+      final v = e.snapshot.value;
+      if (mounted) setState(() => _hide = v is Map ? v : {});
+    }, onError: (_) {});
+  }
+
+  @override
+  void dispose() {
+    _hs?.cancel();
+    super.dispose();
+  }
+
   Future<void> _byId(String title, Future<void> Function(String uid, String name) act) async {
     final c = TextEditingController();
     await showAppSheet<void>(context, (sc) => [
@@ -210,8 +234,9 @@ class _ToolsState extends State<ToolsScreen> {
     }
   }
 
-  Widget _t(IconData i, String t, VoidCallback f, {String? sub}) =>
-      ListTile(leading: Icon(i), title: Text(t), subtitle: sub == null ? null : Text(sub, style: const TextStyle(color: kMu, fontSize: 12)), onTap: f);
+  Widget _t(IconData i, String t, VoidCallback f, {String? sub}) => (!Session.isEmp && _hide[toolKey(t)] == true)
+      ? const SizedBox.shrink()
+      : ListTile(leading: Icon(i), title: Text(t), subtitle: sub == null ? null : Text(sub, style: const TextStyle(color: kMu, fontSize: 12)), onTap: f);
 
   @override
   Widget build(BuildContext context) {
@@ -227,6 +252,10 @@ class _ToolsState extends State<ToolsScreen> {
         _t(Icons.manage_accounts_outlined, 'الحسابات', () => go(const AccountsScreen()), sub: 'بحث باللقب أو الـID وعرض الملف'),
         _t(Icons.swap_vert_circle_outlined, 'سحب / إعطاء', () => go(const GiveTakeScreen()), sub: 'ابحث بلقب أو ID وعدّل رصيد العضو'),
         _t(Icons.account_balance_outlined, 'البنك', () => go(const BankScreen()), sub: 'سحب رصيد لنفسك'),
+        _t(Icons.sports_soccer, 'رهان كرة القدم ⚽', () => go(const FootballAdminScreen()), sub: 'حدث تصويت برشلونة × ريال مدريد'),
+        _t(Icons.lightbulb_outline, 'الاقتراحات 💡', () => go(const SuggestionsScreen()), sub: 'اقتراحات الأعضاء'),
+        _t(Icons.military_tech_outlined, 'شعاري 🏅', () => go(const ShiarScreen()), sub: 'إظهار أو إخفاء الشارات بجانب اسمك'),
+        _t(Icons.restart_alt_rounded, 'إعادة ضبط', () => resetEvents(context), sub: 'إنهاء أي فعالية عالقة في كل النقابات'),
         _t(Icons.emoji_events_outlined, 'تعديل جوائز', () => go(const EventPrizesScreen()), sub: 'جائزة كل فعالية جماعية'),
         _t(Icons.toggle_off_outlined, 'إيقاف استعمال', () => go(const FeatureSwitchScreen()), sub: 'إيقاف العجلة أو الهدية أو الألعاب مؤقتاً'),
         _t(Icons.link, 'الروابط', () => go(const LinksScreen()), sub: 'رابط النشر، منع النشر، إعادة تعيين'),
@@ -265,10 +294,11 @@ class _ToolsState extends State<ToolsScreen> {
               ]);
           if (ok == true) await resetLeaderboard(interaction: withInter);
         }),
+        _t(Icons.merge, 'دمج أو إنشاء مملكة', () => go(const KingdomMakeScreen()), sub: 'اجمع عدة نقابات تحت مملكة واحدة'),
+        _t(Icons.schedule, 'ساعة الحسبة اليومية', _hour),
         if (emp) ...[
-          _t(Icons.merge, 'دمج أو إنشاء مملكة', () => go(const KingdomMakeScreen()), sub: 'اجمع عدة نقابات تحت مملكة واحدة'),
+          _t(Icons.admin_panel_settings, 'صلاحيات المطورين', () => go(const DevPermsScreen()), sub: 'إخفاء أو إظهار أي زر أدوات عن أي مطور'),
           const Divider(),
-          _t(Icons.schedule, 'ساعة الحسبة اليومية', _hour),
           _t(Icons.merge_type, 'دمج نقابات', () => mergeGuilds(context), sub: 'نقل الأعضاء إلى نقابة واحدة باسم جديد'),
           _t(Icons.system_update, 'نشر تحديث', () => publishUpdateSheet(context), sub: 'يظهر للأعضاء عند فتح التطبيق'),
           _t(Icons.support_agent, 'تعيين مسؤول الدعم', _support, sub: 'يصله إشعار البلاغات'),
@@ -443,3 +473,47 @@ Future<void> postJoinLogs() async {
     }
   } catch (_) {}
 }
+
+/// مفتاح آمن لعنوان الأداة (Firebase لا يقبل . $ # [ ] /)
+String toolKey(String title) => title.replaceAll(RegExp(r'[.$#\[\]/]'), '_');
+
+const List<String> kToolTitles = <String>[
+  'الفعاليات ⚙️',
+  'حظر / حذف عضو',
+  'الحسابات',
+  'سحب / إعطاء',
+  'البنك',
+  'رهان كرة القدم ⚽',
+  'الاقتراحات 💡',
+  'شعاري 🏅',
+  'إعادة ضبط',
+  'تعديل جوائز',
+  'إيقاف استعمال',
+  'الروابط',
+  'عرض جلسات (العالقون)',
+  'تشغيل الحماية القصوى',
+  'حذف قروب',
+  'الإحصائيات',
+  'الفرز',
+  'درجة الفخر (بالـID)',
+  'تعديل معرّفات',
+  'تعديل معرّفي',
+  'تعديل مستوى النقابة',
+  'تجارب',
+  'وضع التعليمات (فيديو)',
+  'حذف فيديو التعليمات',
+  'تعيين موسيقى بالخلفية',
+  'الممالك',
+  'إنشاء جروب ADMINS',
+  'أسعار المتجر',
+  'المقيدون',
+  'تصفير المتصدرين',
+  'دمج أو إنشاء مملكة',
+  'ساعة الحسبة اليومية',
+  'دمج نقابات',
+  'نشر تحديث',
+  'تعيين مسؤول الدعم',
+  'حالة الإمبراطور (فيديو)',
+  'حذف حالة الإمبراطور',
+  'اعتماد هذه النسخة',
+];

@@ -20,6 +20,7 @@ class _StealState extends State<StealStickerButton> {
   String maker = '';
   String data = '';
   bool mine = false;
+  bool full = false;
   bool loaded = false;
 
   @override
@@ -38,6 +39,7 @@ class _StealState extends State<StealStickerButton> {
       }
       final h = await ref('myStickers/$myUid/${widget.sid}').get();
       mine = h.exists || owner == myUid;
+      full = (await ref('myStickers/$myUid').get()).children.length >= 100;
     } catch (_) {}
     if (mounted) setState(() => loaded = true);
   }
@@ -45,6 +47,10 @@ class _StealState extends State<StealStickerButton> {
   Future<void> _steal() async {
     widget.close();
     try {
+      if ((await ref('myStickers/$myUid').get()).children.length >= 100) {
+        toast('وصلت للحد الأقصى: 100 ملصق', bad: true);
+        return;
+      }
       final sid2 = ref('stickers').push().key!;
       await db.ref().update(<String, Object?>{
         'stickers/$sid2': <String, Object?>{'u': myUid, 'd': data, 'o': maker.isNotEmpty ? maker : owner},
@@ -58,7 +64,7 @@ class _StealState extends State<StealStickerButton> {
 
   @override
   Widget build(BuildContext context) {
-    if (!loaded || mine || data.isEmpty) return const SizedBox.shrink();
+    if (!loaded || mine || full || data.isEmpty) return const SizedBox.shrink();
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (maker.isNotEmpty || owner.isNotEmpty)
         FutureBuilder<Prof>(

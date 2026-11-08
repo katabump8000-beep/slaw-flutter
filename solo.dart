@@ -1043,7 +1043,7 @@ class _CupsState extends State<CupsGameScreen> with TickerProviderStateMixin {
 // ---------------------------------------------------------------------
 // الفعاليات الجماعية: السيرفر يديرها، والتطبيق يرسل طلب البدء فقط
 // ---------------------------------------------------------------------
-Future<void> startEvent(String gid, String kind) async {
+Future<String> evCall(String gid, String kind, [Map<String, Object?> extra = const {}]) async {
   final rid = ref('evReq').push().key!;
   final done = Completer<Map<dynamic, dynamic>>();
   final sub = ref('evRes/$myUid').onValue.listen((e) {
@@ -1052,7 +1052,7 @@ Future<void> startEvent(String gid, String kind) async {
   }, onError: (_) {});
   String why = '';
   try {
-    await ref('evReq/$rid').set(<String, Object?>{'u': myUid, 'ts': ServerValue.timestamp, 'g': gid, 'k': kind}).timeout(const Duration(seconds: 8));
+    await ref('evReq/$rid').set(<String, Object?>{'u': myUid, 'ts': ServerValue.timestamp, 'g': gid, 'k': kind, ...extra}).timeout(const Duration(seconds: 8));
   } catch (e) {
     why = e.toString().toLowerCase().contains('permission') ? 'rules' : 'net';
   }
@@ -1065,10 +1065,17 @@ Future<void> startEvent(String gid, String kind) async {
     }
   }
   await sub.cancel();
-  final err = r == null ? (why.isNotEmpty ? why : 'timeout') : (r['err'] ?? '').toString();
-  switch (err) {
-    case '':
-      return;
+  if (r == null) return why.isNotEmpty ? why : 'timeout';
+  final err = (r['err'] ?? '').toString();
+  if (err == 'bet' && r['max'] != null) return 'bet:${r['max']}';
+  if (err == 'min' && r['min'] != null) return 'min:${r['min']}';
+  return err;
+}
+
+void _evToast(String err) {
+  final e = err.split(':').first;
+  final n = err.contains(':') ? err.split(':').last : '';
+  switch (e) {
     case 'rules':
       toast('قواعد قاعدة البيانات لم تُحدَّث بعد (evReq)', bad: true);
       break;
@@ -1087,9 +1094,63 @@ Future<void> startEvent(String gid, String kind) async {
     case 'perm':
       toast('ليس لديك صلاحية الألعاب', bad: true);
       break;
+    case 'low':
+      toast('رصيدك لا يكفي', bad: true);
+      break;
+    case 'bet':
+      toast('الرهان من 10 إلى ${n.isEmpty ? 5000 : n}', bad: true);
+      break;
+    case 'min':
+      toast('رهانك لا يقل عن رهان المنشئ ($n)', bad: true);
+      break;
+    case 'dup':
+      toast('سبق أن شاركت أو اخترت', bad: true);
+      break;
+    case 'full':
+      toast('اكتمل عدد المشاركين', bad: true);
+      break;
+    case 'few':
+      toast('يجب أن يشارك 3 أعضاء على الأقل', bad: true);
+      break;
+    case 'notpart':
+      toast('عذرا انت لست مشاركا!', bad: true);
+      break;
+    case 'none':
+      toast('انتهت هذه الفعالية', bad: true);
+      break;
     default:
-      toast('تعذر بدء الفعالية', bad: true);
+      toast('تعذر تنفيذ الطلب', bad: true);
   }
+}
+
+Future<void> startEvent(String gid, String kind) async {
+  final e = await evCall(gid, kind);
+  if (e.isNotEmpty) _evToast(e);
+}
+
+/// أزرار بطاقات الفعاليات (مشاركة / بدأ / اختيار قلب)
+Future<void> evAct(String gid, String act, Map<String, Object?> extra) async {
+  final e = await evCall(gid, act, extra);
+  if (e.isNotEmpty) _evToast(e);
+}
+
+/// «الحدس»: يسأل المنشئ عن الرهان (حتى 5000) ثم يطلب من السيرفر إنشاء الفعالية
+Future<void> startHeart(BuildContext context, String gid) async {
+  final c = TextEditingController(text: '100');
+  final b = await showDialog<int>(
+    context: context,
+    builder: (d) => AlertDialog(
+      title: const Text('رهان الحدس'),
+      content: TextField(controller: c, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'رهانك (حتى 5000)')),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(d), child: const Text('إلغاء')),
+        TextButton(onPressed: () => Navigator.pop(d, int.tryParse(normDigits(c.text.trim()))), child: const Text('إنشاء')),
+      ],
+    ),
+  );
+  if (b == null) return;
+  final e = await evCall(gid, 'heart', {'bet': b});
+  if (e.isNotEmpty) _evToast(e);
 }
 
 /// «تعديل جوائز»: جائزة كل فعالية جماعية (للمطورين والإمبراطور)
@@ -1194,5 +1255,27 @@ Future<void> cancelEvent(String gid) async {
     toast('تم إرسال طلب الإلغاء');
   } catch (_) {
     toast('تعذر إلغاء الفعالية', bad: true);
+  }
+}
+
+/// «إعادة ضبط»: ينهي أي فعالية عالقة في كل النقابات (للمطورين والإمبراطور)
+Future<void> resetEvents(BuildContext context) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (c) => AlertDialog(
+      title: const Text('إعادة ضبط الفعاليات'),
+      content: const Text('هذا الخيار هو خيار لجعل اي فعالية عالقة تختفي وينتهي مسارها هل انت واثق من ايقاف كلشي؟'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('لا')),
+        TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('نعم')),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  try {
+    await ref('evReq/${ref('evReq').push().key}').set(<String, Object?>{'u': myUid, 'ts': ServerValue.timestamp, 'g': 'all', 'k': 'resetall'}).timeout(const Duration(seconds: 8));
+    toast('تم إنهاء كل الفعاليات العالقة', accent: true);
+  } catch (_) {
+    toast('تعذر تنفيذ إعادة الضبط', bad: true);
   }
 }

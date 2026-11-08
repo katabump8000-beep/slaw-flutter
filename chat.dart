@@ -1,3 +1,4 @@
+import 'devtools2.dart';
 import 'solo.dart';
 import 'servertime.dart';
 import 'unread.dart';
@@ -106,6 +107,9 @@ class _ChatScreenState extends State<ChatScreen> {
   Timer? _evTimer;
   int _lockUntil = 0;
   bool _evLive = false;
+  bool _offline = false;
+  Timer? _offT;
+  int _srvScore = 0;
   Timer? _expTimer;
   final Set<String> _warHidden = {};
   String _jumpId = '';
@@ -154,6 +158,21 @@ class _ChatScreenState extends State<ChatScreen> {
     }, onError: (_) {}));
     subs.add(ref('groupStatus/$gid/t').onValue.listen((e) {
       if (mounted) setState(() => status = e.snapshot.value?.toString() ?? '');
+    }, onError: (_) {}));
+    subs.add(ref('evScore/$gid/$myUid/n').onValue.listen((e) {
+      final v = e.snapshot.value;
+      if (mounted) setState(() => _srvScore = v is num ? v.toInt() : 0);
+    }, onError: (_) {}));
+    subs.add(FirebaseDatabase.instance.ref('.info/connected').onValue.listen((e) {
+      final on = e.snapshot.value == true;
+      _offT?.cancel();
+      if (on) {
+        if (_offline && mounted) setState(() => _offline = false);
+      } else {
+        _offT = Timer(const Duration(seconds: 4), () {
+          if (mounted) setState(() => _offline = true);
+        });
+      }
     }, onError: (_) {}));
     subs.add(ref('evLive/$gid').onValue.listen((e) {
       _evLive = e.snapshot.value != null;
@@ -293,6 +312,33 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _scoreChip() {
     final now = nowMs();
+    if (_offline) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        color: const Color(0xFF7A1F1F),
+        child: const Row(children: [
+          Text('⚠️', style: TextStyle(fontSize: 20)),
+          SizedBox(width: 10),
+          Expanded(child: Text('لا يتوفر لديك اتصال بالانترنت!', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14))),
+        ]),
+      );
+    }
+    if (_evLive && _srvScore > 0) {
+      final s2 = _srvScore.clamp(0, 10);
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
+        color: accentA(context, .12),
+        child: Row(children: [
+          const Text('🎯', style: TextStyle(fontSize: 14)),
+          const SizedBox(width: 8),
+          Text('تقدّمك في الفعالية: $s2/10', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
+          const SizedBox(width: 10),
+          Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(value: s2 / 10, minHeight: 6, backgroundColor: Colors.white12, color: context.accent))),
+        ]),
+      );
+    }
     for (final e in _myScore.entries) {
       if (evEnds[e.key] != null || now - e.value[1] > 25 * 60000) continue;
       final sc = e.value[0].clamp(0, 10);
@@ -527,6 +573,10 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _sendText() async {
     final t = ctrl.text.trim();
     if (t.isEmpty || !_gate()) return;
+    if (_offline) {
+      toast('لا يتوفر لديك اتصال بالانترنت!', bad: true);
+      return;
+    }
     if (_lockUntil > nowMs() && !Session.isDev) {
       toast('الشات مقفل لحظات بسبب بدء الفعالية 🔒', bad: true);
       return;
@@ -670,6 +720,8 @@ class _ChatScreenState extends State<ChatScreen> {
     prefs.setString('rstk', l.take(10).join(','));
   }
 
+  Color _stkColor(int n) => n <= 25 ? const Color(0xFF4CE07A) : (n <= 50 ? const Color(0xFFFFD54A) : (n <= 75 ? const Color(0xFFE65100) : const Color(0xFFFF3B3B)));
+
   Future<void> _stickers() async {
     if (!_gate()) return;
     List<String> mine = [];
@@ -678,7 +730,6 @@ class _ChatScreenState extends State<ChatScreen> {
       if (v is Map) mine = v.keys.map((e) => e.toString()).toList();
     } catch (_) {}
     if (!mounted) return;
-    final rec = _recent().where((s) => mine.contains(s)).toList();
     Future<void> sendSticker(String sid) async {
       try {
         final m = _base('sticker');
@@ -689,50 +740,144 @@ class _ChatScreenState extends State<ChatScreen> {
         err(e);
       }
     }
+    var delMode = false;
+    final sel = <String>{};
     showAppSheet<void>(context, (sc) => [
-          const Text('الملصقات', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-          if (rec.isNotEmpty)
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(border: Border.all(color: kLine), borderRadius: BorderRadius.circular(14)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('آخر 10 ملصقات استخدمتها', style: TextStyle(color: kMu, fontSize: 12.5, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
+          StatefulBuilder(
+            builder: (c, set) {
+              final rec = _recent().where((s) => mine.contains(s)).toList();
+              Future<void> doDelete(List<String> ids) async {
+                if (ids.isEmpty) return;
+                try {
+                  await db.ref().update(<String, Object?>{for (final s in ids) 'myStickers/$myUid/$s': null});
+                  mine.removeWhere(ids.contains);
+                  sel.clear();
+                  delMode = false;
+                  set(() {});
+                  toast('تم الحذف ✅');
+                } catch (e) {
+                  err(e);
+                }
+              }
+
+              Future<void> deleteAll() async {
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (d) => AlertDialog(
+                    title: const Text('هل انت واثق من حذفك كل الملصقات؟'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('لا')),
+                      TextButton(onPressed: () => Navigator.pop(d, true), child: const Text('نعم، احذف الكل')),
+                    ],
+                  ),
+                );
+                if (ok == true) await doDelete(List<String>.from(mine));
+              }
+
+              return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Row(children: [
+                  const Text('الملصقات', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                    decoration: BoxDecoration(color: _stkColor(mine.length).withAlpha(40), borderRadius: BorderRadius.circular(10), border: Border.all(color: _stkColor(mine.length))),
+                    child: Text('${mine.length}/100', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: _stkColor(mine.length))),
+                  ),
+                  IconButton(
+                    onPressed: () => set(() {
+                      delMode = !delMode;
+                      sel.clear();
+                    }),
+                    icon: Icon(delMode ? Icons.close : Icons.delete_outline, color: const Color(0xFFFF4D4D)),
+                  ),
+                ]),
+                if (delMode) ...[
+                  InkWell(
+                    onTap: deleteAll,
+                    child: const Padding(padding: EdgeInsets.symmetric(vertical: 6), child: Row(children: [Icon(Icons.check_box_outline_blank, size: 20, color: Color(0xFFFF4D4D)), SizedBox(width: 8), Text('حذف كل الملصقات', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFFF4D4D)))])),
+                  ),
+                  Row(children: [
+                    Expanded(child: AppButton('حذف (${sel.length})', kind: 'r', compact: true, onPressed: sel.isEmpty ? null : () => doDelete(sel.toList()))),
+                    const SizedBox(width: 8),
+                    Expanded(child: AppButton('الغاء', kind: 'g', compact: true, onPressed: () => set(() {
+                          delMode = false;
+                          sel.clear();
+                        }))),
+                  ]),
+                  const SizedBox(height: 8),
+                ],
+                if (rec.isNotEmpty && !delMode)
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(border: Border.all(color: kLine), borderRadius: BorderRadius.circular(14)),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text('آخر 10 ملصقات استخدمتها', style: TextStyle(color: kMu, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 8),
+                      Wrap(spacing: 8, runSpacing: 8, children: [
+                        for (final sid in rec)
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.of(sc).pop();
+                              sendSticker(sid);
+                            },
+                            child: _StickerImg(sid: sid, size: 60),
+                          ),
+                      ]),
+                    ]),
+                  ),
                 Wrap(spacing: 8, runSpacing: 8, children: [
-                  for (final sid in rec)
+                  if (!delMode)
                     GestureDetector(
                       onTap: () {
+                        if (mine.length >= 100) {
+                          toast('وصلت للحد الأقصى: 100 ملصق', bad: true);
+                          return;
+                        }
+                        Navigator.of(sc).pop();
+                        _newSticker();
+                      },
+                      child: Container(width: 76, height: 76, decoration: BoxDecoration(border: Border.all(color: kLine, width: 2), borderRadius: BorderRadius.circular(12)), child: Icon(Icons.add, color: context.accent2, size: 30)),
+                    ),
+                  for (final sid in mine)
+                    GestureDetector(
+                      onTap: () {
+                        if (delMode) {
+                          set(() => sel.contains(sid) ? sel.remove(sid) : sel.add(sid));
+                          return;
+                        }
                         Navigator.of(sc).pop();
                         sendSticker(sid);
                       },
-                      child: _StickerImg(sid: sid, size: 60),
+                      child: Stack(children: [
+                        _StickerImg(sid: sid, size: 76),
+                        if (delMode)
+                          Positioned(
+                            top: 2,
+                            left: 2,
+                            child: Container(
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(color: sel.contains(sid) ? const Color(0xFFFF4D4D) : const Color(0x99000000), borderRadius: BorderRadius.circular(5), border: Border.all(color: Colors.white, width: 1.5)),
+                              child: sel.contains(sid) ? const Icon(Icons.check, size: 16, color: Colors.white) : null,
+                            ),
+                          ),
+                      ]),
                     ),
                 ]),
-              ]),
-            ),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            GestureDetector(
-              onTap: () {
-                Navigator.of(sc).pop();
-                _newSticker();
-              },
-              child: Container(width: 76, height: 76, decoration: BoxDecoration(border: Border.all(color: kLine, width: 2), borderRadius: BorderRadius.circular(12)), child: Icon(Icons.add, color: context.accent2, size: 30)),
-            ),
-            for (final sid in mine)
-              GestureDetector(
-                onTap: () {
-                  Navigator.of(sc).pop();
-                  sendSticker(sid);
-                },
-                child: _StickerImg(sid: sid, size: 76),
-              ),
-          ]),
+              ]);
+            },
+          ),
         ]);
   }
 
   Future<void> _newSticker() async {
     try {
+      final cnt = (await ref('myStickers/$myUid').get()).children.length;
+      if (cnt >= 100) {
+        toast('وصلت للحد الأقصى: 100 ملصق', bad: true);
+        return;
+      }
       final x = await ImagePicker().pickImage(source: ImageSource.gallery);
       if (x == null || !mounted) return;
       final d = await cropImage(context, await x.readAsBytes(), out: const [256, 200, 150], limit: 24000, round: false, title: 'قص الملصق', ratio: 1);
@@ -1376,11 +1521,14 @@ class _ChatScreenState extends State<ChatScreen> {
                   _searchChat();
                 } else if (v == 'clear') {
                   _clearChat();
+                } else if (v == 'kashf') {
+                  Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const KashfScreen()));
                 }
               },
-              itemBuilder: (_) => const [
-                PopupMenuItem<String>(value: 'find', child: Row(children: [Icon(Icons.search, size: 20), SizedBox(width: 10), Text('بحث في الشات')])),
-                PopupMenuItem<String>(value: 'clear', child: Row(children: [Icon(Icons.delete_forever_outlined, size: 20, color: Color(0xFFFF6B6B)), SizedBox(width: 10), Text('حذف الشات')])),
+              itemBuilder: (_) => [
+                if (kind == 'ads') const PopupMenuItem<String>(value: 'kashf', child: Row(children: [Icon(Icons.leaderboard_outlined, size: 20), SizedBox(width: 10), Text('كشف')])),
+                const PopupMenuItem<String>(value: 'find', child: Row(children: [Icon(Icons.search, size: 20), SizedBox(width: 10), Text('بحث في الشات')])),
+                const PopupMenuItem<String>(value: 'clear', child: Row(children: [Icon(Icons.delete_forever_outlined, size: 20, color: Color(0xFFFF6B6B)), SizedBox(width: 10), Text('حذف الشات')])),
               ],
             ),
           IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => GroupInfoScreen(gid: gid))), icon: const Icon(Icons.info_outline)),
@@ -1499,6 +1647,7 @@ Future<void> showGamesSheet(BuildContext context, String gid) async {
         b('🎨 لعبة الألوان', 'الوان'),
         b('🧩 فعالية التفكيك', 'تفكيك'),
         b('😀 فعالية الايموجي', 'ايموجي'),
+        b('💛 الحدس (رهان جماعي)', 'حدس'),
         b('🐾 فعالية الحيوانات', 'حيوانات'),
         b('🎭 تخمين الشخصيات', 'شخصيات'),
       ],
@@ -1613,7 +1762,7 @@ class _MsgBubbleState extends State<MsgBubble> {
   @override
   void initState() {
     super.initState();
-    who = Future.wait<dynamic>([prof(from), roleOf(from)]);
+    who = Future.wait<dynamic>([prof(from), roleOf(from), badgeExtra(from)]);
   }
 
   Uint8List? _bytes() {
@@ -1661,16 +1810,21 @@ class _MsgBubbleState extends State<MsgBubble> {
         final isHigh = r == 'dev' || r == 'emp';
         final tag = rankTag(r);
         final bio = widget.bio;
+        final ex = (s.data != null && s.data!.length > 2 && s.data![2] is Map) ? Map<String, dynamic>.from(s.data![2] as Map) : <String, dynamic>{};
+        final hideM = ex['hide'] is Map ? ex['hide'] as Map : const {};
+        bool hid(String k) => hideM[k] == true;
+        final achW = achTag(ex);
         final body = <Widget>[
-          if (isHigh) Padding(padding: const EdgeInsets.only(bottom: 2), child: DevBadge(founder: r == 'emp')),
+          if (isHigh && !hid('dev')) Padding(padding: const EdgeInsets.only(bottom: 2), child: DevBadge(founder: r == 'emp')),
           if (!mine)
             Padding(
               padding: const EdgeInsets.only(bottom: 2),
               child: Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
                 Text(p.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-                if (tag != null) tag,
-                if (widget.admin && !isHigh) const Tag('مشرف'),
-                ageTag(p, role: r),
+                if (tag != null && !hid('rank')) tag,
+                if (widget.admin && !isHigh && !hid('adm')) const Tag('مشرف'),
+                if (!hid('age')) ageTag(p, role: r),
+                if (achW != null) achW,
                 if (m['vis'] == true) const Tag('زائر'),
               ]),
             ),
@@ -1786,6 +1940,7 @@ class _MsgBubbleState extends State<MsgBubble> {
             canCancel: Session.isDev || widget.viewerStaff || (o['by'] ?? '').toString() == myUid,
             cancelLocked: o['hot'] == true && !Session.isDev,
             onCancel: () => cancelEvent(widget.gid),
+            onAct: (a, d) => evAct(widget.gid, a, d),
           );
         }
       } catch (_) {}

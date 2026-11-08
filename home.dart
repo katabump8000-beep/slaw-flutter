@@ -1,3 +1,7 @@
+import 'aichat.dart';
+import 'devtools3.dart';
+import 'dino.dart';
+import 'football.dart';
 import 'servertime.dart';
 import 'visuals.dart';
 import 'dart:async';
@@ -221,6 +225,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     Session.ensurePid();
     BellService.start();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) checkNeedPw(context);
+      claimDino();
+    });
     _reload().then((_) {
       WarWatcher.start();
       checkVisitExpiry();
@@ -530,6 +538,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             if (system.isNotEmpty) SecCard(title: 'النظام', children: system.map(_row).toList()),
                             if (ids.isEmpty) const Padding(padding: EdgeInsets.all(40), child: Center(child: Text('لا توجد قروبات بعد', style: TextStyle(color: kMu)))),
                             const FriendsSection(),
+                            SecCard(title: 'المساعد', children: [
+                              ListTile(
+                                leading: Icon(Icons.smart_toy_outlined, color: context.accent2),
+                                title: const Text('مساعد FIR 🤖', style: TextStyle(fontWeight: FontWeight.w800)),
+                                subtitle: const Text('اسأله عن أي شيء في التطبيق', style: TextStyle(color: kMu, fontSize: 12)),
+                                onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AiChatScreen(staff: false))),
+                              ),
+                            ]),
                             const SizedBox(height: 80),
                           ],
                         ),
@@ -541,6 +557,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
       Positioned(right: 14, bottom: Session.isDev ? 90 : 12, child: const GiftBox()),
       Positioned(right: 14, bottom: Session.isDev ? 166 : 88, child: const RouletteFab()),
+      Positioned(right: 14, bottom: Session.isDev ? 242 : 164, child: const FootballFab()),
+      const Positioned(left: 12, bottom: 12, child: SuggestPrompt()),
       ]),
     );
   }

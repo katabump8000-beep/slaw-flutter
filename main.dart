@@ -1,3 +1,4 @@
+import 'dino.dart';
 import 'servertime.dart';
 import 'vip.dart';
 import 'uiprefs.dart';
@@ -136,7 +137,9 @@ class HomeLoader extends StatefulWidget {
 }
 
 class _HomeLoaderState extends State<HomeLoader> {
-  late Future<String> f = Session.load();
+  late Future<String> f = _load();
+
+  Future<String> _load() => Session.load().timeout(const Duration(seconds: 9), onTimeout: () => 'offline').catchError((Object _) => 'offline');
 
   @override
   Widget build(BuildContext context) {
@@ -162,6 +165,8 @@ class _HomeLoaderState extends State<HomeLoader> {
             return const RegisterScreen(google: true);
           case 'banned':
             return _Blocked(onOut: _out);
+          case 'offline':
+            return OfflineStartScreen(onRetry: () => setState(() => f = _load()), onOut: _out);
           default:
             return Scaffold(
               body: Center(
@@ -170,7 +175,7 @@ class _HomeLoaderState extends State<HomeLoader> {
                   children: [
                     const Text('تعذر الاتصال'),
                     const SizedBox(height: 12),
-                    AppButton('إعادة المحاولة', onPressed: () => setState(() => f = Session.load())),
+                    AppButton('إعادة المحاولة', onPressed: () => setState(() => f = _load())),
                     TextButton(onPressed: _out, child: const Text('تسجيل الخروج')),
                   ],
                 ),

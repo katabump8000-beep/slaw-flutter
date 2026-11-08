@@ -1,3 +1,4 @@
+import 'devtools3.dart';
 import 'servertime.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
@@ -172,6 +173,10 @@ class _AccountsState extends State<AccountsScreen> {
                     }
                   })),
               ]),
+              if (Session.isDev && uid != myUid && uid != Session.emp) ...[
+                const SizedBox(height: 8),
+                AppButton('🔑 تعيين كلمة سر مؤقتة', kind: 'g', compact: true, onPressed: () => setTempPassword(context, uid!, (p['name'] ?? '').toString())),
+              ],
               const SizedBox(height: 8),
               const Text('كلمات السر لا تُعرض لأحد — حتى المطورين — لأن من يملكها يدخل بحساب العضو. لمن نسي حسابه استخدم «تحرير الجهاز» من أداة «المقيدون».', style: TextStyle(color: kMu, fontSize: 11.5, height: 1.6)),
             ]),
