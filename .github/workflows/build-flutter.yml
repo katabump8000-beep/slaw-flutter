@@ -31,6 +31,9 @@ jobs:
           cp pubspec.yaml build_app/pubspec.yaml
           (cd build_app && flutter pub add ota_update)
           cp *.mp3 *.wav build_app/assets/audio/ 2>/dev/null || true
+          mkdir -p build_app/assets/img
+          cp par.png real.png build_app/assets/img/ 2>/dev/null || true
+          ls build_app/assets/img
           ls build_app/assets/audio
 
       - name: App icon
