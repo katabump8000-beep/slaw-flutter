@@ -211,7 +211,7 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
     } else if (k == 'hs_lobby') {
       final parts = (o['parts'] is List) ? (o['parts'] as List) : <dynamic>[];
       final joined = parts.any((p) => p is Map && p['u'] == myUid);
-      final bet = (o['bet'] as num?)?.toInt() ?? 0;
+      final bet = (o['mb'] as num?)?.toInt() ?? 0;
       kids.add(_decor('╗══════════════════╔', base));
       kids.add(const SizedBox(height: 6));
       kids.add(Text('💛 الحدس', textAlign: TextAlign.center, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: base)));

@@ -150,8 +150,14 @@
    }
   },
   "stats": {
-   ".read": "auth!=null&&(root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val())",
-   ".write": false
+   "$gid": {
+    ".read": "auth!=null&&(root.child('members/'+$gid+'/'+auth.uid).val()===true||(root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val()))",
+    ".write": "auth!=null&&(root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val())",
+    "$uid": {
+     ".write": "auth!=null&&auth.uid===$uid&&root.child('members/'+$gid+'/'+auth.uid).exists()&&((!data.exists()&&newData.val()<=2)||(data.exists()&&newData.val()>data.val()&&newData.val()<=data.val()+2))",
+     ".validate": "newData.isNumber()"
+    }
+   }
   },
   "boost": {
    ".read": "auth!=null&&(root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val())",
@@ -700,13 +706,15 @@
      },
      "$o": {
       ".validate": false
-     }
+     },
+     ".read": "auth!=null"
     },
     "hide": {
      ".write": "auth!=null&&auth.uid===$uid&&(root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val())",
      "$k": {
       ".validate": "newData.val()===true"
-     }
+     },
+     ".read": "auth!=null"
     }
    }
   },
@@ -1918,6 +1926,17 @@
     "$other": {
      ".validate": false
     }
+   }
+  },
+  "kashfTop": {
+   ".read": "auth!=null&&(root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val())",
+   ".write": false
+  },
+  "secrets": {
+   ".read": false,
+   ".write": "auth!=null&&auth.uid===root.child('config/emperorUid').val()",
+   "$k": {
+    ".validate": "newData.isString()&&newData.val().length<=300"
    }
   }
  }

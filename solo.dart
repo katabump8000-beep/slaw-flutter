@@ -502,7 +502,15 @@ class _LuckyState extends State<LuckyCardScreen> {
 
   Future<void> _get() async {
     if (busy) return;
-    setState(() => busy = true);
+    // أخفِ البطاقة السابقة فوراً: لا يجب أن يظهر أي إيموجي قبل أن تكون البطاقة الجديدة مغطّاة
+    setState(() {
+      busy = true;
+      hasCard = false;
+      done = false;
+      emoji = '';
+      strokes.clear();
+      hit.clear();
+    });
     final r = await gameCall('lucky', 'play');
     if (!mounted) return;
     if (soloErr(r)) {
@@ -513,10 +521,7 @@ class _LuckyState extends State<LuckyCardScreen> {
       emoji = (r['e'] ?? '').toString();
       value = (r['v'] as num?)?.toInt() ?? 0;
       left = (r['left'] as num?)?.toInt() ?? 0;
-      strokes.clear();
-      hit.clear();
       hasCard = true;
-      done = false;
       busy = false;
     });
   }
@@ -525,13 +530,13 @@ class _LuckyState extends State<LuckyCardScreen> {
     if (done || !hasCard) return;
     if (start) strokes.add(<Offset>[]);
     strokes.last.add(p);
-    final cx = (p.dx / sz.width * cols).floor().clamp(0, cols - 1);
-    final cy = (p.dy / sz.height * rows).floor().clamp(0, rows - 1);
-    for (var dx = -1; dx <= 1; dx++) {
-      for (var dy = -1; dy <= 1; dy++) {
-        final x = cx + dx;
-        final y = cy + dy;
-        if (x >= 0 && x < cols && y >= 0 && y < rows) hit.add(y * cols + x);
+    // الخلايا التي مركزها داخل نصف قطر الفرشاة تُحسب ممسوحة
+    final cw = sz.width / cols;
+    final chh = sz.height / rows;
+    for (var y = 0; y < rows; y++) {
+      for (var x = 0; x < cols; x++) {
+        final c = Offset((x + .5) * cw, (y + .5) * chh);
+        if ((c - p).distance <= 30) hit.add(y * cols + x);
       }
     }
     final n = nowMs();
@@ -539,11 +544,18 @@ class _LuckyState extends State<LuckyCardScreen> {
       _lastSfx = n;
       _sfx('scratch.wav', volume: .55);
     }
-    if (hit.length >= (cols * rows * .62).round()) {
+    // يظهر الربح عندما تُمسح منطقة الإيموجي (وسط البطاقة) لا كل البطاقة
+    var center = 0;
+    for (var y = 2; y <= 7; y++) {
+      for (var x = 1; x <= 6; x++) {
+        if (hit.contains(y * cols + x)) center++;
+      }
+    }
+    if (center >= 24) {
       done = true;
       _sfx('win.wav');
       setState(() {});
-      Future<void>.delayed(const Duration(milliseconds: 500), () {
+      Future<void>.delayed(const Duration(milliseconds: 600), () {
         if (mounted) {
           showResultCard(context, emoji: emoji, title: 'بطاقة الحظ', color: const Color(0xFFD4FF00), lines: ['ظهر لك $emoji', 'الجائزة: $value رصيد']);
         }
@@ -587,7 +599,7 @@ class _LuckyState extends State<LuckyCardScreen> {
                     Positioned.fill(
                       child: AnimatedOpacity(
                         opacity: done ? 0 : 1,
-                        duration: const Duration(milliseconds: 500),
+                        duration: done ? const Duration(milliseconds: 500) : Duration.zero,
                         child: GestureDetector(
                           onPanStart: (d) => _touch(d.localPosition, sz, start: true),
                           onPanUpdate: (d) => _touch(d.localPosition, sz),

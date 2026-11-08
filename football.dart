@@ -186,7 +186,12 @@ class Crest extends StatelessWidget {
   const Crest({super.key, required this.bar, this.size = 96});
 
   @override
-  Widget build(BuildContext context) => SizedBox(width: size, height: size, child: CustomPaint(painter: _CrestPainter(bar)));
+  Widget build(BuildContext context) => SizedBox(
+        width: size,
+        height: size,
+        // الشعاران من الصورتين par.png (برشلونة) و real.png (ريال مدريد) المرفوعتين في المشروع؛ والرسم البرمجي احتياطي إن لم تُرفعا
+        child: Image.asset(bar ? 'assets/img/par.png' : 'assets/img/real.png', fit: BoxFit.contain, errorBuilder: (c, e, s) => CustomPaint(painter: _CrestPainter(bar))),
+      );
 }
 
 class _GrassPainter extends CustomPainter {

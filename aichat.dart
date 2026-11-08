@@ -358,6 +358,8 @@ class _AiStatusState extends State<AiStatusScreen> {
   String line = 'جاري الفحص...';
   bool? hasKey;
   bool off = false;
+  final TextEditingController keyC = TextEditingController();
+  final TextEditingController modelC = TextEditingController();
 
   @override
   void initState() {
@@ -382,6 +384,30 @@ class _AiStatusState extends State<AiStatusScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    keyC.dispose();
+    modelC.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveKey() async {
+    final k = keyC.text.trim();
+    if (k.length < 10) {
+      toast('ألصق المفتاح كاملاً', bad: true);
+      return;
+    }
+    try {
+      await ref('secrets/aiKey').set(k);
+      if (modelC.text.trim().isNotEmpty) await ref('secrets/aiModel').set(modelC.text.trim());
+      keyC.clear();
+      toast('تم حفظ المفتاح ✅', accent: true);
+      await _check();
+    } catch (e) {
+      err(e);
+    }
+  }
+
   Future<void> _toggle() async {
     try {
       await ref('config/off/ai').set(off ? null : true);
@@ -404,6 +430,14 @@ class _AiStatusState extends State<AiStatusScreen> {
             if (hasKey == true) AppButton(off ? 'تشغيل الذكاء الاصطناعي' : 'إيقاف الذكاء الاصطناعي', kind: off ? 'p' : 'r', onPressed: _toggle),
             const SizedBox(height: 8),
             AppButton('إعادة الفحص', kind: 'g', compact: true, onPressed: _check),
+            const SizedBox(height: 22),
+            const Text('وضع مفتاح OpenRouter يدوياً (يُحفظ في السيرفر ولا يُقرأ من أي جهاز):', textAlign: TextAlign.center, style: TextStyle(color: kMu, fontSize: 12.5)),
+            const SizedBox(height: 8),
+            TextField(controller: keyC, obscureText: true, decoration: const InputDecoration(hintText: 'المفتاح (sk-or-...)')),
+            const SizedBox(height: 8),
+            TextField(controller: modelC, decoration: const InputDecoration(hintText: 'النموذج (اختياري)')),
+            const SizedBox(height: 8),
+            AppButton('حفظ المفتاح', compact: true, onPressed: _saveKey),
           ]),
         ),
       ),

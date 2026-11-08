@@ -134,13 +134,19 @@ class Sfx {
   }
 
   /// إيقاف مؤقت للموسيقى لسبب معين (صوت/صورة/عرض/مغادرة التطبيق)
+  static int _showN = 0; // عدّاد لسبب «show»: شاشتان متداخلتان (دخول/حرب/نتيجة) لا تعيدان الموسيقى مبكراً
+
   static void block(String reason) {
-    if (_block.add(reason)) {
-      _bg.pause();
-    }
+    if (reason == 'show') _showN++;
+    _block.add(reason);
+    _bg.pause();
   }
 
   static void unblock(String reason) {
+    if (reason == 'show') {
+      _showN = _showN > 0 ? _showN - 1 : 0;
+      if (_showN > 0) return;
+    }
     if (_block.remove(reason) && _block.isEmpty && !bgDisabled) _play();
   }
 

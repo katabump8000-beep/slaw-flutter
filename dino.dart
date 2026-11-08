@@ -123,7 +123,6 @@ class _OfflineStartState extends State<OfflineStartScreen> {
                 AppButton('العب بدون انترنت', glow: true, onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const DinoScreen()))),
                 const SizedBox(height: 10),
                 AppButton('إعادة المحاولة', kind: 'g', onPressed: widget.onRetry),
-                TextButton(onPressed: widget.onOut, child: const Text('تسجيل الخروج')),
               ]),
             ),
           ),

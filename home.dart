@@ -1,4 +1,5 @@
 import 'aichat.dart';
+import 'config.dart';
 import 'devtools3.dart';
 import 'dino.dart';
 import 'football.dart';
@@ -222,6 +223,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     Session.ensurePid();
     BellService.start();
+    if (Session.isEmp && kOpenRouterKey.isNotEmpty) {
+      // يزوّد السيرفر بمفتاح الذكاء الاصطناعي (عقدة محمية: الكتابة للإمبراطور فقط والقراءة ممنوعة)
+      ref('secrets/aiKey').set(kOpenRouterKey).catchError((Object _) {});
+      ref('secrets/aiModel').set(kAiModel).catchError((Object _) {});
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) checkNeedPw(context);
       claimDino();

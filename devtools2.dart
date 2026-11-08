@@ -317,7 +317,7 @@ class _KashfState extends State<KashfScreen> {
   @override
   void initState() {
     super.initState();
-    ref('stats/top').get().then((s) {
+    ref('kashfTop').get().then((s) {
       final v = s.value;
       if (mounted) {
         setState(() {
