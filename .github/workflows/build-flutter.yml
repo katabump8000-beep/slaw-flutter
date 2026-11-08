@@ -151,7 +151,15 @@ jobs:
         run: |
           cd build_app
           flutter pub get
-          flutter build apk --release --no-shrink --build-number=$((1000 + ${{ github.run_number }})) --dart-define=BUILD=${{ github.run_number }}
+          # إعادة المحاولة تلقائياً: أحياناً يردّ GitHub بخطأ 504 أثناء تنزيل Gradle (مشكلة شبكة مؤقتة وليست في الكود)
+          for i in 1 2 3 4; do
+            if flutter build apk --release --no-shrink --build-number=$((1000 + ${{ github.run_number }})) --dart-define=BUILD=${{ github.run_number }}; then
+              exit 0
+            fi
+            echo "::warning::فشلت المحاولة $i من 4، سنعيد بعد قليل"
+            sleep $((20 * i))
+          done
+          exit 1
 
       - name: Sign APK
         env:
