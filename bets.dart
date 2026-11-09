@@ -452,7 +452,7 @@ class _BetCardState extends State<BetCard> with SingleTickerProviderStateMixin {
     final late = nowMs() - st.t0 >= 360000;
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0x99FFD54A))),
+      decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xCCFFD54A), width: 1.6), boxShadow: const [BoxShadow(color: Color(0x55FFD54A), blurRadius: 22, spreadRadius: 1)]),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         const Text('╮─❖『 الرهانات 』❖─╭', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFFFFD54A), fontWeight: FontWeight.w900, fontSize: 16)),
         const SizedBox(height: 8),

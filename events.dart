@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:ui' show FontFeature;
 
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
@@ -45,7 +46,7 @@ class EvCard extends StatefulWidget {
 }
 
 class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
-  late final AnimationController c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat(reverse: true);
+  late final AnimationController c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
   Timer? _tk;
   final TextEditingController _betC = TextEditingController();
 
@@ -53,6 +54,10 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
   void initState() {
     super.initState();
     final o = widget.o;
+    final k0 = (o?['k'] ?? '').toString();
+    final ex0 = o?['ex'];
+    if (o != null && (o['big'] == 'ball' || k0 == 'hs_play' || (ex0 is Map && ex0['ball'] != null))) c.repeat(reverse: true);
+    if ((o == null || o['v'] != 2) && hexOk(widget.col)) c.repeat(reverse: true);
     if (o != null && o['cd'] is num) {
       _tk = Timer.periodic(const Duration(seconds: 1), (_) {
         if (mounted) setState(() {});
@@ -174,12 +179,11 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
           child: Text((o['w'] ?? '').toString(), textAlign: TextAlign.center, style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, height: 1.4, color: accent, shadows: [Shadow(color: accent.withAlpha(180), blurRadius: 16)])),
         ));
       }
-      kids.add(Text('المدة:  $left', textAlign: TextAlign.center, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900, color: left <= 5 ? const Color(0xFFFF6B6B) : base)));
+      kids.add(Text('المدة:  ${left.toString().padLeft(2, '0')}', textAlign: TextAlign.center, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900, color: left <= 5 ? const Color(0xFFFF6B6B) : base, fontFeatures: const [FontFeature.tabularFigures()])));
       final first = (o['first'] ?? '').toString();
-      if (first.isNotEmpty) {
-        kids.add(const SizedBox(height: 4));
-        kids.add(Text('أول من أجاب:  $first', textAlign: TextAlign.center, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900, color: Color(0xFF4CE07A))));
-      }
+      // السطر محجوز دائماً حتى لا يتغير ارتفاع البطاقة عند ظهور اسم أول من أجاب (بطاقة ثابتة كأي رسالة)
+      kids.add(const SizedBox(height: 4));
+      kids.add(SizedBox(height: 22, child: Text(first.isEmpty ? ' ' : 'أول من أجاب:  $first', textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900, color: Color(0xFF4CE07A)))));
       kids.add(const SizedBox(height: 4));
       kids.add(_decor('╝══════════════════╚', base));
     } else if (k == 'result' || k == 'ann') {
@@ -291,12 +295,12 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
             child: AnimatedBuilder(
               animation: c,
               builder: (_, __) => Container(
-                width: 62,
-                height: 62,
-                margin: const EdgeInsets.all(5),
+                width: 70,
+                height: 70,
+                margin: const EdgeInsets.all(4),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: col.withAlpha(120 + (90 * c.value).toInt()), blurRadius: 14 + 14 * c.value, spreadRadius: 1)]),
-                child: Text(h[0] as String, style: const TextStyle(fontSize: 44)),
+                child: FittedBox(fit: BoxFit.scaleDown, child: Padding(padding: const EdgeInsets.all(6), child: Text(h[0] as String, style: const TextStyle(fontSize: 44, height: 1.2)))),
               ),
             ),
           ),
@@ -307,9 +311,21 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
       kids.add(const SizedBox(height: 6));
       kids.add(const Text('رجاءا من كل مشارك تحديد القلب الذي يحس بأنه القلب الصحيح وليس المزيف (اتبع حدسك!):', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, height: 1.55, color: Colors.white, fontWeight: FontWeight.w800)));
       kids.add(const SizedBox(height: 8));
-      kids.add(Row(mainAxisAlignment: MainAxisAlignment.center, children: [heart(0), heart(1)]));
-      kids.add(Row(mainAxisAlignment: MainAxisAlignment.center, children: [heart(2)]));
-      kids.add(Row(mainAxisAlignment: MainAxisAlignment.center, children: [heart(3), heart(4)]));
+      const line = BorderSide(color: Color(0x40FFFFFF), width: 1);
+      Widget cell(Widget ch, {bool right = false, bool bottom = false}) => Container(
+            height: 92,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(border: Border(right: right ? line : BorderSide.none, bottom: bottom ? line : BorderSide.none)),
+            child: ch,
+          );
+      kids.add(Container(
+        decoration: BoxDecoration(border: Border.all(color: const Color(0x40FFFFFF)), borderRadius: BorderRadius.circular(10)),
+        child: Column(children: [
+          Row(children: [Expanded(child: cell(heart(0), right: true, bottom: true)), Expanded(child: cell(heart(1), bottom: true))]),
+          cell(heart(2), bottom: true),
+          Row(children: [Expanded(child: cell(heart(3), right: true)), Expanded(child: cell(heart(4)))]),
+        ]),
+      ));
       kids.add(const SizedBox(height: 4));
       kids.add(Text(closed ? 'جاري الكشف عن النتيجة...' : (iAmIn ? (iPicked ? 'تم تسجيل اختيارك ✅' : 'المدة:  $left') : 'المدة:  $left'), textAlign: TextAlign.center, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: base)));
       if (picks.isNotEmpty) {
@@ -367,11 +383,7 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
       kids.add(Text(widget.text, textAlign: TextAlign.center, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: base)));
     }
     if (k == 'intro' || k == 'round') kids.add(_cancel(o));
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 700),
-      curve: Curves.easeInOut,
-      alignment: Alignment.topCenter,
-      child: Container(
+    final box = Container(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
       decoration: BoxDecoration(
         color: Colors.black,
@@ -380,7 +392,10 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
         boxShadow: [BoxShadow(color: edge.withAlpha(95), blurRadius: 22, spreadRadius: 1)],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: kids),
-    ));
+    );
+    // حركة التقلّص الناعمة لبطاقات الحدس فقط؛ باقي البطاقات بحجم ثابت
+    if (k.startsWith('hs_')) return AnimatedSize(duration: const Duration(milliseconds: 700), curve: Curves.easeInOut, alignment: Alignment.topCenter, clipBehavior: Clip.none, child: box);
+    return box;
   }
 
   @override
@@ -391,13 +406,16 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
 
     final col = has ? hexColor(widget.col) : Colors.white;
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
         color: Colors.black,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: has ? col.withAlpha(150) : const Color(0x55FFFFFF)),
+        border: Border.all(color: has ? col.withAlpha(200) : const Color(0x88FFFFFF), width: 1.6),
+        boxShadow: [BoxShadow(color: (has ? col : Colors.white).withAlpha(80), blurRadius: 20, spreadRadius: 1)],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        _decor('╗══════════════════╔', has ? col : Colors.white70),
+        const SizedBox(height: 6),
         if (has)
           Center(
             child: RepaintBoundary(
@@ -427,6 +445,8 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
               color: l.startsWith('✅') ? const Color(0xFF4CE07A) : col,
             ),
           ),
+        const SizedBox(height: 6),
+        _decor('╝══════════════════╚', has ? col : Colors.white70),
       ]),
     );
   }

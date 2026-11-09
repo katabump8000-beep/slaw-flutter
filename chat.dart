@@ -164,6 +164,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final v = e.snapshot.value;
       if (mounted) setState(() => _srvScore = v is num ? v.toInt() : 0);
     }, onError: (_) {}));
+    _names(); // تحميل مسبق لأسماء الأعضاء: قائمة @ تظهر فوراً
     subs.add(FirebaseDatabase.instance.ref('.info/connected').onValue.listen((e) {
       final on = e.snapshot.value == true;
       _offT?.cancel();
@@ -387,7 +388,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!mounted) return;
     _hlT?.cancel();
     setState(() => _hlId = id);
-    _hlT = Timer(const Duration(seconds: 3), () {
+    _hlT = Timer(const Duration(seconds: 4), () {
       if (mounted && _hlId == id) setState(() => _hlId = '');
     });
   }
@@ -1009,40 +1010,46 @@ class _ChatScreenState extends State<ChatScreen> {
       toast('لا يمكن رؤية أعضاء هذا القروب', bad: true);
       return;
     }
-    final idx = await _names();
-    if (!mounted) return;
     final s = TextEditingController();
+    // تفتح القائمة فوراً؛ الأسماء تُحمَّل مسبقاً عند دخول الشات (وهنا إن لم تكتمل)
     showAppSheet<void>(context, (sc) => [
           const Text('اذكر عضواً', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-          StatefulBuilder(builder: (c, set) {
-            final q = s.text.trim();
-            final names = idx.keys.where((n) => q.isEmpty || n.contains(q)).take(40).toList();
-            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              TextField(controller: s, onChanged: (_) => set(() {}), decoration: const InputDecoration(hintText: 'ابحث بالاسم')),
-              const SizedBox(height: 8),
-              if (isStaff && (q.isEmpty || 'الكل'.contains(q)))
-                ListTile(
-                  dense: true,
-                  leading: const CircleAvatar(radius: 17, child: Icon(Icons.campaign_outlined, size: 18)),
-                  title: const Text('الكل'),
-                  subtitle: const Text('تنبيه فوري لكل أعضاء القروب', style: TextStyle(color: kMu, fontSize: 11.5)),
-                  onTap: () {
-                    Navigator.of(sc).pop();
-                    _insertMention('الكل');
-                  },
-                ),
-              ...names.map((n) => ListTile(
-                    dense: true,
-                    leading: UserAvatar(idx[n]!, size: 34),
-                    title: Text(n),
-                    onTap: () {
-                      Navigator.of(sc).pop();
-                      _insertMention(n);
-                    },
-                  )),
-              if (names.isEmpty) const Padding(padding: EdgeInsets.all(14), child: Center(child: Text('لا نتائج', style: TextStyle(color: kMu)))),
-            ]);
-          }),
+          FutureBuilder<Map<String, String>>(
+            future: _names(),
+            builder: (c0, snap) {
+              if (!snap.hasData) return const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()));
+              final idx = snap.data!;
+              return StatefulBuilder(builder: (c, set) {
+                final q = s.text.trim();
+                final names = idx.keys.where((n) => q.isEmpty || n.contains(q)).take(40).toList();
+                return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  TextField(controller: s, onChanged: (_) => set(() {}), decoration: const InputDecoration(hintText: 'ابحث بالاسم')),
+                  const SizedBox(height: 8),
+                  if (isStaff && (q.isEmpty || 'الكل'.contains(q)))
+                    ListTile(
+                      dense: true,
+                      leading: const CircleAvatar(radius: 17, child: Icon(Icons.campaign_outlined, size: 18)),
+                      title: const Text('الكل'),
+                      subtitle: const Text('تنبيه فوري لكل أعضاء القروب', style: TextStyle(color: kMu, fontSize: 11.5)),
+                      onTap: () {
+                        Navigator.of(sc).pop();
+                        _insertMention('الكل');
+                      },
+                    ),
+                  ...names.map((n) => ListTile(
+                        dense: true,
+                        leading: UserAvatar(idx[n]!, size: 34),
+                        title: Text(n),
+                        onTap: () {
+                          Navigator.of(sc).pop();
+                          _insertMention(n);
+                        },
+                      )),
+                  if (names.isEmpty) const Padding(padding: EdgeInsets.all(14), child: Center(child: Text('لا نتائج', style: TextStyle(color: kMu)))),
+                ]);
+              });
+            },
+          ),
         ]);
   }
 
@@ -1581,7 +1588,14 @@ class _ChatScreenState extends State<ChatScreen> {
                 // مفتاح ثابت بالمعرّف: GlobalKey لكل رسالة كان يسبب تداخل الرسائل وتعلّق بطاقات البوت
                 key: (id == widget.focusMid || id == _jumpId) ? keys.putIfAbsent(id, () => GlobalKey()) : ValueKey<String>(id),
                 duration: const Duration(milliseconds: 300),
-                decoration: BoxDecoration(color: id == _hlId ? const Color(0xB3000000) : Colors.transparent, borderRadius: BorderRadius.circular(14)),
+                decoration: id == _hlId
+                    ? BoxDecoration(
+                        color: context.accent.withAlpha(38),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: context.accent, width: 2),
+                        boxShadow: [BoxShadow(color: context.accent.withAlpha(190), blurRadius: 22, spreadRadius: 2)],
+                      )
+                    : BoxDecoration(color: Colors.transparent, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.transparent, width: 2)),
                 child: _fresh.contains(id)
                     ? TweenAnimationBuilder<double>(
                         tween: Tween<double>(begin: 0, end: 1),

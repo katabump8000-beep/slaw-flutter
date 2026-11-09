@@ -572,7 +572,7 @@ class _LuckyState extends State<LuckyCardScreen> {
     final sz = Size(w, h);
     return Scaffold(
       appBar: AppBar(title: const Text('❓ بطاقة الحظ')),
-      body: ListView(padding: const EdgeInsets.all(18), children: [
+      body: ListView(physics: const NeverScrollableScrollPhysics(), padding: const EdgeInsets.all(18), children: [
         Center(
           child: SizedBox(
             width: w,
@@ -600,9 +600,11 @@ class _LuckyState extends State<LuckyCardScreen> {
                       child: AnimatedOpacity(
                         opacity: done ? 0 : 1,
                         duration: done ? const Duration(milliseconds: 500) : Duration.zero,
-                        child: GestureDetector(
-                          onPanStart: (d) => _touch(d.localPosition, sz, start: true),
-                          onPanUpdate: (d) => _touch(d.localPosition, sz),
+                        // Listener (أحداث اللمس الخام) لا يدخل مسابقة الإيماءات: البطاقة ثابتة ولا تتحرك مع الإصبع
+                        child: Listener(
+                          behavior: HitTestBehavior.opaque,
+                          onPointerDown: (e) => _touch(e.localPosition, sz, start: true),
+                          onPointerMove: (e) => _touch(e.localPosition, sz),
                           child: CustomPaint(size: sz, painter: _ScratchPainter(strokes, 26)),
                         ),
                       ),
@@ -1081,6 +1083,7 @@ Future<String> evCall(String gid, String kind, [Map<String, Object?> extra = con
   final err = (r['err'] ?? '').toString();
   if (err == 'bet' && r['max'] != null) return 'bet:${r['max']}';
   if (err == 'min' && r['min'] != null) return 'min:${r['min']}';
+  if (err == 'server' && r['m'] != null) return 'server:${r['m']}';
   return err;
 }
 
@@ -1130,8 +1133,20 @@ void _evToast(String err) {
     case 'none':
       toast('انتهت هذه الفعالية', bad: true);
       break;
+    case 'group':
+      toast('الفعاليات تعمل داخل النقابات فقط', bad: true);
+      break;
+    case 'banned':
+      toast('حسابك محظور', bad: true);
+      break;
+    case 'bad':
+      toast('بيانات الطلب غير صحيحة', bad: true);
+      break;
+    case 'server':
+      toast(Session.isDev ? 'خطأ في السيرفر: ${n.isEmpty ? '' : n}' : 'تعذر تنفيذ الطلب، حاول مجدداً', bad: true);
+      break;
     default:
-      toast('تعذر تنفيذ الطلب', bad: true);
+      toast(Session.isDev ? 'تعذر تنفيذ الطلب [$e]' : 'تعذر تنفيذ الطلب', bad: true);
   }
 }
 

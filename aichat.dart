@@ -10,6 +10,7 @@ import 'data.dart';
 import 'devtools2.dart';
 import 'devtools3.dart';
 import 'football.dart';
+import 'kingdoms.dart';
 import 'friends.dart';
 import 'links.dart';
 import 'moneytools.dart';
@@ -52,12 +53,12 @@ Future<Map<dynamic, dynamic>> aiCall(String q, String kind) async {
   return r ?? <dynamic, dynamic>{'err': why.isNotEmpty ? why : 'timeout'};
 }
 
-String _aiErr(String e) {
+String _aiErr(String e, [String d = '']) {
   switch (e) {
     case 'limit':
       return 'وصلت للحد اليومي (257 رسالة). عد غداً 🌙';
     case 'nokey':
-      return 'الذكاء الاصطناعي غير مفعّل بعد (لم يوضع مفتاحه في السيرفر).';
+      return 'لا يوجد مفتاح للذكاء الاصطناعي في السيرفر. (الإمبراطور: افتح الإعدادات ← حالة Ai)';
     case 'off':
       return 'عذرا قام أحد المطورين بإيقاف هذه!';
     case 'perm':
@@ -68,6 +69,20 @@ String _aiErr(String e) {
       return 'لا يوجد اتصال بالإنترنت.';
     case 'timeout':
       return 'السيرفر لا يستجيب الآن، حاول بعد دقيقة.';
+    case 'fail':
+    case 'server':
+      final why = d == 'http401'
+          ? 'مفتاح OpenRouter مرفوض (401)'
+          : d == 'http402'
+              ? 'رصيد OpenRouter منتهٍ (402)'
+              : d == 'http429'
+                  ? 'ضغط كبير على النموذج (429)، حاول بعد قليل'
+                  : (d == 'http400' || d == 'http404')
+                      ? 'اسم النموذج غير صحيح (${d.substring(4)})'
+                      : d.isEmpty
+                          ? ''
+                          : d;
+      return why.isEmpty ? 'تعذر الرد الآن، حاول مجدداً.' : 'تعذر الرد: $why';
     default:
       return 'تعذر الرد الآن، حاول مجدداً.';
   }
@@ -78,6 +93,10 @@ class _Msg {
   String text;
   String go;
   bool card;
+  String cardTitle = '';
+  List<List<String>> rows = [];
+  String gu = '';
+  String gn = '';
   _Msg(this.me, this.text, {this.go = '', this.card = false});
 }
 
@@ -159,6 +178,34 @@ class _AiChatState extends State<AiChatScreen> {
 
   Widget? _goTarget(String k) {
     switch (k) {
+      case 'giveTake':
+        return const GiveTakeScreen();
+      case 'bank':
+        return const BankScreen();
+      case 'accounts':
+        return const AccountsScreen();
+      case 'links':
+        return const LinksScreen();
+      case 'stats':
+        return const StatsScreen();
+      case 'sorter':
+        return const SorterScreen();
+      case 'prizes':
+        return const EventPrizesScreen();
+      case 'switches':
+        return const FeatureSwitchScreen();
+      case 'football':
+        return const FootballAdminScreen();
+      case 'suggestions':
+        return const SuggestionsScreen();
+      case 'shiar':
+        return const ShiarScreen();
+      case 'tools':
+        return const ToolsScreen();
+      case 'kingdoms':
+        return const KingdomsScreen();
+      case 'ledger':
+        return null; // يُفتح من _openGo (يحتاج معرّف العضو)
       case 'password':
         return const ChangePasswordScreen();
       case 'settings':
@@ -212,36 +259,50 @@ class _AiChatState extends State<AiChatScreen> {
       busy = true;
     });
     _down();
-    // وضع «نقل» للمطورين: توجيه محلي
-    if (widget.staff && mode == 'move') {
-      final t = _moveTarget(q);
-      setState(() {
-        busy = false;
-        msgs.add(_Msg(false, t == null ? 'لم أفهم أين تريد الذهاب. جرّب: السحب، البنك، الحسابات، الروابط، الإحصائيات، الفرز...' : 'هل تريد أن أنقلك للصفحة التي طلبتها؟', go: t == null ? '' : q));
-      });
-      _down();
-      return;
-    }
-    final r = await aiCall(q, widget.staff ? 'd' : 'm');
+    // وضع «نقل»: نطلب من الذكاء الاصطناعي فهم الصفحة المقصودة بأي صياغة
+    final ask = (widget.staff && mode == 'move') ? 'انقلني إلى: $q' : q;
+    final r = await aiCall(ask, widget.staff ? 'd' : 'm');
     if (!mounted) return;
     final err = (r['err'] ?? '').toString();
-    final m = _Msg(false, '', card: widget.staff && mode == 'cards');
+    final m = _Msg(false, '', card: false);
     setState(() {
       msgs.add(m);
       busy = false;
     });
     if (err.isNotEmpty) {
-      setState(() => m.text = _aiErr(err));
+      // وضع «نقل»: إن تعذر الذكاء الاصطناعي نحاول بالكلمات المفتاحية
+      final t = (widget.staff && mode == 'move') ? _moveTarget(q) : null;
+      if (t != null) {
+        setState(() {
+          m.text = 'هل تريد أن أنقلك للصفحة التي طلبتها؟';
+          m.go = q;
+        });
+        return;
+      }
+      setState(() => m.text = _aiErr(err, (r['d'] ?? '').toString()));
       return;
     }
     if (r['used'] is num) used = (r['used'] as num).toInt();
     m.go = (r['go'] ?? '').toString();
+    m.gu = (r['gu'] ?? '').toString();
+    m.gn = (r['gn'] ?? '').toString();
+    final cd = r['card'];
+    if (widget.staff && cd is Map && mode != 'talk') {
+      m.card = true;
+      m.cardTitle = (cd['title'] ?? '').toString();
+      final rows = cd['rows'];
+      if (rows is List) {
+        m.rows = rows.map((e) => (e is List ? e.map((x) => x.toString()).toList() : <String>[e.toString()])).toList();
+      }
+    }
     await _reveal(m, (r['text'] ?? '').toString());
   }
 
   void _openGo(_Msg m) {
     Widget? t;
-    if (widget.staff && m.go.isNotEmpty && m.go.length > 1 && _goTarget(m.go) == null) {
+    if (m.go == 'ledger' && m.gu.isNotEmpty) {
+      t = LedgerScreen(uid: m.gu, name: m.gn.isEmpty ? 'عضو' : m.gn);
+    } else if (widget.staff && m.go.length > 1 && _goTarget(m.go) == null) {
       t = _moveTarget(m.go);
     } else {
       t = _goTarget(m.go);
@@ -257,21 +318,38 @@ class _AiChatState extends State<AiChatScreen> {
   }
 
   Widget _bubble(_Msg m) {
-    final bg = m.me ? context.accent.withAlpha(60) : (m.card ? const Color(0xFF14213D) : kCard);
+    final bg = m.me ? context.accent.withAlpha(60) : (m.card ? const Color(0xFF0B0B0B) : kCard);
     return Align(
       alignment: m.me ? Alignment.centerLeft : Alignment.centerRight,
       child: Container(
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * .8),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * .86),
         margin: const EdgeInsets.symmetric(vertical: 5),
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(16), border: Border.all(color: m.card ? context.accent : kLine)),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: m.card ? context.accent : kLine, width: m.card ? 1.6 : 1),
+          boxShadow: m.card ? [BoxShadow(color: context.accent.withAlpha(70), blurRadius: 16)] : null,
+        ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(m.text.isEmpty && !m.me ? '...' : m.text, style: const TextStyle(fontSize: 14.5, height: 1.6)),
+          if (m.card && m.cardTitle.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(m.cardTitle, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: context.accent))),
+          if (m.card && m.rows.isNotEmpty)
+            for (final r in m.rows)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(children: [
+                  Expanded(child: Text(r.isNotEmpty ? r[0] : '', style: const TextStyle(fontSize: 13.5, color: Colors.white70))),
+                  const SizedBox(width: 10),
+                  Text(r.length > 1 ? r[1] : '', style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900)),
+                ]),
+              ),
+          if (!(m.card && m.rows.isNotEmpty))
+            Text(m.text.isEmpty && !m.me ? '...' : m.text, style: const TextStyle(fontSize: 14.5, height: 1.6)),
           if (m.go.isNotEmpty && !m.me)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Row(children: [
-                Expanded(child: AppButton('موافق', compact: true, onPressed: () => _openGo(m))),
+                Expanded(child: AppButton(m.go == 'ledger' ? 'فتح السجل' : 'موافق', compact: true, onPressed: () => _openGo(m))),
                 const SizedBox(width: 8),
                 Expanded(child: AppButton('رفض', kind: 'g', compact: true, onPressed: () => setState(() => m.go = ''))),
               ]),
@@ -379,7 +457,11 @@ class _AiStatusState extends State<AiStatusScreen> {
       } else {
         hasKey = r['key'] == true;
         off = r['off'] == true;
-        line = !hasKey! ? '⚠️ لم يوضع رمز (OPENROUTER_KEY) في السيرفر' : (off ? '⛔ متوقف بقرار منك' : '✅ شغّال');
+        final src = {'env': 'متغير البيئة', 'db': 'قاعدة البيانات', 'file': 'ملف ai-key.txt'}[(r['src'] ?? '').toString()] ?? '';
+        final last = (r['last'] ?? '').toString();
+        line = !hasKey!
+            ? '⚠️ لا يوجد مفتاح في السيرفر\nافتح التطبيق بحساب الإمبراطور أو الصق المفتاح بالأسفل\n(نسخة السيرفر ${r['ver'] ?? '?'})'
+            : '${off ? '⛔ متوقف بقرار منك' : '✅ شغّال'}\nمصدر المفتاح: $src\nالنموذج: ${r['model'] ?? ''}\nنسخة السيرفر: ${r['ver'] ?? '?'}${last.isEmpty ? '' : '\nآخر خطأ: $last'}';
       }
     });
   }
