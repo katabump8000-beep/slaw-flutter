@@ -131,7 +131,7 @@ bool soloErr(Map<dynamic, dynamic> r) {
       toast('لديك جولة مفتوحة، أكملها أولاً', bad: true);
       break;
     default:
-      toast('تعذر تنفيذ الطلب، حاول مجدداً', bad: true);
+      toast(Session.isDev ? 'تعذر تنفيذ الطلب [$e]' : 'تعذر تنفيذ الطلب، حاول مجدداً', bad: true);
   }
   return true;
 }

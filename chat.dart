@@ -529,7 +529,7 @@ class _ChatScreenState extends State<ChatScreen> {
         'from': myUid,
         'type': type,
         'ts': ServerValue.timestamp,
-        'color': (prefs.getString('txtc') ?? '').isNotEmpty ? prefs.getString('txtc')! : Session.me.color,
+        'color': (Session.isEmp && (prefs.getString('txtc') ?? '').isNotEmpty) ? prefs.getString('txtc')! : Session.me.color,
         if (visitor) 'vis': true,
         if (myMsgStyleCode() != null) 'ms': myMsgStyleCode(),
         if (_reply != null) 'rpn': _reply!['n'],
@@ -1373,6 +1373,7 @@ class _ChatScreenState extends State<ChatScreen> {
               showMsgStyleSheet(context);
             }),
           ],
+          if (Session.isEmp) ...[
           const SizedBox(height: 12),
           const Text('لون رسائلك (يبقى ثابتاً)', style: TextStyle(color: kMu, fontSize: 12.5)),
           const SizedBox(height: 8),
@@ -1395,6 +1396,7 @@ class _ChatScreenState extends State<ChatScreen> {
               child: Container(width: 38, height: 38, alignment: Alignment.center, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white38)), child: const Icon(Icons.restart_alt, size: 20)),
             ),
           ]),
+          ],
         ]);
   }
 
@@ -1453,6 +1455,8 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _warStrip() {
+    return const SizedBox(); // أُلغيت رسائل «تتعرضون لهجوم…/تشنون حرباً…» نهائياً
+    // ignore: dead_code
     if (kind != 'main') return const SizedBox();
     return StreamBuilder<int>(
       stream: Stream<int>.periodic(const Duration(seconds: 1), (i) => i),

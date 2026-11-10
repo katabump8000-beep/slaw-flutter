@@ -224,9 +224,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     Session.ensurePid();
     BellService.start();
     if (Session.isEmp && kOpenRouterKey.isNotEmpty) {
-      // يزوّد السيرفر بمفتاح الذكاء الاصطناعي (عقدة محمية: الكتابة للإمبراطور فقط والقراءة ممنوعة)
-      ref('secrets/aiKey').set(kOpenRouterKey).catchError((Object _) {});
-      ref('secrets/aiModel').set(kAiModel).catchError((Object _) {});
+      // يزوّد السيرفر بمفتاح التطبيق مرة واحدة فقط، ولا يكتب أبداً فوق مفتاح وضعه الإمبراطور بنفسه من «حالة Ai»
+      ref('config/aiManual').get().then((s) {
+        if (s.value == true) return;
+        ref('secrets/aiKey').set(kOpenRouterKey).catchError((Object _) {});
+        ref('secrets/aiModel').set(kAiModel).catchError((Object _) {});
+      }).catchError((Object _) {});
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) checkNeedPw(context);

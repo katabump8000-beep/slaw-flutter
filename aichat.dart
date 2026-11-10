@@ -72,7 +72,7 @@ String _aiErr(String e, [String d = '']) {
     case 'fail':
     case 'server':
       final why = d == 'http401'
-          ? 'مفتاح OpenRouter مرفوض (401)'
+          ? 'مفتاح OpenRouter مرفوض (401): أنشئ مفتاحاً جديداً من openrouter.ai/keys والصقه في الإعدادات ← حالة Ai'
           : d == 'http402'
               ? 'رصيد OpenRouter منتهٍ (402)'
               : d == 'http429'
@@ -481,6 +481,7 @@ class _AiStatusState extends State<AiStatusScreen> {
     }
     try {
       await ref('secrets/aiKey').set(k);
+      await ref('config/aiManual').set(true); // من الآن لا يكتب التطبيق مفتاحه القديم فوق هذا المفتاح
       if (modelC.text.trim().isNotEmpty) await ref('secrets/aiModel').set(modelC.text.trim());
       keyC.clear();
       toast('تم حفظ المفتاح ✅', accent: true);
@@ -513,7 +514,7 @@ class _AiStatusState extends State<AiStatusScreen> {
             const SizedBox(height: 8),
             AppButton('إعادة الفحص', kind: 'g', compact: true, onPressed: _check),
             const SizedBox(height: 22),
-            const Text('وضع مفتاح OpenRouter يدوياً (يُحفظ في السيرفر ولا يُقرأ من أي جهاز):', textAlign: TextAlign.center, style: TextStyle(color: kMu, fontSize: 12.5)),
+            const Text('وضع مفتاح جديد:\n1) افتح openrouter.ai/keys وأنشئ مفتاحاً جديداً (Create Key)\n2) الصقه هنا واضغط «حفظ المفتاح»\nيُحفظ في قاعدة البيانات للسيرفر فقط، ولا يُقرأ من أي جهاز، ولا تضعه في GitHub.', textAlign: TextAlign.center, style: TextStyle(color: kMu, fontSize: 12.5, height: 1.7)),
             const SizedBox(height: 8),
             TextField(controller: keyC, obscureText: true, decoration: const InputDecoration(hintText: 'المفتاح (sk-or-...)')),
             const SizedBox(height: 8),

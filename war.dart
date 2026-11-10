@@ -410,7 +410,6 @@ class _GuildPanelState extends State<GuildPanel> {
         Row(children: [btn('atk', '⬆️ ترقية الهجوم'), const SizedBox(width: 10), btn('def', '⬆️ ترقية الدفاع')]),
         if (lock)
           const Padding(padding: EdgeInsets.only(top: 6), child: Center(child: Icon(Icons.access_time, size: 18, color: kMu))),
-        if (warLine.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(warLine, style: const TextStyle(color: _red, fontWeight: FontWeight.w800))),
       ]),
     );
   }

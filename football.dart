@@ -73,8 +73,14 @@ void fbToast(String e) {
     case 'early':
       toast('لم ينتهِ وقت التصويت بعد', bad: true);
       break;
+    case 'none':
+      toast('لا يوجد حدث قائم لتنفيذ هذا الطلب', bad: true);
+      break;
+    case 'banned':
+      toast('حسابك محظور', bad: true);
+      break;
     default:
-      toast('تعذر تنفيذ الطلب', bad: true);
+      toast(Session.isDev ? 'تعذر تنفيذ الطلب [$e]' : 'تعذر تنفيذ الطلب', bad: true);
   }
 }
 
