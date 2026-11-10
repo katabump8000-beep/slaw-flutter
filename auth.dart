@@ -227,7 +227,14 @@ Future<String> registerAccount({
 
     final h = await deviceHash();
     final dv = await ref('devices/$h').get();
-    if (dv.exists && dv.value.toString() != uid) {
+    // تصريح مؤقت (30 دقيقة) يمنحه مطور/إمبراطور لجهازه قبل تسجيل الخروج: «إنشاء حساب آخر»
+    var staffAllow = false;
+    try {
+      final al = (await ref('deviceAllow/$h').get()).value;
+      final ats = al is Map && al['ts'] is num ? (al['ts'] as num).toInt() : 0;
+      staffAllow = ats > 0 && (nowMs() - ats).abs() < 30 * 60000;
+    } catch (_) {}
+    if (dv.exists && dv.value.toString() != uid && !staffAllow) {
       try {
         await ref('restricted/$uid').set(<String, Object?>{
           'n': name,
@@ -238,6 +245,11 @@ Future<String> registerAccount({
       } catch (_) {}
       await _rollback(created);
       return 'لا يمكن إنشاء حساب آخر على هذا الجهاز';
+    }
+    if (staffAllow) {
+      try {
+        await ref('deviceAllow/$h').remove();
+      } catch (_) {}
     }
     if (!dv.exists) await ref('devices/$h').set(uid);
     if (!(await ref('deviceOf/$uid').get()).exists) await ref('deviceOf/$uid').set(h);

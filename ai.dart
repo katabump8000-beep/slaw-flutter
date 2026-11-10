@@ -136,9 +136,9 @@ Future<PunishResult> applyPunish(String kind) async {
     dur = tiers[n >= 3 ? 3 : n];
     warn = dur == 0;
   } else {
-    const base = {'mild': 5, 'severe': 420, 'image': 30, 'spam': 10};
+    const base = {'mild': 60, 'severe': 420, 'image': 30, 'spam': 10};
     final c = (cur[key] as int?) ?? 0;
-    dur = (base[kind] ?? 5) * pow(2, c > 12 ? 12 : c).toInt();
+    dur = kind == 'mild' ? 60 : (base[kind] ?? 5) * pow(2, c > 12 ? 12 : c).toInt(); // الشتم المباشر: ساعة كاملة دائماً
     if (dur > 20160) dur = 20160;
   }
   cur['n'] = n + 1;
@@ -217,7 +217,10 @@ const Set<String> _badExact = {
   'كس', 'كسك', 'كسم', 'كسمك', 'طيز', 'طيزك', 'زب', 'زبي', 'زبك', 'نيك', 'انيك', 'نيكني', 'عرص', 'عرصه',
 };
 // إهانات خفيفة (عقوبتها أخف)
-const Set<String> _mildExact = {'كلب', 'كلاب', 'حمار', 'حمير', 'خرا', 'خره', 'تيس', 'حيوان', 'كلبه'};
+// كلمة «كلب/حمار/جحش» وحدها ليست مخالفة (تظهر في فعاليات الحيوانات). المخالفة هي توجيه الشتيمة لشخص: «يا كلب»، «انت حمار»، «ابن الكلب»...
+const Set<String> _mildExact = <String>{};
+final RegExp _directInsult = RegExp(
+    r'(^|[^\u0621-\u064A])(يا|انت|انتي|ابن|بنت|يلعن)\s*(ال)?(كلب|كلاب|حمار|حمير|جحش|حيوان|تيس|خنزير|غبي|حقير|قذر|وسخ|تافه|معفن|بهيم|ثور)(?![\u0621-\u064A])');
 const List<String> _badPart = [
   'شرموط', 'شراميط', 'منيك', 'منيوك', 'قحبه', 'قحاب', 'متناك', 'كسمك', 'كسختك', 'كساختك', 'كسامك', 'fuck',
 ];
@@ -225,7 +228,7 @@ const List<String> _badPart = [
 /// 0 = نظيف، 1 = إهانة خفيفة، 2 = كلمة شنيعة
 int badLevel(String text) {
   final t = _nb(text);
-  var lv = 0;
+  var lv = _directInsult.hasMatch(t) ? 1 : 0;
   for (final w in t.split(RegExp(r'[^\u0621-\u064Aa-zA-Z0-9]+'))) {
     if (w.isEmpty) continue;
     if (_badExact.contains(w)) return 2;

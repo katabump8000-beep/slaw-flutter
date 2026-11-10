@@ -1,3 +1,4 @@
+import 'zain.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -121,6 +122,8 @@ class _OfflineStartState extends State<OfflineStartScreen> {
                 const Text('رجاءا قم بالتحقق من الاتصال بالانترنت لديك!', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: kMu, height: 1.7)),
                 const SizedBox(height: 26),
                 AppButton('العب بدون انترنت', glow: true, onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const DinoScreen()))),
+                const SizedBox(height: 10),
+                AppButton('توفير الإنترنت', kind: 'g', onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const LiteHome()))),
                 const SizedBox(height: 10),
                 AppButton('إعادة المحاولة', kind: 'g', onPressed: widget.onRetry),
               ]),

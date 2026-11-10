@@ -182,10 +182,10 @@ Future<void> runCommand(BuildContext ctx, String gid, String raw) async {
       push(const ShopRoute());
       break;
     case 'حيوانات':
-      await QuizHost.start(ctx, gid, 'animals');
+      await startEvent(gid, 'animals');
       break;
     case 'شخصيات':
-      await QuizHost.start(ctx, gid, 'chars');
+      await startEvent(gid, 'chars');
       break;
   }
 }

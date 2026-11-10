@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -171,6 +172,16 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
       final big = (o['big'] ?? '').toString();
       if (big == 'ball') {
         kids.add(Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Center(child: _ball(base, 84))));
+      } else if (big == 'img' && (o['img'] ?? '').toString().isNotEmpty) {
+        Uint8List? bytes;
+        try {
+          final raw = o['img'].toString();
+          bytes = base64Decode(raw.contains(',') ? raw.split(',').last : raw);
+        } catch (_) {}
+        kids.add(Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: ClipRRect(borderRadius: BorderRadius.circular(14), child: bytes == null ? const SizedBox(height: 60) : Image.memory(bytes, height: 190, fit: BoxFit.contain, gaplessPlayback: true)),
+        ));
       } else if (big == 'emoji') {
         kids.add(Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text((o['e'] ?? '').toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 80))));
       } else {

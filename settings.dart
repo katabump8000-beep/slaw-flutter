@@ -1,11 +1,13 @@
 import 'aichat.dart';
 import 'uiprefs.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'app_state.dart';
+import 'auth.dart' show deviceHash;
 import 'notif.dart';
 import 'bell.dart';
 import 'crop.dart';
@@ -75,6 +77,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
           AppButton('إلغاء', kind: 'g', onPressed: () => Navigator.of(sc).pop(false)),
         ]);
     if (ok != true) return;
+    BellService.stop();
+    await dropPushToken();
+    Session.reset();
+    await FirebaseAuth.instance.signOut();
+    if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+  }
+
+  /// للمطورين والإمبراطور فقط: يسمح بإنشاء حساب عضو جديد على هذا الجهاز (للتجربة وكشف الثغرات)
+  Future<void> _newAccount() async {
+    final ok = await showAppSheet<bool>(context, (sc) => [
+          const Text('إنشاء حساب آخر', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+          const Text('سيتم تسجيل خروجك من هذا الحساب وفتح شاشة التسجيل لإنشاء حساب عضو جديد على نفس الجهاز. يمكنك الرجوع لحسابك بكلمة سرك.', style: TextStyle(color: kMu, height: 1.6)),
+          AppButton('متابعة', onPressed: () => Navigator.of(sc).pop(true)),
+          AppButton('إلغاء', kind: 'g', onPressed: () => Navigator.of(sc).pop(false)),
+        ]);
+    if (ok != true) return;
+    try {
+      final h = await deviceHash();
+      await ref('deviceAllow/$h').set(<String, Object?>{'by': myUid, 'ts': ServerValue.timestamp});
+    } catch (e) {
+      toast('تعذر منح التصريح (حدّث قواعد قاعدة البيانات: deviceAllow)', bad: true);
+      return;
+    }
     BellService.stop();
     await dropPushToken();
     Session.reset();
@@ -246,6 +271,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
           const SizedBox(height: 16),
           Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: AppButton('تسجيل الخروج', kind: 'r', onPressed: _logout)),
+          if (Session.isDev)
+            Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: AppButton('إنشاء حساب آخر', kind: 'g', onPressed: _newAccount)),
           const SizedBox(height: 40),
         ],
       ),

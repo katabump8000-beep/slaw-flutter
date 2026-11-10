@@ -120,6 +120,36 @@ class _ProfileBodyState extends State<_ProfileBody> {
       ),
       const SizedBox(height: 6),
       Center(child: Wrap(spacing: 6, runSpacing: 6, children: [if (role == 'dev' || role == 'emp') DevBadge(founder: role == 'emp'), if (tag != null) tag, ageTag(p!, role: role), FutureBuilder<DataSnapshot>(future: ref('pdata/${widget.uid}/elite').get(), builder: (c, es) => es.data?.value == true ? const Tag('نخبة 🏅', fg: Color(0xFFFFB04A)) : const SizedBox.shrink()), Tag(p!.gender == 'f' ? 'أنثى' : 'ذكر'), if (pubs > 10) const Tag('رتبة عالية 🌟')])),
+      // الإنجاز الذي منحه المطور/الإمبراطور: يظهر في الملف التعريفي لكل من يزوره
+      StreamBuilder<DatabaseEvent>(
+        stream: ref('pdata/${widget.uid}/ach').onValue,
+        builder: (c, sn) {
+          final a = sn.data?.snapshot.value;
+          final t = a is Map ? (a['t'] ?? '').toString() : '';
+          if (t.isEmpty) return const SizedBox.shrink();
+          final col = hexOk((a as Map)['c']?.toString()) ? hexColor(a['c'].toString()) : const Color(0xFFFFD54A);
+          return Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Center(
+              child: GestureDetector(
+                onTap: () => showDialog<void>(
+                  context: context,
+                  builder: (d) => AlertDialog(
+                    title: const Text('🏆 الإنجازات'),
+                    content: Text('${p!.name}\n\n$t', style: TextStyle(color: col, fontSize: 17, fontWeight: FontWeight.w800, height: 1.7)),
+                    actions: [TextButton(onPressed: () => Navigator.pop(d), child: const Text('إغلاق'))],
+                  ),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  decoration: BoxDecoration(color: col.withAlpha(30), borderRadius: BorderRadius.circular(14), border: Border.all(color: col.withAlpha(150)), boxShadow: [BoxShadow(color: col.withAlpha(60), blurRadius: 10)]),
+                  child: Text('🏆 $t', style: TextStyle(color: col, fontWeight: FontWeight.w800)),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
       if (pid.isNotEmpty)
         Center(
           child: Row(mainAxisSize: MainAxisSize.min, children: [

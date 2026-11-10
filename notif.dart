@@ -111,6 +111,8 @@ String notifTitle(String t) {
   switch (t) {
     case 'men':
       return '📣 هناك من ذكر اسمك';
+    case 'rep':
+      return '↩️ لقد تلقيت ردا';
     case 'all':
       return '📢 نداء للجميع';
     case 'frq':

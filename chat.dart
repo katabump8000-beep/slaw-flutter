@@ -133,8 +133,9 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     markGroupRead(gid);
+    openChatGid = gid;
     // نحفظ الرسائل التي ذُكرت فيها قبل مسح الإشعارات: يظهر زر @ صغير للانتقال إليها
-    final mm = BellService.items.values.where((n) => (n.t == 'men' || n.t == 'all') && n.g == gid && n.mid.isNotEmpty).toList()
+    final mm = BellService.items.values.where((n) => (n.t == 'men' || n.t == 'all' || n.t == 'rep') && n.g == gid && n.mid.isNotEmpty).toList()
       ..sort((a, b) => a.ts.compareTo(b.ts));
     _mentionMids = mm.map((n) => n.mid).toList();
     BellService.clearMentions(gid);
@@ -237,6 +238,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _evTimer?.cancel();
     _expTimer?.cancel();
     _hlT?.cancel();
+    if (openChatGid == gid) openChatGid = '';
     BellService.clearMentions(gid);
     prefs.setInt('ls_$gid', nowMs());
     for (final s in subs) {
@@ -583,7 +585,8 @@ class _ChatScreenState extends State<ChatScreen> {
       toast('الشات مقفل لحظات بسبب بدء الفعالية 🔒', bad: true);
       return;
     }
-    final lv = (_evLive && evSafeWord(t)) ? 0 : badLevel(t); // أثناء الفعالية: إجابة مثل «كلب» ليست مخالفة
+    var lv = (_evLive && evSafeWord(t)) ? 0 : badLevel(t); // أثناء الفعالية: إجابة مثل «كلب» ليست مخالفة
+    if (lv == 1 && Session.isDev) lv = 0; // الإمبراطور والمطورون مستثنون من عقوبة الشتم الخفيف
     if (lv > 0) {
       ctrl.clear();
       await _punish(lv == 2 ? 'severe' : 'mild', 'رسالة مخالفة!');
@@ -1592,7 +1595,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 // مفتاح ثابت بالمعرّف: GlobalKey لكل رسالة كان يسبب تداخل الرسائل وتعلّق بطاقات البوت
                 key: (id == widget.focusMid || id == _jumpId) ? keys.putIfAbsent(id, () => GlobalKey()) : ValueKey<String>(id),
                 duration: const Duration(milliseconds: 300),
-                decoration: id == _hlId
+                decoration: (id == _hlId || _mentionMids.contains(id))
                     ? BoxDecoration(
                         color: context.accent.withAlpha(38),
                         borderRadius: BorderRadius.circular(16),

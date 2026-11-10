@@ -32,6 +32,8 @@ String notifText(NotifItem n, String who) {
   switch (n.t) {
     case 'men':
       return 'هناك من ذكر اسمك\n$who ذكرك في «${n.groupLabel}»';
+    case 'rep':
+      return 'لقد تلقيت ردا\n$who رد على رسالتك في «${n.groupLabel}»';
     case 'all':
       return '📢 $who نادى الجميع في «${n.groupLabel}»\n${n.tx}';
     case 'mod':
@@ -67,6 +69,8 @@ IconData notifIcon(String t) {
   switch (t) {
     case 'men':
       return Icons.alternate_email;
+    case 'rep':
+      return Icons.reply_rounded;
     case 'all':
       return Icons.campaign_outlined;
     case 'frq':
@@ -95,6 +99,9 @@ IconData notifIcon(String t) {
 }
 
 /// مستمع الإشعارات: notifs/{uid}
+/// معرّف الشات المفتوح حالياً (لتفادي إشعار «تلقيت ردا» داخل نفس الشات)
+String openChatGid = '';
+
 class BellService {
   static final Map<String, NotifItem> items = {};
   static final ValueNotifier<int> tick = ValueNotifier<int>(0);
@@ -124,7 +131,7 @@ class BellService {
       _recompute();
       final live = DateTime.now().difference(_startAt).inSeconds > 3;
       // إشعار الذكر (@) لا يظهر كرسالة أسفل الشاشة داخل التطبيق؛ وخارج التطبيق يصل عبر سيرفر الإشعارات
-      if (live && !muted && n.t != 'men' && !appInBackground()) {
+      if (live && !muted && n.t != 'men' && !(n.t == 'rep' && openChatGid == n.g) && !appInBackground()) {
         prof(n.from).then((p) {
           toast(notifText(n, p.name).replaceAll('\n', ' • '), accent: true);
         });
@@ -150,7 +157,7 @@ class BellService {
   }
 
   static void _recompute() {
-    mentionGroups.value = items.values.where((n) => n.t == 'men' && n.g.isNotEmpty).map((n) => n.g).toSet();
+    mentionGroups.value = items.values.where((n) => (n.t == 'men' || n.t == 'rep') && n.g.isNotEmpty).map((n) => n.g).toSet();
     tick.value++;
   }
 
@@ -166,7 +173,7 @@ class BellService {
   /// يزيل إشعارات الذكر (@) لنقابة عند دخولها أو مغادرتها فتختفي علامة @ من الرئيسية
   static void clearMentions(String gid) {
     if (_uid.isEmpty || gid.isEmpty) return;
-    final ks = items.entries.where((e) => e.value.t == 'men' && e.value.g == gid).map((e) => e.key).toList();
+    final ks = items.entries.where((e) => (e.value.t == 'men' || e.value.t == 'rep') && e.value.g == gid).map((e) => e.key).toList();
     if (ks.isEmpty) return;
     removeMany(ks).catchError((Object _) {});
   }

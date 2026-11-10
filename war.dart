@@ -38,6 +38,7 @@ class WarWatcher {
   static StreamSubscription<DatabaseEvent>? _a, _c, _r;
   static final List<StreamSubscription<DatabaseEvent>> _sfx = [];
   static Timer? _glowT;
+  static Timer? _tk;
   static bool showing = false;
   static String _uid = '';
 
@@ -54,6 +55,10 @@ class WarWatcher {
       tick.value++;
       _eval();
     }
+    _tk?.cancel();
+    _tk = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (feeds.isNotEmpty && !showing) _eval();
+    });
     _a = q.onChildAdded.listen(put, onError: (_) {});
     _c = q.onChildChanged.listen(put, onError: (_) {});
     _r = q.onChildRemoved.listen((e) {
@@ -84,6 +89,7 @@ class WarWatcher {
     }
     _sfx.clear();
     _glowT?.cancel();
+    _tk?.cancel();
     feeds.clear();
     _uid = '';
   }
@@ -110,8 +116,9 @@ class WarWatcher {
     for (final e in feeds.entries) {
       final wid = e.key;
       final f = e.value;
-      final ts = (f['ts'] as num?)?.toInt() ?? 0;
-      if (ts > 0 && now - ts < 300000 && !(prefs.getBool('war_in_$wid') ?? false)) {
+      final st = (f['st'] as num?)?.toInt() ?? 0;
+      // العرض التوضيحي (مع الموسيقى) يظهر للجميع عند انتهاء مؤقت الساعة، ثم تظهر النتيجة
+      if (st > 0 && now >= st && now - st < 15 * 60000 && !(prefs.getBool('war_in_$wid') ?? false)) {
         prefs.setBool('war_in_$wid', true);
         _queue.add(() => _show(WarIntroScreen(f: f)));
       }
@@ -603,7 +610,7 @@ class _WarIntroState extends State<WarIntroScreen> with SingleTickerProviderStat
                     right: 0,
                     child: Opacity(
                       opacity: _seg(t, 3.6, 4.2),
-                      child: const Text('🔥 أُعلنت الحرب! 🔥', textAlign: TextAlign.center, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFFFFD54A))),
+                      child: const Text('🔥 بدأت الحرب! 🔥', textAlign: TextAlign.center, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFFFFD54A))),
                     ),
                   ),
                 ]),
@@ -903,7 +910,7 @@ Future<void> settleWars() async {
     final w = e.value;
     if (w is! Map) continue;
     final wid = e.key.toString();
-    if (w['s'] == 'p' && ((w['st'] as num?)?.toInt() ?? 0) <= now) await _settle(wid, Map<String, dynamic>.from(w));
+    if (w['s'] == 'p' && ((w['st'] as num?)?.toInt() ?? 0) + 25000 <= now) await _settle(wid, Map<String, dynamic>.from(w)); // احتياطي: السيرفر يحسم أولاً
     if (w['s'] == 'd' && w['res'] == 'a') await _applyMoves(wid, Map<String, dynamic>.from(w));
   }
 }

@@ -54,6 +54,12 @@
     ".validate": "newData.val()==='dev'"
    }
   },
+  "deviceAllow": {
+   "$h": {
+    ".read": "auth!=null",
+    ".write": "auth!=null&&((root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val())||(data.exists()&&!newData.exists()))"
+   }
+  },
   "devices": {
    "$h": {
     ".read": "auth!=null",
