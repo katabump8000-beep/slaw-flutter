@@ -54,6 +54,23 @@
     ".validate": "newData.val()==='dev'"
    }
   },
+  "shopReq": {
+   "$rid": {
+    ".read": false,
+    ".write": "auth!=null&&!data.exists()&&newData.child('u').val()===auth.uid&&newData.child('ts').val()===now",
+    ".validate": "newData.hasChildren(['u','ts','k'])",
+    "u": {".validate": "newData.isString()"},
+    "ts": {".validate": "newData.isNumber()"},
+    "k": {".validate": "newData.isString()&&newData.val().length<=8"},
+    "x": {".validate": "newData.isString()&&newData.val().length<=40"},
+    "t": {".validate": "newData.isString()&&newData.val().length<=20"},
+    "g": {".validate": "newData.isString()&&newData.val().length<=60"},
+    "$other": {".validate": false}
+   }
+  },
+  "shopRes": {"$uid": {".read": "auth!=null&&auth.uid===$uid", ".write": false}},
+  "shield": {".read": "auth!=null", ".write": false},
+  "sab": {".read": "auth!=null", ".write": false},
   "vipReq": {
    "$rid": {
     ".read": false,

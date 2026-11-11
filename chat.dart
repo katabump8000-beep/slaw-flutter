@@ -916,7 +916,7 @@ class _ChatScreenState extends State<ChatScreen> {
   // صيغة ADTS تسمح بدمج المسودة مع الجزء الجديد بالتسلسل البسيط.
   static const int _recMax = 30;
 
-  Future<File> _draftFile() async => File('${(await getApplicationDocumentsDirectory()).path}/voice_draft.aac');
+  Future<File> _draftFile() async => File('${(await getApplicationDocumentsDirectory()).path}/voice_draft.m4a');
 
   Future<void> _toggleRec() async {
     if (!_gate() || recording) return;
@@ -930,28 +930,38 @@ class _ChatScreenState extends State<ChatScreen> {
       final f = await _draftFile();
       final ds = prefs.getInt('vdraft_s') ?? 0;
       if (await f.exists() && ds > 0) {
-        final go = await showDialog<bool>(
+        final go = await showDialog<String>(
           context: context,
           builder: (d) => AlertDialog(
             title: const Text('هل تريد اكمال صوت المحفوظ؟'),
             content: Text('لديك تسجيل محفوظ مدته $ds ثانية.'),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('تسجيل جديد')),
-              TextButton(onPressed: () => Navigator.pop(d, true), child: const Text('إكمال')),
+              TextButton(onPressed: () => Navigator.pop(d, 'new'), child: const Text('تسجيل جديد')),
+              TextButton(onPressed: () => Navigator.pop(d, 'send'), child: const Text('إرسال المحفوظ')),
             ],
           ),
         );
         if (go == null) return;
-        if (go) {
-          recBase = await f.readAsBytes();
-          recBaseSecs = ds;
-        } else {
+        if (go == 'send') {
+          final bytes = await f.readAsBytes();
+          final dd = 'data:audio/mp4;base64,${base64Encode(bytes)}';
+          if (dd.length > 140000) {
+            toast('التسجيل طويل جداً', bad: true);
+            return;
+          }
+          final m = _base('audio');
+          m['au'] = dd;
+          m['dur'] = max(1, ds);
+          await _post(m, count: false);
           await f.delete();
-          prefs.remove('vdraft_s');
+          prefs.setInt('vdraft_s', 0);
+          return;
         }
+        await f.delete();
+        prefs.setInt('vdraft_s', 0);
       }
       final dir = (await getTemporaryDirectory()).path;
-      await rec.start(const RecordConfig(encoder: AudioEncoder.aacAdts, bitRate: 24000, sampleRate: 16000, numChannels: 1), path: '$dir/v_${DateTime.now().millisecondsSinceEpoch}.aac');
+      await rec.start(const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 24000, sampleRate: 16000, numChannels: 1), path: '$dir/v_${DateTime.now().millisecondsSinceEpoch}.m4a');
       Sfx.block('rec');
       recSecs = recBaseSecs;
       recPaused = false;
@@ -1024,7 +1034,7 @@ class _ChatScreenState extends State<ChatScreen> {
       if (b == null) return;
       final f = await _draftFile();
       await f.writeAsBytes(b, flush: true);
-      await prefs.setInt('vdraft_s', max(1, recSecs));
+      prefs.setInt('vdraft_s', max(1, recSecs));
       recBase = null;
       toast('تم حفظ الصوت كمسودة 💾');
     } catch (e) {
@@ -1039,7 +1049,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final b = await _recCollect();
       _recEnd();
       if (b == null) return;
-      final d = 'data:audio/aac;base64,${base64Encode(b)}';
+      final d = 'data:audio/mp4;base64,${base64Encode(b)}';
       if (d.length > 140000) {
         toast('التسجيل طويل جداً', bad: true);
         return;
@@ -1051,7 +1061,7 @@ class _ChatScreenState extends State<ChatScreen> {
       recBase = null;
       final f = await _draftFile();
       if (await f.exists()) await f.delete();
-      prefs.remove('vdraft_s');
+      prefs.setInt('vdraft_s', 0);
     } catch (e) {
       _recEnd();
       err(e);
