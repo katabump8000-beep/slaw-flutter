@@ -35,6 +35,7 @@ StreamSubscription<DatabaseEvent> watchConnectionRestore(BuildContext context) {
   var wasOff = false;
   var shown = false;
   return FirebaseDatabase.instance.ref('.info/connected').onValue.listen((e) {
+    if (prefs.getBool('lite_mode') ?? false) return; // وضع التوفير ثابت: لا نخرج المستخدم عند عودة الاتصال
     final on = e.snapshot.value == true;
     if (!on) {
       wasOff = true;
@@ -123,7 +124,10 @@ class _OfflineStartState extends State<OfflineStartScreen> {
                 const SizedBox(height: 26),
                 AppButton('العب بدون انترنت', glow: true, onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const DinoScreen()))),
                 const SizedBox(height: 10),
-                AppButton('توفير الإنترنت', kind: 'g', onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const LiteHome()))),
+                AppButton('توفير الإنترنت', kind: 'g', onPressed: () {
+                  prefs.setBool('lite_mode', true); // ثابت حتى يضغط «إيقاف التوفير»
+                  Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute<void>(builder: (_) => const LiteHome()), (r) => false);
+                }),
                 const SizedBox(height: 10),
                 AppButton('إعادة المحاولة', kind: 'g', onPressed: widget.onRetry),
               ]),

@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
@@ -6,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'app_state.dart';
 import 'data.dart';
 import 'home.dart' show groupsCache, memCache;
+import 'main.dart' show HomeLoader;
+import 'package:firebase_auth/firebase_auth.dart';
 import 'widgets.dart';
 
 // وضع «توفير الإنترنت» (لمستخدمي باقات الرسائل النصية فقط مثل زين):
@@ -32,11 +36,35 @@ class _LiteHomeState extends State<LiteHome> {
     try {
       Map<String, Map<String, dynamic>> gs = Map.of(groupsCache);
       if (gs.isEmpty) {
-        final v = (await ref('groups').get().timeout(const Duration(seconds: 30))).value;
-        if (v is Map) {
-          v.forEach((k, x) {
-            if (x is Map) gs[k.toString()] = {'name': x['name'], 'kind': x['kind'], 'adm': x['adm']};
-          });
+        // قائمة المفاتيح فقط (shallow) حتى لا تُحمَّل صور القروبات؛ ثم نقرأ الاسم والنوع لكل قروب (بيانات صغيرة جداً)
+        var keys = <String>[];
+        try {
+          final tok = await FirebaseAuth.instance.currentUser?.getIdToken();
+          final base = FirebaseDatabase.instance.databaseURL ?? '';
+          if (tok != null && base.isNotEmpty) {
+            final c = HttpClient()..connectionTimeout = const Duration(seconds: 15);
+            final rq = await c.getUrl(Uri.parse('$base/groups.json?shallow=true&auth=$tok'));
+            final rs = await rq.close().timeout(const Duration(seconds: 20));
+            final body = await rs.transform(utf8.decoder).join();
+            final j = jsonDecode(body);
+            if (j is Map) keys = j.keys.map((e) => e.toString()).toList();
+            c.close();
+          }
+        } catch (_) {}
+        if (keys.isEmpty) {
+          final v = (await ref('groups').get().timeout(const Duration(seconds: 40))).value;
+          if (v is Map) {
+            v.forEach((k, x) {
+              if (x is Map) gs[k.toString()] = {'name': x['name'], 'kind': x['kind'], 'adm': x['adm']};
+            });
+          }
+        } else {
+          await Future.wait(keys.map((g) async {
+            try {
+              final r = await Future.wait([ref('groups/$g/name').get(), ref('groups/$g/kind').get(), ref('groups/$g/adm').get()]).timeout(const Duration(seconds: 20));
+              gs[g] = {'name': r[0].value, 'kind': r[1].value, 'adm': r[2].value};
+            } catch (_) {}
+          }));
         }
       }
       final isDev = Session.isDev;
@@ -77,7 +105,31 @@ class _LiteHomeState extends State<LiteHome> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('توفير الإنترنت'), automaticallyImplyLeading: true),
+      appBar: AppBar(
+        title: const Text('وضع التوفير'),
+        automaticallyImplyLeading: false,
+        actions: [
+          TextButton.icon(
+            onPressed: () async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (d) => AlertDialog(
+                  content: const Text('هل تريد إيقاف وضع التوفير والعودة للبرنامج الكامل؟ (يحتاج إنترنت عادياً)'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('بقاء')),
+                    TextButton(onPressed: () => Navigator.pop(d, true), child: const Text('إيقاف التوفير')),
+                  ],
+                ),
+              );
+              if (ok != true || !context.mounted) return;
+              prefs.setBool('lite_mode', false);
+              Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute<void>(builder: (_) => const HomeLoader()), (r) => false);
+            },
+            icon: const Icon(Icons.power_settings_new_rounded, size: 18),
+            label: const Text('إيقاف التوفير'),
+          ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(children: [
@@ -105,6 +157,8 @@ class LiteChat extends StatefulWidget {
   State<LiteChat> createState() => _LiteChatState();
 }
 
+String _myColor = '#FFFFFF';
+
 class _LiteChatState extends State<LiteChat> {
   final ctrl = TextEditingController();
   final scroll = ScrollController();
@@ -115,6 +169,9 @@ class _LiteChatState extends State<LiteChat> {
   @override
   void initState() {
     super.initState();
+    prof(myUid).then((p) {
+      if (p.color.isNotEmpty) _myColor = p.color;
+    }).catchError((Object _) {});
     _sub = ref(widget.litePath).orderByKey().limitToLast(40).onChildAdded.listen((e) async {
       final v = e.snapshot.value;
       if (v is! Map) return;
@@ -145,7 +202,7 @@ class _LiteChatState extends State<LiteChat> {
     ctrl.clear();
     try {
       final k = ref(widget.path).push().key!;
-      final m = <String, Object?>{'from': myUid, 'ts': ServerValue.timestamp, if (!widget.dm) 'type': 'text', if (!widget.dm) 'color': Session.me.color, 'text': t};
+      final m = <String, Object?>{'from': myUid, 'ts': ServerValue.timestamp, if (!widget.dm) 'type': 'text', if (!widget.dm) 'color': _myColor, 'text': t};
       await ref('${widget.path}/$k').set(m);
     } catch (_) {
       ctrl.text = t;

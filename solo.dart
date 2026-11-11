@@ -1087,6 +1087,8 @@ Future<String> evCall(String gid, String kind, [Map<String, Object?> extra = con
   return err;
 }
 
+void evToastPublic(String err) => _evToast(err);
+
 void _evToast(String err) {
   final e = err.split(':').first;
   final n = err.contains(':') ? err.split(':').last : '';
@@ -1117,6 +1119,21 @@ void _evToast(String err) {
       break;
     case 'min':
       toast('رهانك لا يقل عن رهان المنشئ ($n)', bad: true);
+      break;
+    case 'turn':
+      toast('ليس دورك الآن', bad: true);
+      break;
+    case 'illegal':
+      toast('حركة غير مسموحة', bad: true);
+      break;
+    case 'self':
+      toast('لا يمكنك قبول تحديك أنت', bad: true);
+      break;
+    case 'taken':
+      toast('سبقك أحد في قبول التحدي', bad: true);
+      break;
+    case 'wait':
+      toast('لحظة...', bad: true);
       break;
     case 'dup':
       toast('سبق أن شاركت أو اخترت', bad: true);
@@ -1177,6 +1194,25 @@ Future<void> startHeart(BuildContext context, String gid) async {
   );
   if (b == null) return;
   final e = await evCall(gid, 'heart', {'bet': b});
+  if (e.isNotEmpty) _evToast(e);
+}
+
+/// «تحدي الشطرنج»: لا يحتاج إذناً. يحدد المنشئ الرهان ثم تظهر بطاقة بانتظار خصم
+Future<void> startChess(BuildContext context, String gid) async {
+  final c = TextEditingController(text: '100');
+  final b = await showDialog<int>(
+    context: context,
+    builder: (d) => AlertDialog(
+      title: const Text('♟ تحدي الشطرنج'),
+      content: TextField(controller: c, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'قيمة الرهان (حتى 5000)')),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(d), child: const Text('إلغاء')),
+        TextButton(onPressed: () => Navigator.pop(d, int.tryParse(normDigits(c.text.trim()))), child: const Text('إنشاء')),
+      ],
+    ),
+  );
+  if (b == null) return;
+  final e = await evCall(gid, 'chess', {'bet': b});
   if (e.isNotEmpty) _evToast(e);
 }
 

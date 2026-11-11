@@ -46,7 +46,7 @@ int _lev(String a, String b) {
 
 const List<String> _cmds = [
   'تفاصيلي', 'رصيدي', 'رصيد', 'معلوماته', 'تفاصيله', 'اوامر', 'العاب', 'كريستال', 'بالونات', 'اعلام', 'كتابه', 'تفكيك', 'الغاء', 'الوان', 'رهانات', 'رهان', 'تحويل',
-  'المتصدرين', 'المتجر', 'حيوانات', 'شخصيات', 'فخر', 'ايموجي', 'حدس', 'بالون',
+  'المتصدرين', 'المتجر', 'حيوانات', 'شخصيات', 'فخر', 'ايموجي', 'حدس', 'بالون', 'شطرنج',
 ];
 const Set<String> _gameCmds = {'حدس', 'بالون', 'ايموجي', 'كتابه', 'تفكيك', 'الوان', 'رهانات', 'حيوانات', 'شخصيات'};
 
@@ -156,6 +156,9 @@ Future<void> runCommand(BuildContext ctx, String gid, String raw) async {
       break;
     case 'بالون':
       await startBalloonBet(ctx, gid);
+      break;
+    case 'شطرنج':
+      await startChess(ctx, gid);
       break;
     case 'تحويل':
       if (args.contains('@')) {

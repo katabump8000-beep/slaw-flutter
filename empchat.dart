@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -138,7 +139,9 @@ class _Thread extends StatefulWidget {
 class _ThreadState extends State<_Thread> {
   final Map<String, Map<dynamic, dynamic>> msgs = {};
   final c = TextEditingController();
-  StreamSubscription<DatabaseEvent>? sub;
+  StreamSubscription<DatabaseEvent>? sub, sub2, sub3, subPin;
+  Map<dynamic, dynamic>? pin;
+  bool muted = false;
   final AudioRecorder rec = AudioRecorder();
   bool recording = false;
   String? recPath;
@@ -147,15 +150,142 @@ class _ThreadState extends State<_Thread> {
   @override
   void initState() {
     super.initState();
-    sub = ref(widget.path).orderByKey().limitToLast(60).onChildAdded.listen((e) {
+    final q = ref(widget.path).orderByKey().limitToLast(60);
+    sub = q.onChildAdded.listen((e) {
       final v = e.snapshot.value;
       if (v is Map && e.snapshot.key != null && mounted) setState(() => msgs[e.snapshot.key!] = v);
     }, onError: (_) {});
+    // تعديل/حذف الرسائل يظهر فوراً عند الطرفين
+    sub2 = q.onChildChanged.listen((e) {
+      final v = e.snapshot.value;
+      if (v is Map && e.snapshot.key != null && mounted) setState(() => msgs[e.snapshot.key!] = v);
+    }, onError: (_) {});
+    sub3 = q.onChildRemoved.listen((e) {
+      if (e.snapshot.key != null && mounted) setState(() => msgs.remove(e.snapshot.key));
+    }, onError: (_) {});
+    if (_isFriendDm) {
+      subPin = ref(_pinPath).onValue.listen((e) {
+        final v = e.snapshot.value;
+        if (mounted) setState(() => pin = v is Map ? v : null);
+      }, onError: (_) {});
+      ref('fdmMute/$myUid/${widget.peer ?? ''}').get().then((x) {
+        if (mounted) setState(() => muted = x.value == true);
+      }).catchError((Object _) {});
+    }
+  }
+
+  String get _pinPath => 'fdmPin/${widget.path.split('/').sublist(1).join('/')}';
+
+  Future<void> _toggleMute() async {
+    final p = widget.peer ?? '';
+    if (p.isEmpty) return;
+    try {
+      if (muted) {
+        await ref('fdmMute/$myUid/$p').remove();
+      } else {
+        await ref('fdmMute/$myUid/$p').set(true);
+      }
+      if (mounted) setState(() => muted = !muted);
+      toast(muted ? 'تم كتم إشعارات هذه المحادثة 🔕' : 'تم تفعيل الإشعارات 🔔');
+    } catch (e) {
+      err(e);
+    }
+  }
+
+  /// قائمة الضغط المطوّل على الرسالة: نسخ / تثبيت / تعديل / حذف
+  void _msgMenu(String k, Map<dynamic, dynamic> m) {
+    final mine = m['from'] == myUid;
+    final isText = (m['au'] ?? '').toString().isEmpty && (m['img'] ?? '').toString().isEmpty && (m['sid'] ?? '').toString().isEmpty;
+    final text = (m['text'] ?? '').toString();
+    final pinned = pin != null && pin!['m'] == k;
+    showAppSheet<void>(context, (sc) => [
+          if (isText)
+            ListTile(
+              leading: const Icon(Icons.copy_rounded),
+              title: const Text('نسخ'),
+              onTap: () {
+                Navigator.of(sc).pop();
+                Clipboard.setData(ClipboardData(text: text));
+                toast('تم النسخ');
+              },
+            ),
+          if (_isFriendDm)
+            ListTile(
+              leading: Icon(pinned ? Icons.push_pin : Icons.push_pin_outlined),
+              title: Text(pinned ? 'إلغاء التثبيت' : 'تثبيت'),
+              onTap: () async {
+                Navigator.of(sc).pop();
+                try {
+                  if (pinned) {
+                    await ref(_pinPath).remove();
+                  } else {
+                    final label = (m['au'] ?? '').toString().isNotEmpty ? '🎤 رسالة صوتية' : (m['sid'] ?? '').toString().isNotEmpty ? '🏷 ملصق' : (m['img'] ?? '').toString().isNotEmpty ? '📷 صورة' : (text.length > 120 ? text.substring(0, 120) : text);
+                    await ref(_pinPath).set(<String, Object?>{'m': k, 't': label, 'by': myUid});
+                  }
+                } catch (e) {
+                  err(e);
+                }
+              },
+            ),
+          if (mine && isText && _isFriendDm)
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('تعديل'),
+              onTap: () {
+                Navigator.of(sc).pop();
+                _edit(k, text);
+              },
+            ),
+          if (mine && _isFriendDm)
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Color(0xFFFF6B6B)),
+              title: const Text('حذف', style: TextStyle(color: Color(0xFFFF6B6B))),
+              onTap: () async {
+                Navigator.of(sc).pop();
+                try {
+                  await ref('${widget.path}/$k').remove();
+                  if (pinned) await ref(_pinPath).remove();
+                } catch (e) {
+                  err(e);
+                }
+              },
+            ),
+        ]);
+  }
+
+  void _edit(String k, String old) {
+    final t = TextEditingController(text: old);
+    showDialog<void>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: const Text('تعديل الرسالة'),
+        content: TextField(controller: t, maxLines: 4, minLines: 1, maxLength: 2000),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d), child: const Text('إلغاء')),
+          TextButton(
+            onPressed: () async {
+              final v = t.text.trim();
+              Navigator.pop(d);
+              if (v.isEmpty || v == old) return;
+              try {
+                await ref('${widget.path}/$k').update(<String, Object?>{'text': v, 'ed': true});
+              } catch (e) {
+                err(e);
+              }
+            },
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   void dispose() {
     sub?.cancel();
+    sub2?.cancel();
+    sub3?.cancel();
+    subPin?.cancel();
     recTimer?.cancel();
     rec.dispose();
     super.dispose();
@@ -336,27 +466,52 @@ class _ThreadState extends State<_Thread> {
                   reportChat(context, kind: 'fdm', where: 'دردشة صديق', peer: widget.peer ?? '', lines: _evidence());
                 } else if (v == 'del') {
                   _removeFriend();
+                } else if (v == 'mute') {
+                  _toggleMute();
                 }
               },
-              itemBuilder: (_) => const [
-                PopupMenuItem<String>(value: 'rep', child: Row(children: [Icon(Icons.flag_outlined, size: 20), SizedBox(width: 10), Text('ابلاغ عن الدردشة')])),
-                PopupMenuItem<String>(value: 'del', child: Row(children: [Icon(Icons.person_remove_alt_1_outlined, size: 20, color: Color(0xFFFF6B6B)), SizedBox(width: 10), Text('حذف الصديق')])),
+              itemBuilder: (_) => [
+                PopupMenuItem<String>(value: 'mute', child: Row(children: [Icon(muted ? Icons.notifications_active_outlined : Icons.notifications_off_outlined, size: 20), const SizedBox(width: 10), Text(muted ? 'تفعيل الإشعارات' : 'كتم الإشعارات')])),
+                const PopupMenuItem<String>(value: 'rep', child: Row(children: [Icon(Icons.flag_outlined, size: 20), SizedBox(width: 10), Text('ابلاغ عن الدردشة')])),
+                const PopupMenuItem<String>(value: 'del', child: Row(children: [Icon(Icons.person_remove_alt_1_outlined, size: 20, color: Color(0xFFFF6B6B)), SizedBox(width: 10), Text('حذف الصديق')])),
               ],
             ),
         ],
       ),
       body: Column(children: [
+        if (pin != null)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: const BoxDecoration(color: Color(0xFF1B2230), border: Border(bottom: BorderSide(color: Colors.white12))),
+            child: Row(children: [
+              const Icon(Icons.push_pin, size: 16, color: Color(0xFFFFC857)),
+              const SizedBox(width: 8),
+              Expanded(child: Text((pin!['t'] ?? '').toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, height: 1.4))),
+              GestureDetector(onTap: () => ref(_pinPath).remove().catchError((Object _) {}), child: const Icon(Icons.close, size: 18, color: Colors.white54)),
+            ]),
+          ),
         Expanded(
           child: ListView(reverse: true, padding: const EdgeInsets.all(10), children: [
             for (final k in keys.reversed)
               Align(
                 alignment: msgs[k]!['from'] == myUid ? AlignmentDirectional.centerStart : AlignmentDirectional.centerEnd,
-                child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 3),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * .78),
-                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), color: msgs[k]!['from'] == myUid ? const Color(0xFF7A2A00) : const Color(0xFF26304A)),
-                  child: _body(msgs[k]!),
+                child: GestureDetector(
+                  onLongPress: () => _msgMenu(k, msgs[k]!),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * .78),
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), color: msgs[k]!['from'] == myUid ? const Color(0xFF7A2A00) : const Color(0xFF26304A), border: pin != null && pin!['m'] == k ? Border.all(color: const Color(0xFFFFC857), width: 1.2) : null),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                      _body(msgs[k]!),
+                      const SizedBox(height: 3),
+                      Row(mainAxisSize: MainAxisSize.min, children: [
+                        if (msgs[k]!['ed'] == true) const Text('تم التعديل  ', style: TextStyle(fontSize: 10, color: Colors.white38)),
+                        Text(hhmm((msgs[k]!['ts'] as num?)?.toInt() ?? 0), style: const TextStyle(fontSize: 10.5, color: Colors.white54)),
+                      ]),
+                    ]),
+                  ),
                 ),
               ),
           ]),

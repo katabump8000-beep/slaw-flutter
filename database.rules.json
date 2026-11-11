@@ -59,27 +59,60 @@
     ".read": false,
     ".write": "auth!=null&&!data.exists()&&newData.child('u').val()===auth.uid&&newData.child('ts').val()===now",
     ".validate": "newData.hasChildren(['u','ts','k'])",
-    "u": {".validate": "newData.isString()"},
-    "ts": {".validate": "newData.isNumber()"},
-    "k": {".validate": "newData.isString()&&newData.val().length<=8"},
-    "x": {".validate": "newData.isString()&&newData.val().length<=40"},
-    "t": {".validate": "newData.isString()&&newData.val().length<=20"},
-    "g": {".validate": "newData.isString()&&newData.val().length<=60"},
-    "$other": {".validate": false}
+    "u": {
+     ".validate": "newData.isString()"
+    },
+    "ts": {
+     ".validate": "newData.isNumber()"
+    },
+    "k": {
+     ".validate": "newData.isString()&&newData.val().length<=8"
+    },
+    "x": {
+     ".validate": "newData.isString()&&newData.val().length<=40"
+    },
+    "t": {
+     ".validate": "newData.isString()&&newData.val().length<=20"
+    },
+    "g": {
+     ".validate": "newData.isString()&&newData.val().length<=60"
+    },
+    "$other": {
+     ".validate": false
+    }
    }
   },
-  "shopRes": {"$uid": {".read": "auth!=null&&auth.uid===$uid", ".write": false}},
-  "shield": {".read": "auth!=null", ".write": false},
-  "sab": {".read": "auth!=null", ".write": false},
+  "shopRes": {
+   "$uid": {
+    ".read": "auth!=null&&auth.uid===$uid",
+    ".write": false
+   }
+  },
+  "shield": {
+   ".read": "auth!=null",
+   ".write": false
+  },
+  "sab": {
+   ".read": "auth!=null",
+   ".write": false
+  },
   "vipReq": {
    "$rid": {
     ".read": false,
     ".write": "auth!=null&&!data.exists()&&newData.child('u').val()===auth.uid&&newData.child('ts').val()===now",
     ".validate": "newData.hasChildren(['u','ts','id'])",
-    "u": {".validate": "newData.isString()"},
-    "ts": {".validate": "newData.isNumber()"},
-    "id": {".validate": "newData.isString()&&newData.val().length<=12"},
-    "$other": {".validate": false}
+    "u": {
+     ".validate": "newData.isString()"
+    },
+    "ts": {
+     ".validate": "newData.isNumber()"
+    },
+    "id": {
+     ".validate": "newData.isString()&&newData.val().length<=12"
+    },
+    "$other": {
+     ".validate": false
+    }
    }
   },
   "vips": {
@@ -633,7 +666,7 @@
     "$b": {
      ".read": "auth!=null&&(auth.uid===$a||auth.uid===$b)&&(root.child('roles/'+$a).val()==='dev'||$a===root.child('config/emperorUid').val())&&(root.child('roles/'+$b).val()==='dev'||$b===root.child('config/emperorUid').val())",
      "$mid": {
-      ".write": "auth!=null&&(auth.uid===$a||auth.uid===$b)&&(root.child('roles/'+$a).val()==='dev'||$a===root.child('config/emperorUid').val())&&(root.child('roles/'+$b).val()==='dev'||$b===root.child('config/emperorUid').val())&&((!data.exists()&&newData.child('from').val()===auth.uid)||(data.exists()&&!newData.exists()&&data.child('from').val()===auth.uid))",
+      ".write": "auth!=null&&(auth.uid===$a||auth.uid===$b)&&(root.child('roles/'+$a).val()==='dev'||$a===root.child('config/emperorUid').val())&&(root.child('roles/'+$b).val()==='dev'||$b===root.child('config/emperorUid').val())&&((!data.exists()&&newData.child('from').val()===auth.uid)||(data.exists()&&!newData.exists()&&data.child('from').val()===auth.uid)||(data.exists()&&newData.exists()&&data.child('from').val()===auth.uid&&newData.child('from').val()===auth.uid&&newData.child('ts').val()===data.child('ts').val()))",
       ".validate": "newData.hasChildren(['from','text','ts'])&&newData.child('text').isString()&&newData.child('text').val().length<=2000&&newData.child('ts').isNumber()&&newData.child('ts').val()<=now+5000",
       "img": {
        ".validate": "newData.isString()&&newData.val().beginsWith('data:image/')&&newData.val().length<=62000"
@@ -1210,6 +1243,9 @@
       },
       "$other": {
        ".validate": false
+      },
+      "ed": {
+       ".validate": "newData.isBoolean()"
       }
      },
      ".indexOn": [
@@ -1777,6 +1813,12 @@
     },
     "i": {
      ".validate": "newData.isNumber()&&newData.val()>=0&&newData.val()<=4"
+    },
+    "cid": {
+     ".validate": "newData.isString()&&newData.val().length<=40"
+    },
+    "mv": {
+     ".validate": "newData.isString()&&newData.val().length<=5"
     }
    }
   },
@@ -1991,6 +2033,54 @@
    ".write": "auth!=null&&auth.uid===root.child('config/emperorUid').val()",
    "$k": {
     ".validate": "newData.isString()&&newData.val().length<=300"
+   }
+  },
+  "fdmPin": {
+   "$a": {
+    "$b": {
+     ".read": "auth!=null&&(auth.uid===$a||auth.uid===$b)",
+     ".write": "auth!=null&&(auth.uid===$a||auth.uid===$b)&&root.child('friends/'+$a+'/'+$b).exists()&&root.child('friends/'+$b+'/'+$a).exists()",
+     ".validate": "!newData.exists()||(newData.hasChildren(['m','t','by'])&&newData.child('t').isString()&&newData.child('t').val().length<=200)"
+    }
+   }
+  },
+  "fdmMute": {
+   "$uid": {
+    ".read": "auth!=null&&auth.uid===$uid",
+    ".write": "auth!=null&&auth.uid===$uid",
+    "$p": {
+     ".validate": "newData.isBoolean()"
+    }
+   }
+  },
+  "chess": {
+   "$cid": {
+    ".read": "auth!=null",
+    ".write": false
+   }
+  },
+  "chessC": {
+   "$cid": {
+    ".read": "auth!=null&&(root.child('chess/'+$cid+'/white').val()===auth.uid||root.child('chess/'+$cid+'/black').val()===auth.uid)",
+    "$mid": {
+     ".write": "auth!=null&&(root.child('chess/'+$cid+'/white').val()===auth.uid||root.child('chess/'+$cid+'/black').val()===auth.uid)&&!data.exists()&&newData.child('u').val()===auth.uid",
+     ".validate": "newData.hasChildren(['u','t','ts'])&&newData.child('t').isString()&&newData.child('t').val().length<=200",
+     "u": {
+      ".validate": "newData.isString()"
+     },
+     "t": {
+      ".validate": true
+     },
+     "ts": {
+      ".validate": "newData.isNumber()"
+     },
+     "$other": {
+      ".validate": false
+     }
+    },
+    ".indexOn": [
+     "ts"
+    ]
    }
   }
  }

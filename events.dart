@@ -1,3 +1,4 @@
+import 'chess.dart';
 import 'dart:typed_data';
 import 'dart:async';
 import 'dart:convert';
@@ -279,6 +280,50 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
       kids.add(_cancel(o));
       kids.add(const SizedBox(height: 4));
       kids.add(_decor('╝══════════════════╚', base));
+    } else if (k == 'ch_wait') {
+      final mine = o['au'] == myUid;
+      kids.add(_decor('╗═════════════════╔', base));
+      kids.add(const SizedBox(height: 6));
+      kids.add(Row(mainAxisAlignment: MainAxisAlignment.center, children: const [
+        Text('♞', style: TextStyle(fontSize: 34, color: Color(0xFF3B8CFF))),
+        SizedBox(width: 14),
+        Text('♖', style: TextStyle(fontSize: 34, color: Color(0xFFFF4B4B))),
+      ]));
+      kids.add(const SizedBox(height: 6));
+      kids.add(Text('${o['an'] ?? ''} ينتظر خصما في\nتحدي في طاولة شطرنج على رهان\nيبلغ قيمته:  ${o['bet'] ?? 0}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, height: 1.7, fontWeight: FontWeight.w800, color: Colors.white)));
+      if (!mine) {
+        kids.add(const SizedBox(height: 8));
+        kids.add(Center(
+          child: GestureDetector(
+            onTap: () => widget.onAct?.call('chacc', {'cid': (o['cid'] ?? '').toString()}),
+            child: Container(padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 9), decoration: BoxDecoration(color: const Color(0xFF2EE07A), borderRadius: BorderRadius.circular(12)), child: const Text('قبول', style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black))),
+          ),
+        ));
+      }
+      kids.add(_cancel(o));
+      kids.add(const SizedBox(height: 4));
+      kids.add(_decor('╝═════════════════╚', base));
+    } else if (k == 'ch_live') {
+      final eyes = (o['eyes'] as num?)?.toInt() ?? 0;
+      final isP = o['au'] == myUid || o['bu'] == myUid;
+      kids.add(_decor('╗═════════════════╔', base));
+      kids.add(const SizedBox(height: 8));
+      kids.add(Row(children: [
+        Expanded(child: Column(children: [UserAvatar((o['au'] ?? '').toString(), size: 44), const SizedBox(height: 4), Text((o['an'] ?? '').toString(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)), const Text('♞', style: TextStyle(fontSize: 26, color: Color(0xFF3B8CFF)))])),
+        const Text('VS', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Colors.white)),
+        Expanded(child: Column(children: [UserAvatar((o['bu'] ?? '').toString(), size: 44), const SizedBox(height: 4), Text((o['bn'] ?? '').toString(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)), const Text('♖', style: TextStyle(fontSize: 26, color: Color(0xFFFF4B4B)))])),
+      ]));
+      kids.add(const SizedBox(height: 6));
+      kids.add(Text('المباراة جارية...  ${eyes > 0 ? '👁$eyes' : ''}', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900, color: base)));
+      kids.add(const SizedBox(height: 6));
+      kids.add(Center(
+        child: GestureDetector(
+          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ChessScreen(gid: (o['gid'] ?? '').toString(), cid: (o['cid'] ?? '').toString()))),
+          child: Container(padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 9), decoration: BoxDecoration(color: base, borderRadius: BorderRadius.circular(12)), child: Text(isP ? 'دخول المباراة' : 'مشاهدة', style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.black))),
+        ),
+      ));
+      kids.add(const SizedBox(height: 4));
+      kids.add(_decor('╝═════════════════╚', base));
     } else if (k == 'bl_play') {
       kids.add(_decor('╗══════════════════╔', base));
       kids.add(const SizedBox(height: 6));
@@ -387,7 +432,7 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
         if (o['nc'] != 1) kids.add(_row('اختياره:', (o['he'] ?? '').toString(), hc, size: 15));
         kids.add(_row('الجائزة:', '${o['prize'] ?? 0} رصيد', hc, size: 15));
       } else if (mode == 'refund') {
-        kids.add(Text('اختار الجميع القلب نفسه ${o['he'] ?? ''}\nتم إرجاع رصيد كل مشارك', textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, height: 1.6, fontWeight: FontWeight.w800, color: Colors.white)));
+        kids.add(Text(o['rt'] != null ? o['rt'].toString() : 'اختار الجميع القلب نفسه ${o['he'] ?? ''}\nتم إرجاع رصيد كل مشارك', textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, height: 1.6, fontWeight: FontWeight.w800, color: Colors.white)));
       } else {
         kids.add(const Text('حدسكم من سوق الجمعة 🤣\nلا يوجد فائز او شخص اصاب حدسه.', textAlign: TextAlign.center, style: TextStyle(fontSize: 15, height: 1.6, fontWeight: FontWeight.w800, color: Colors.white)));
       }

@@ -1,6 +1,7 @@
 import 'dino.dart';
 import 'servertime.dart';
 import 'vip.dart';
+import 'zain.dart';
 import 'uiprefs.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -153,6 +154,8 @@ class _HomeLoaderState extends State<HomeLoader> {
 
   @override
   Widget build(BuildContext context) {
+    // وضع التوفير (رسائل نصية فقط) ثابت: يدخل مباشرة حتى لو الإنترنت يعمل، ويخرج منه المستخدم بزر «إيقاف التوفير»
+    if (prefs.getBool('lite_mode') ?? false) return const LiteHome();
     return FutureBuilder<String>(
       future: f,
       builder: (c, s) {
