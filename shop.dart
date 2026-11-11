@@ -30,7 +30,9 @@ const List<_Item> _items = [
   _Item('vip_galaxy', '👑', '𝑽𝑰𝑷 المجرة', 0, 'شهب ونجوم وتوهج أزرق يتدرج إلى البنفسجي'),
   _Item('vip_emerald', '🌸', '𝑽𝑰𝑷 زمردة', 0, 'أوراق ورود راقية بألوان واجهتك'),
   _Item('vip_thunder', '⚡', '𝑽𝑰𝑷 الصاعقة', 0, 'برق ورعد وأسلاك كهرباء، وألوان الواجهة زرقاء ثابتة'),
-  _Item('vip_royal', '🍷', '𝑽𝑰𝑷 الملكي', 0, 'خمري ملكي بحواف ذهبية وأوراق خريف متساقطة'),
+  _Item('vip_royal', '🍷', '𝑽𝑰𝑷 الملكي', 0, 'خمري ملكي دائماً مع خلفية دوامة ثلاثية الأبعاد'),
+  _Item('vip_royal2', '👑', '𝑽𝑰𝑷 الملكي الذهبي', 0, 'خمري ملكي بدوامة ذهبية متوهجة'),
+  _Item('vip_royal3', '🥀', '𝑽𝑰𝑷 الملكي القرمزي', 0, 'خمري داكن بدوامة قرمزية عميقة'),
 ];
 
 final Map<String, int> _ovr = {};
@@ -317,7 +319,7 @@ class _ShopScreenState extends State<ShopScreen> {
       'move': 'نقل: تنتقل فوراً إلى أي نقابة تختارها وتغادر نقابتك. تبقى ألقابك ورتبك كما هي ويصل ترحيب في نقابتك الجديدة ووداع في القديمة.',
       'war': 'إعلان حرب: للمشرفين فقط. تبدأ الحرب بعد ساعة وتُحسم تلقائياً.',
     };
-    final text = it.id.startsWith('vip_') ? 'تأثير VIP يغيّر مظهر التطبيق عندك. يمكنك تجربته مرة واحدة لمدة 3 دقائق بزر العين، وبعد الشراء تفعّله من الإعدادات ← ممتلكاتي.' : (long[it.id] ?? it.d);
+    final text = it.id.startsWith('vip_') ? 'تأثير VIP يغيّر مظهر التطبيق عندك (ألوان الواجهة والأزرار وخلفية متحركة خفيفة بدون تغطية الشاشة). يمكنك تجربته مرة واحدة لمدة 3 دقائق بزر العين، وبعد الشراء تفعّله من الإعدادات ← ممتلكاتي.' : (long[it.id] ?? it.d);
     showDialog<void>(
       context: context,
       barrierColor: Colors.black54,
@@ -486,7 +488,7 @@ class _ShopScreenState extends State<ShopScreen> {
         for (final it in _items)
           if (!it.staff || staff) ...[
             if (it.id == 'vip_galaxy')
-              const Padding(padding: EdgeInsets.fromLTRB(16, 16, 16, 4), child: Text('✨ تأثيرات VIP (4)', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: kMu))),
+              const Padding(padding: EdgeInsets.fromLTRB(16, 16, 16, 4), child: Text('✨ تأثيرات VIP (6)', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: kMu))),
             ListTile(
               leading: GestureDetector(
                 onTap: () => _info(it),

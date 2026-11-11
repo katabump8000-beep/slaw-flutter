@@ -1198,7 +1198,20 @@ Future<void> startHeart(BuildContext context, String gid) async {
 }
 
 /// «تحدي الشطرنج»: لا يحتاج إذناً. يحدد المنشئ الرهان ثم تظهر بطاقة بانتظار خصم
+/// هل ميزة السيرفر مفعّلة؟ (يكتبها السيرفر عند التشغيل). إن لم توجد فالسيرفر القديم ما زال يعمل
+Future<bool> srvHas(String k) async {
+  try {
+    return (await ref('srvFeat/$k').get().timeout(const Duration(seconds: 6))).exists;
+  } catch (_) {
+    return true; // لا نمنع المستخدم إن فشل الفحص نفسه
+  }
+}
+
 Future<void> startChess(BuildContext context, String gid) async {
+  if (!await srvHas('chess')) {
+    toast('الشطرنج غير مفعّل على السيرفر: ارفع ملفات push-server الجديدة وأعد تشغيله ثم انشر القواعد', bad: true);
+    return;
+  }
   final c = TextEditingController(text: '100');
   final b = await showDialog<int>(
     context: context,
@@ -1218,6 +1231,10 @@ Future<void> startChess(BuildContext context, String gid) async {
 
 /// «رهان البالونات» الجماعي (غير لعبة البالونات الفردية): المنشئ يحدد الرهان ثم السيرفر ينشئ البطاقة
 Future<void> startBalloonBet(BuildContext context, String gid) async {
+  if (!await srvHas('balloon')) {
+    toast('رهان البالونات غير مفعّل على السيرفر: ارفع ملفات push-server الجديدة وأعد تشغيله', bad: true);
+    return;
+  }
   final c = TextEditingController(text: '100');
   final b = await showDialog<int>(
     context: context,

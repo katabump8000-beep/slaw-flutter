@@ -2082,6 +2082,10 @@
      "ts"
     ]
    }
+  },
+  "srvFeat": {
+   ".read": "auth!=null",
+   ".write": false
   }
  }
 }

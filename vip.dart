@@ -18,10 +18,12 @@ class VipDef {
 }
 
 const List<VipDef> kVips = [
-  VipDef('galaxy', '𝑽𝑰𝑷 المجرة', 'شهب ونجوم وتوهج أزرق يتدرج إلى البنفسجي', 0, Color(0xFF3D7BFF), Color(0xFF9B5CFF)),
-  VipDef('emerald', '𝑽𝑰𝑷 زمردة', 'أوراق ورود راقية تتساقط بألوان واجهتك', 0, Color(0xFFFF6FA8), Color(0xFFFFB3D1)),
-  VipDef('thunder', '𝑽𝑰𝑷 الصاعقة', 'برق ورعد وأسلاك كهرباء وألوان زرقاء ثابتة', 0, Color(0xFF2F8CFF), Color(0xFFBFE3FF)),
-  VipDef('royal', '𝑽𝑰𝑷 الملكي', 'خمري ملكي بحواف ذهبية وأوراق خريف خمرية متساقطة', 0, Color(0xFF8E1B3A), Color(0xFFFFC857)),
+  VipDef('galaxy', '𝑽𝑰𝑷 المجرة', 'نجوم وشهب متحركة بدون أي تغطية للألوان', 0, Color(0xFF3D7BFF), Color(0xFF9B5CFF)),
+  VipDef('emerald', '𝑽𝑰𝑷 زمردة', 'واجهة وردية راقية: غصن متدلٍّ وأرضية وأوراق خريفية خفيفة وورد على الأزرار وصوت هادئ', 0, Color(0xFFFF6FAE), Color(0xFFFFC1DC)),
+  VipDef('thunder', '𝑽𝑰𝑷 الصاعقة', 'واجهة وأزرار زرقاء بالكامل مع خلفية متحركة وبرق نادر وأسلاك كهرباء', 0, Color(0xFF2F8CFF), Color(0xFFBFE3FF)),
+  VipDef('royal', '𝑽𝑰𝑷 الملكي', 'خمري ملكي دائماً مع خلفية دوامة ثلاثية الأبعاد تنقلك لعالم آخر', 0, Color(0xFFA31E3E), Color(0xFFFFC857)),
+  VipDef('royal2', '𝑽𝑰𝑷 الملكي الذهبي', 'خمري ملكي بدوامة ذهبية متوهجة', 0, Color(0xFFA31E3E), Color(0xFFFFD27A)),
+  VipDef('royal3', '𝑽𝑰𝑷 الملكي القرمزي', 'خمري داكن بدوامة قرمزية عميقة', 0, Color(0xFF7A1230), Color(0xFFFF6B8A)),
 ];
 
 VipDef? vipDef(String id) {
@@ -94,13 +96,13 @@ class _VipLayersState extends State<VipLayers> with SingleTickerProviderStateMix
       el.value = d;
       vipPhase.value = (d.inMilliseconds % 4000) / 4000;
       // الصاعقة: مع كل برق صوت صعقة حاد ثم رعد بعده بلحظة (يتزامن مع رسم البرق)
-      final slot = d.inMilliseconds ~/ 5000;
+      final slot = d.inMilliseconds ~/ 13000;
       if (slot != _slot) {
         _slot = slot;
         if (vipKind.value == 'thunder') {
-          Sfx.start('zap${1 + math.Random().nextInt(3)}.wav', volume: .55);
+          Sfx.start('zap${1 + math.Random().nextInt(3)}.wav', volume: .28);
           Future<void>.delayed(const Duration(milliseconds: 380), () {
-            if (mounted && vipKind.value == 'thunder') Sfx.start('thunder.wav', volume: .6);
+            if (mounted && vipKind.value == 'thunder') Sfx.start('thunder.wav', volume: .3);
           });
         }
       }
@@ -124,11 +126,15 @@ class _VipLayersState extends State<VipLayers> with SingleTickerProviderStateMix
             final d = vipDef(k);
             switch (k) {
               case 'emerald':
-                return CustomPaint(size: Size.infinite, painter: _FallPainter(el, context.accent2, petals: true));
+                return CustomPaint(size: Size.infinite, painter: _GardenPainter(el));
               case 'thunder':
                 return CustomPaint(size: Size.infinite, painter: _ThunderPainter(el));
               case 'royal':
-                return CustomPaint(size: Size.infinite, painter: _RoyalPainter(el));
+                return CustomPaint(size: Size.infinite, painter: _VortexPainter(el, 0));
+              case 'royal2':
+                return CustomPaint(size: Size.infinite, painter: _VortexPainter(el, 1));
+              case 'royal3':
+                return CustomPaint(size: Size.infinite, painter: _VortexPainter(el, 2));
               default:
                 return CustomPaint(size: Size.infinite, painter: _StarsPainter(el, d?.c1 ?? context.accent2));
             }
@@ -157,7 +163,6 @@ class _StarsPainter extends CustomPainter {
   @override
   void paint(Canvas cv, Size s) {
     final sec = el.value.inMilliseconds / 1000.0;
-    _glow(cv, s, sec);
     _twinkle(cv, s, sec);
     for (var i = 0; i < _nMeteors; i++) {
       _meteor(cv, s, sec, i);
@@ -311,55 +316,80 @@ class _WavePainter extends CustomPainter {
 }
 
 
-// ---------- ورود/أوراق متساقطة (زمردة + الملكي) ----------
-class _FallPainter extends CustomPainter {
+// ---------- زمردة: حديقة وردية خفيفة (أرضية + غصن متدلٍّ + أوراق قليلة) بلا أي تغطية للشاشة ----------
+class _GardenPainter extends CustomPainter {
   final ValueNotifier<Duration> el;
-  final Color col;
-  final bool petals;
-  _FallPainter(this.el, this.col, {this.petals = true}) : super(repaint: el);
+  _GardenPainter(this.el) : super(repaint: el);
+  static const List<Color> _cols = [Color(0xFFFF8FB8), Color(0xFFFFB380), Color(0xFFFFC4D8), Color(0xFFFF9A6B), Color(0xFFF7A8C8)];
   static final List<List<double>> _p = () {
-    final r = math.Random(77);
-    return List.generate(28, (i) => [r.nextDouble(), r.nextDouble(), .05 + r.nextDouble() * .09, 6 + r.nextDouble() * 9, r.nextDouble() * 6.28, 7 + r.nextDouble() * 9]);
+    final r = math.Random(11);
+    return List.generate(7, (i) => [r.nextDouble(), r.nextDouble(), .03 + r.nextDouble() * .035, 6 + r.nextDouble() * 4, r.nextDouble() * 6.28]);
   }();
+
+  void _leaf(Canvas cv, Offset o, double r, double ang, Color c, int a) {
+    cv.save();
+    cv.translate(o.dx, o.dy);
+    cv.rotate(ang);
+    final path = Path()
+      ..moveTo(0, -r)
+      ..quadraticBezierTo(r * .8, -r * .2, 0, r)
+      ..quadraticBezierTo(-r * .8, -r * .2, 0, -r);
+    cv.drawPath(path, Paint()..color = c.withAlpha(a));
+    cv.drawLine(Offset(0, -r), Offset(0, r), Paint()..color = Colors.white.withAlpha(60)..strokeWidth = .7);
+    cv.restore();
+  }
+
+  void _blossom(Canvas cv, Offset o, double r, Color c) {
+    for (var k = 0; k < 5; k++) {
+      cv.drawCircle(o + Offset(math.cos(k * 1.2566) * r * .7, math.sin(k * 1.2566) * r * .7), r * .55, Paint()..color = c.withAlpha(210));
+    }
+    cv.drawCircle(o, r * .35, Paint()..color = const Color(0xFFFFE08A));
+  }
 
   @override
   void paint(Canvas cv, Size s) {
     final t = el.value.inMilliseconds / 1000.0;
-    final hsl = HSLColor.fromColor(col);
+    // الأرضية: شريط عشب ناعم مع أزهار صغيرة
+    const fh = 24.0;
+    final fr = Rect.fromLTWH(0, s.height - fh, s.width, fh);
+    cv.drawRect(fr, Paint()..shader = const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0x00FF9EC4), Color(0x55FF9EC4)]).createShader(fr));
+    for (var i = 0; i < 26; i++) {
+      final x = (i + .5) / 26 * s.width;
+      final sway = math.sin(t * 1.1 + i) * 2.2;
+      final hh = 9.0 + (i % 3) * 3;
+      cv.drawLine(Offset(x, s.height), Offset(x + sway, s.height - hh), Paint()..color = const Color(0xFF9BD6A0).withAlpha(110)..strokeWidth = 1.4..strokeCap = StrokeCap.round);
+      if (i % 4 == 1) _blossom(cv, Offset(x + sway, s.height - hh - 2), 3.6, _cols[i % _cols.length]);
+    }
+    // غصن متدلٍّ من الزاوية العليا اليمنى
+    final sw = math.sin(t * .6) * 5;
+    final br = Path()
+      ..moveTo(s.width + 6, -4)
+      ..cubicTo(s.width * .86, s.height * .02 + sw * .3, s.width * .68, s.height * .05 + sw * .6, s.width * .46 + sw, s.height * .1 + sw * .4);
+    cv.drawPath(br, Paint()..color = const Color(0xFF8A5A44).withAlpha(210)..style = PaintingStyle.stroke..strokeWidth = 4..strokeCap = StrokeCap.round);
+    final m = br.computeMetrics().first;
+    for (var k = 1; k <= 9; k++) {
+      final tg = m.getTangentForOffset(m.length * k / 9);
+      if (tg == null) continue;
+      final o = tg.position;
+      final flap = math.sin(t * 1.3 + k) * .35;
+      _leaf(cv, o + const Offset(0, 8), 7, 1.0 + flap, _cols[k % _cols.length], 190);
+      _leaf(cv, o + const Offset(0, -6), 6, -1.0 + flap, _cols[(k + 2) % _cols.length], 170);
+      if (k % 3 == 0) _blossom(cv, o + Offset(math.sin(t + k) * 1.5, 14), 5, const Color(0xFFFF7FB0));
+    }
+    // أوراق خريفية قليلة جداً (زهري/برتقالي)
     for (var i = 0; i < _p.length; i++) {
       final q = _p[i];
-      final y = ((q[1] + t * q[2]) % 1.12 - .06) * s.height;
-      final x = (q[0] + math.sin(t * .6 + q[4]) * .05) * s.width;
-      final c = hsl.withHue((hsl.hue + i * 9) % 360).withLightness((hsl.lightness + .12).clamp(.4, .8)).toColor();
-      cv.save();
-      cv.translate(x, y);
-      cv.rotate(t * .8 + q[4]);
-      final r = q[5];
-      final path = Path()
-        ..moveTo(0, -r)
-        ..quadraticBezierTo(r * .9, -r * .2, 0, r)
-        ..quadraticBezierTo(-r * .9, -r * .2, 0, -r);
-      cv.drawPath(path, Paint()..color = c.withAlpha(150));
-      cv.drawPath(path, Paint()..color = Colors.white.withAlpha(40)..style = PaintingStyle.stroke..strokeWidth = .8);
-      cv.restore();
-    }
-    // ورود في أسفل الشاشة
-    for (var i = 0; i < 7; i++) {
-      final cx = s.width * (i + .5) / 7;
-      final cy = s.height - 8 + math.sin(t + i) * 2;
-      final c = hsl.withHue((hsl.hue + i * 14) % 360).toColor();
-      for (var k = 0; k < 5; k++) {
-        cv.drawCircle(Offset(cx + math.cos(k * 1.256) * 7, cy + math.sin(k * 1.256) * 7), 6, Paint()..color = c.withAlpha(130));
-      }
-      cv.drawCircle(Offset(cx, cy), 4, Paint()..color = const Color(0xFFFFE08A).withAlpha(170));
+      final y = ((q[1] + t * q[2]) % 1.1 - .05) * s.height;
+      final x = (q[0] + math.sin(t * .5 + q[4]) * .05) * s.width;
+      _leaf(cv, Offset(x, y), q[3], t * .7 + q[4], _cols[i % _cols.length], 150);
     }
   }
 
   @override
-  bool shouldRepaint(covariant _FallPainter o) => false;
+  bool shouldRepaint(covariant _GardenPainter o) => false;
 }
 
-// ---------- الصاعقة: برق وأسلاك كهرباء ----------
+// ---------- الصاعقة: خلفية زرقاء متحركة خفيفة + برق نادر + أسلاك كهرباء (بدون تغطية الشاشة) ----------
 class _ThunderPainter extends CustomPainter {
   final ValueNotifier<Duration> el;
   _ThunderPainter(this.el) : super(repaint: el);
@@ -378,67 +408,87 @@ class _ThunderPainter extends CustomPainter {
   @override
   void paint(Canvas cv, Size s) {
     final t = el.value.inMilliseconds / 1000.0;
-    final slot = (t / 5.0).floor();
-    final ph = t - slot * 5.0;
-    final r = math.Random(slot * 31 + 5);
-    if (ph < .35) {
-      final a = (1 - ph / .35);
-      cv.drawRect(Offset.zero & s, Paint()..color = const Color(0xFF9CCBFF).withAlpha((a * 55).toInt()));
+    // خطوط طاقة مائلة بطيئة
+    for (var i = 0; i < 9; i++) {
+      final x = ((i * .137) + t * .018 * (1 + i % 4)) % 1.2 * s.width;
+      final y = ((i * .211) + t * .045) % 1.2 * s.height - 40;
+      cv.drawLine(Offset(x, y), Offset(x - 36, y + 64), Paint()..color = const Color(0xFF58A6FF).withAlpha(34)..strokeWidth = 1.2..strokeCap = StrokeCap.round);
+    }
+    // شرارات تطفو للأعلى
+    for (var i = 0; i < 16; i++) {
+      final x = ((i * .0713) + math.sin(t * .4 + i) * .02) % 1 * s.width;
+      final y = s.height - (((i * .173) + t * .03) % 1) * s.height;
+      final a = (math.sin(t * 1.6 + i * 2) + 1) / 2;
+      cv.drawCircle(Offset(x, y), 1.3 + a, Paint()..color = const Color(0xFF9CCBFF).withAlpha((a * 130).toInt()));
+    }
+    // برق نادر (كل 13 ثانية تقريباً) رفيع بلا وميض للشاشة
+    final slot = (t / 13.0).floor();
+    final ph = t - slot * 13.0;
+    if (ph < .45) {
+      final r = math.Random(slot * 31 + 5);
+      final a = 1 - ph / .45;
       final x = s.width * (.15 + r.nextDouble() * .7);
-      final path = _bolt(Offset(x, 0), Offset(x + (r.nextDouble() - .5) * 120, s.height * (.35 + r.nextDouble() * .3)), r, 70);
-      cv.drawPath(path, Paint()..color = const Color(0xFF58A6FF).withAlpha((a * 160).toInt())..style = PaintingStyle.stroke..strokeWidth = 9..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8));
-      cv.drawPath(path, Paint()..color = Colors.white.withAlpha((a * 255).toInt())..style = PaintingStyle.stroke..strokeWidth = 2.4);
+      final path = _bolt(Offset(x, 0), Offset(x + (r.nextDouble() - .5) * 110, s.height * (.3 + r.nextDouble() * .25)), r, 60);
+      cv.drawPath(path, Paint()..color = const Color(0xFF58A6FF).withAlpha((a * 110).toInt())..style = PaintingStyle.stroke..strokeWidth = 6..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6));
+      cv.drawPath(path, Paint()..color = Colors.white.withAlpha((a * 235).toInt())..style = PaintingStyle.stroke..strokeWidth = 2);
     }
-    // أسلاك كهرباء في الزاوية
+    // أسلاك كهرباء في الزاوية العليا اليمنى
     for (var k = 0; k < 3; k++) {
-      final rr = math.Random(((t * 9).floor()) * 7 + k);
-      final path = _bolt(Offset(s.width, s.height * .12), Offset(s.width - 70 - k * 14, s.height * .12 + 40 + k * 26), rr, 16);
-      cv.drawPath(path, Paint()..color = const Color(0xFF7CC4FF).withAlpha(200)..style = PaintingStyle.stroke..strokeWidth = 1.4);
+      final rr = math.Random(((t * 7).floor()) * 7 + k);
+      final path = _bolt(Offset(s.width, s.height * .1), Offset(s.width - 70 - k * 14, s.height * .1 + 40 + k * 26), rr, 14);
+      cv.drawPath(path, Paint()..color = const Color(0xFF7CC4FF).withAlpha(190)..style = PaintingStyle.stroke..strokeWidth = 1.3);
     }
-    cv.drawRect(Offset.zero & s, Paint()..shader = RadialGradient(colors: [Colors.transparent, const Color(0xFF0A3A8C).withAlpha(60)], radius: 1.0).createShader(Offset.zero & s));
   }
 
   @override
   bool shouldRepaint(covariant _ThunderPainter o) => false;
 }
 
-// ---------- الملكي: خمري + حواف ذهبية + أوراق خريف ----------
-class _RoyalPainter extends CustomPainter {
+// ---------- الملكي: دوامة ثلاثية الأبعاد (نفق يدور) كخلفية رفيعة بلا تغطية ----------
+class _VortexPainter extends CustomPainter {
   final ValueNotifier<Duration> el;
-  _RoyalPainter(this.el) : super(repaint: el);
+  final int v;
+  _VortexPainter(this.el, this.v) : super(repaint: el);
 
   @override
   void paint(Canvas cv, Size s) {
     final t = el.value.inMilliseconds / 1000.0;
-    cv.drawRect(Offset.zero & s, Paint()..shader = RadialGradient(colors: [Colors.transparent, const Color(0xFF5A0A1F).withAlpha(95)], radius: 1.05).createShader(Offset.zero & s));
-    final k = (math.sin(t * 1.4) + 1) / 2;
-    final gold = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..color = Color.lerp(const Color(0xFFB8860B), const Color(0xFFFFE08A), k)!.withAlpha(210);
-    cv.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(2, 2, s.width - 4, s.height - 4), const Radius.circular(14)), gold);
-    cv.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(7, 7, s.width - 14, s.height - 14), const Radius.circular(10)), Paint()..style = PaintingStyle.stroke..strokeWidth = 1..color = const Color(0xFFFFE08A).withAlpha(90));
-    final cols = [const Color(0xFF7A1230), const Color(0xFF9C1F3F), const Color(0xFF5E0E26), const Color(0xFFB0453C)];
-    for (var i = 0; i < _FallPainter._p.length; i++) {
-      final q = _FallPainter._p[i];
-      final y = ((q[1] + t * q[2] * .9) % 1.12 - .06) * s.height;
-      final x = (q[0] + math.sin(t * .5 + q[4]) * .06) * s.width;
-      cv.save();
-      cv.translate(x, y);
-      cv.rotate(t * .9 + q[4]);
-      final r = q[5];
-      final leaf = Path()
-        ..moveTo(0, -r)
-        ..quadraticBezierTo(r, -r * .3, 0, r)
-        ..quadraticBezierTo(-r, -r * .3, 0, -r);
-      cv.drawPath(leaf, Paint()..color = cols[i % cols.length].withAlpha(190));
-      cv.drawLine(Offset(0, -r), Offset(0, r), Paint()..color = const Color(0xFFFFC857).withAlpha(110)..strokeWidth = .8);
-      cv.restore();
+    final c = Offset(s.width / 2, s.height * .46);
+    final maxR = math.sqrt(s.width * s.width + s.height * s.height) / 2;
+    final cols = v == 1 ? const [Color(0xFFFFC857), Color(0xFFFF9F43)] : v == 2 ? const [Color(0xFFD81B60), Color(0xFF7A1230)] : const [Color(0xFFB3203F), Color(0xFFFFC857)];
+    const arms = 5;
+    for (var a = 0; a < arms; a++) {
+      final path = Path();
+      for (var k = 0; k <= 40; k++) {
+        final z = k / 40;
+        final r = math.pow(z, 1.8).toDouble() * maxR;
+        final ang = a * 2 * math.pi / arms + z * 3.4 - t * (v == 2 ? .32 : .45);
+        final pt = c + Offset(math.cos(ang) * r, math.sin(ang) * r * .92);
+        if (k == 0) {
+          path.moveTo(pt.dx, pt.dy);
+        } else {
+          path.lineTo(pt.dx, pt.dy);
+        }
+      }
+      cv.drawPath(path, Paint()..color = cols[a % 2].withAlpha(48)..style = PaintingStyle.stroke..strokeWidth = 1.5);
+    }
+    for (var i = 0; i < 12; i++) {
+      final z = ((i / 12) + t * .06) % 1;
+      final r = math.pow(z, 2.1).toDouble() * maxR;
+      final al = (math.sin(z * math.pi) * 52).toInt();
+      cv.drawOval(Rect.fromCenter(center: c, width: r * 2, height: r * 1.84), Paint()..color = cols[0].withAlpha(al)..style = PaintingStyle.stroke..strokeWidth = 1 + z * 2);
+    }
+    for (var i = 0; i < 14; i++) {
+      final z = ((i / 14) + t * .09) % 1;
+      final r = math.pow(z, 1.8).toDouble() * maxR;
+      final ang = (i % arms) * 2 * math.pi / arms + z * 3.4 - t * (v == 2 ? .32 : .45);
+      final pt = c + Offset(math.cos(ang) * r, math.sin(ang) * r * .92);
+      cv.drawCircle(pt, 1 + z * 2.2, Paint()..color = cols[1].withAlpha((math.sin(z * math.pi) * 200).toInt()));
     }
   }
 
   @override
-  bool shouldRepaint(covariant _RoyalPainter o) => false;
+  bool shouldRepaint(covariant _VortexPainter o) => false;
 }
 
 /// «ممتلكاتي»: كل VIP اشتراه العضو مع تفعيل وإيقاف

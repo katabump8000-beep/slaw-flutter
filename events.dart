@@ -671,7 +671,7 @@ class EventsHost {
 }
 
 
-/// ساحة رهان البالونات: دبوس يسقط من السماء على بالونة عليها صورة المشارك ثم تنفجر، وقائمة الأرواح تحتها
+/// ساحة رهان البالونات: سماء متحركة وغيوم تطفو، بالونات كل الأعضاء بصورهم، ثم دبوس ينزل من الهواء بتمايل فوق بالونة عشوائية فتنفجر
 class _BalloonArena extends StatefulWidget {
   final Map<String, dynamic> o;
   const _BalloonArena({required this.o});
@@ -679,9 +679,12 @@ class _BalloonArena extends StatefulWidget {
   State<_BalloonArena> createState() => _BalloonArenaState();
 }
 
-class _BalloonArenaState extends State<_BalloonArena> with SingleTickerProviderStateMixin {
-  late final AnimationController c = AnimationController(vsync: this, duration: const Duration(milliseconds: 2200));
+class _BalloonArenaState extends State<_BalloonArena> with TickerProviderStateMixin {
+  late final AnimationController c = AnimationController(vsync: this, duration: const Duration(milliseconds: 2300));
+  late final AnimationController d = AnimationController(vsync: this, duration: const Duration(seconds: 18))..repeat();
   int _seq = -1;
+
+  static const List<Color> _cols = [Color(0xFFE53935), Color(0xFFFF9800), Color(0xFF43A047), Color(0xFF8E24AA), Color(0xFF1E88E5), Color(0xFFFFB300), Color(0xFFEC407A), Color(0xFF00ACC1)];
 
   @override
   void initState() {
@@ -706,8 +709,11 @@ class _BalloonArenaState extends State<_BalloonArena> with SingleTickerProviderS
   @override
   void dispose() {
     c.dispose();
+    d.dispose();
     super.dispose();
   }
+
+  Widget _cloud(double x, double y, double w, double a) => Positioned(left: x, top: y, child: Opacity(opacity: a, child: Icon(Icons.cloud, color: Colors.white, size: w)));
 
   @override
   Widget build(BuildContext context) {
@@ -718,44 +724,89 @@ class _BalloonArenaState extends State<_BalloonArena> with SingleTickerProviderS
     final pin = (o['pin'] ?? '').toString();
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         child: SizedBox(
-          height: 150,
-          child: Stack(alignment: Alignment.center, children: [
-            Positioned.fill(child: DecoratedBox(decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF1E88E5), Color(0xFF90CAF9)])))),
-            const Positioned(top: 14, left: 24, child: Icon(Icons.cloud, color: Colors.white70, size: 44)),
-            const Positioned(top: 38, right: 30, child: Icon(Icons.cloud, color: Colors.white60, size: 34)),
-            if (pin.isNotEmpty)
-              AnimatedBuilder(
-                animation: c,
-                builder: (cx, _) {
-                  final t = Curves.easeIn.transform(c.value.clamp(0.0, 1.0));
-                  final fell = c.value >= .93 || popped;
-                  return Stack(alignment: Alignment.center, children: [
-                    if (!fell || !popped)
-                      Positioned(
-                        bottom: 14,
-                        child: Column(mainAxisSize: MainAxisSize.min, children: [
-                          Container(
-                            width: 62,
-                            height: 76,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(color: const Color(0xFFE53935), borderRadius: const BorderRadius.all(Radius.elliptical(62, 76)), boxShadow: [BoxShadow(color: Colors.red.withAlpha(110), blurRadius: 10)]),
-                            child: ClipOval(child: SizedBox(width: 40, height: 40, child: UserAvatar(pin, size: 40))),
+          height: 190,
+          child: LayoutBuilder(builder: (cx, cs) {
+            final W = cs.maxWidth;
+            final n = parts.isEmpty ? 1 : parts.length;
+            double bx(int i) => (i + .5) / n * W;
+            final bw = (W / n * .82).clamp(20.0, 46.0);
+            final tIdx = parts.indexWhere((p) => p['u'].toString() == pin);
+            return AnimatedBuilder(
+              animation: Listenable.merge([c, d]),
+              builder: (cx2, _) {
+                final dt = d.value; // 0..1 كل 18 ثانية
+                final fall = Curves.easeIn.transform((c.value / .8).clamp(0.0, 1.0));
+                final impact = c.value >= .8;
+                final burstK = impact ? ((c.value - .8) / .2).clamp(0.0, 1.0) : 0.0;
+                return Stack(clipBehavior: Clip.hardEdge, children: [
+                  Positioned.fill(child: DecoratedBox(decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF1565C0), Color(0xFF64B5F6), Color(0xFFBBDEFB)])))),
+                  // غيوم تطفو بسرعات مختلفة
+                  _cloud(((dt * 1.0) % 1.3 - .15) * W, 12, 56, .85),
+                  _cloud(((dt * 1.7 + .45) % 1.3 - .15) * W, 52, 40, .7),
+                  _cloud(((dt * .6 + .75) % 1.3 - .15) * W, 100, 66, .55),
+                  // بالونات الأعضاء تتمايل بهدوء
+                  for (var i = 0; i < parts.length; i++)
+                    Builder(builder: (_) {
+                      final p = parts[i];
+                      final lives = ((p['l'] as num?)?.toInt() ?? 0).clamp(0, 3);
+                      final isT = i == tIdx;
+                      final bob = sin(dt * 2 * pi * 9 + i) * 4;
+                      final hidden = lives == 0 || (isT && impact && popped && lives > 0 && burstK > .05 && false);
+                      if (lives == 0) return const SizedBox.shrink();
+                      final scale = isT && impact ? (1 + burstK * .6) : 1.0;
+                      final op = isT && impact ? (1 - burstK).clamp(0.0, 1.0) : 1.0;
+                      if (hidden) return const SizedBox.shrink();
+                      return Positioned(
+                        left: bx(i) - bw / 2,
+                        top: 92 + bob,
+                        child: Opacity(
+                          opacity: op,
+                          child: Transform.scale(
+                            scale: scale,
+                            child: Column(mainAxisSize: MainAxisSize.min, children: [
+                              Container(
+                                width: bw,
+                                height: bw * 1.2,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(color: _cols[i % _cols.length], borderRadius: BorderRadius.all(Radius.elliptical(bw, bw * 1.2)), boxShadow: [BoxShadow(color: _cols[i % _cols.length].withAlpha(110), blurRadius: 8)]),
+                                child: ClipOval(child: SizedBox(width: bw * .62, height: bw * .62, child: UserAvatar(p['u'].toString(), size: bw * .62))),
+                              ),
+                              Container(width: 1.2, height: 12, color: Colors.white70),
+                              Text('×$lives', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white)),
+                            ]),
                           ),
-                          Container(width: 1.5, height: 10, color: Colors.white70),
-                        ]),
+                        ),
+                      );
+                    }),
+                  // الدبوس ينزل من الهواء بتمايل ودوران خفيف فوق البالونة المستهدفة
+                  if (pin.isNotEmpty && tIdx >= 0 && !impact)
+                    Positioned(
+                      left: bx(tIdx) - 17 + sin(fall * 9) * (1 - fall) * 26,
+                      top: -40 + fall * 150,
+                      child: Transform.rotate(angle: 3.14159 + sin(fall * 9) * .35 * (1 - fall), child: const Icon(Icons.push_pin, color: Colors.white, size: 34, shadows: [Shadow(color: Colors.black54, blurRadius: 6)])),
+                    ),
+                  // انفجار عند الاصطدام
+                  if (pin.isNotEmpty && tIdx >= 0 && impact)
+                    Positioned(
+                      left: bx(tIdx) - 38,
+                      top: 92 - 6,
+                      child: Opacity(
+                        opacity: (1 - burstK).clamp(0.0, 1.0),
+                        child: Transform.scale(scale: .6 + burstK * 1.3, child: const Icon(Icons.auto_awesome, color: Color(0xFFFFEB3B), size: 76, shadows: [Shadow(color: Colors.orange, blurRadius: 14)])),
                       ),
-                    if (popped) const Positioned(bottom: 38, child: Icon(Icons.auto_awesome, color: Color(0xFFFFEB3B), size: 56)),
-                    if (!popped)
-                      Positioned(
-                        top: -34 + t * 118,
-                        child: Transform.rotate(angle: 3.14159, child: const Icon(Icons.push_pin, color: Colors.white, size: 34)),
-                      ),
-                  ]);
-                },
-              ),
-          ]),
+                    ),
+                  if (pin.isNotEmpty && tIdx >= 0 && !impact)
+                    Positioned(
+                      left: bx(tIdx) - bw / 2 - 5,
+                      top: 86,
+                      child: Container(width: bw + 10, height: bw * 1.2 + 12, decoration: BoxDecoration(borderRadius: BorderRadius.all(Radius.elliptical(bw + 10, bw * 1.2 + 12)), border: Border.all(color: Colors.white.withAlpha((120 + 100 * sin(fall * 20)).clamp(0, 255).toInt()), width: 2))),
+                    ),
+                ]);
+              },
+            );
+          }),
         ),
       ),
       const SizedBox(height: 6),

@@ -22,8 +22,9 @@ class _TapSoundState extends State<TapSound> {
       return;
     }
     final k = vipKind.value;
-    final snd = k == 'thunder' ? 'zap${1 + math.Random().nextInt(3)}.wav' : (k == 'royal' ? 'royal.wav' : 'vip${1 + math.Random().nextInt(4)}.wav');
-    Sfx.start(snd, volume: .9).then((p) {
+    final snd = k == 'thunder' ? 'zap${1 + math.Random().nextInt(3)}.wav' : (k.startsWith('royal') ? 'royal.wav' : (k == 'emerald' ? 'rose${1 + math.Random().nextInt(4)}.wav' : 'vip${1 + math.Random().nextInt(4)}.wav'));
+    final vol = k == 'thunder' ? .4 : (k == 'emerald' ? .5 : (k.startsWith('royal') ? .6 : .9));
+    Sfx.start(snd, volume: vol).then((p) {
       p.onPlayerComplete.first.timeout(const Duration(seconds: 3), onTimeout: () {}).then((_) => p.dispose());
     });
   }

@@ -184,7 +184,7 @@ class AppButton extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => ValueListenableBuilder<bool>(valueListenable: vipOn, builder: (c, vip, _) => _b(c, vip));
+  Widget build(BuildContext context) => ValueListenableBuilder<String>(valueListenable: vipKind, builder: (c, k, _) => _b(c, k.isNotEmpty));
 
   Widget _b(BuildContext context, bool vip) {
     final radius = BorderRadius.circular(12);
@@ -212,17 +212,8 @@ class AppButton extends StatelessWidget {
       fg = kDarkText;
       w = FontWeight.w800;
     }
-    if (vip) {
-      final edge = kind == 'r' ? kRed : context.accent2;
-      deco = BoxDecoration(
-        color: const Color(0xFF0A0A10),
-        borderRadius: radius,
-        border: Border.all(color: edge, width: 1.6),
-        boxShadow: [BoxShadow(color: edge.withAlpha(80), blurRadius: 10)],
-      );
-      fg = edge;
-    }
-    return Opacity(
+    final tulip = vipKind.value == 'emerald' && kind != 'r';
+    final core = Opacity(
       opacity: onPressed == null ? .5 : 1,
       child: Material(
         color: Colors.transparent,
@@ -255,6 +246,20 @@ class AppButton extends StatelessWidget {
         ),
       ),
     );
+    if (!tulip) return core;
+    return Stack(clipBehavior: Clip.none, children: [
+      core,
+      Positioned(
+        top: -6,
+        right: 6,
+        child: IgnorePointer(
+          child: ValueListenableBuilder<double>(
+            valueListenable: vipPhase,
+            builder: (c, ph, _) => Transform.rotate(angle: math.sin(ph * 6.2832) * .18, child: const Text('🌷', style: TextStyle(fontSize: 15))),
+          ),
+        ),
+      ),
+    ]);
   }
 }
 

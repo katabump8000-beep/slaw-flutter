@@ -83,7 +83,7 @@ class FirApp extends StatelessWidget {
       valueListenable: accentHex,
       builder: (c, ac0, _) {
         // الصاعقة: ألوان الواجهة زرقاء دائماً (تتوقف خاصية تغيير اللون) | الملكي: خمري
-        final ac = vk == 'thunder' ? '#2F8CFF' : (vk == 'royal' ? '#B3203F' : ac0);
+        final ac = vk == 'thunder' ? '#2F8CFF' : (vk.startsWith('royal') ? '#A31E3E' : (vk == 'emerald' ? '#FF6FAE' : ac0));
         return MaterialApp(
         title: 'FIR',
         debugShowCheckedModeBanner: false,
