@@ -98,6 +98,9 @@ class LiteChat extends StatefulWidget {
   final String path, title;
   final bool dm;
   const LiteChat({super.key, required this.path, required this.title, this.dm = false});
+
+  /// مسار القراءة: نسخة نصية خفيفة يكتبها السيرفر (لا صور ولا ملفات)
+  String get litePath => dm ? path.replaceFirst('fdm/', 'liteD/') : path.replaceFirst('messages/', 'lite/');
   @override
   State<LiteChat> createState() => _LiteChatState();
 }
@@ -112,11 +115,11 @@ class _LiteChatState extends State<LiteChat> {
   @override
   void initState() {
     super.initState();
-    _sub = ref(widget.path).orderByKey().limitToLast(25).onChildAdded.listen((e) async {
+    _sub = ref(widget.litePath).orderByKey().limitToLast(40).onChildAdded.listen((e) async {
       final v = e.snapshot.value;
       if (v is! Map) return;
       final m = Map<String, dynamic>.from(v);
-      final from = (m['from'] ?? '').toString();
+      final from = (m['f'] ?? '').toString();
       if (from.isNotEmpty && !_names.containsKey(from)) {
         _names[from] = (await prof(from)).name;
       }
@@ -151,9 +154,7 @@ class _LiteChatState extends State<LiteChat> {
   }
 
   bool _textOnly(Map<String, dynamic> m) {
-    final ty = (m['type'] ?? 'text').toString();
-    if (m['img'] != null || m['vid'] != null || m['aud'] != null || m['st'] != null) return false;
-    return ty == 'text' && (m['text'] ?? '').toString().isNotEmpty;
+    return m['x'] == null && (m['t'] ?? '').toString().isNotEmpty;
   }
 
   @override
@@ -168,7 +169,7 @@ class _LiteChatState extends State<LiteChat> {
             itemCount: _msgs.length,
             itemBuilder: (c, i) {
               final m = _msgs[i].value;
-              final mine = m['from'] == myUid;
+              final mine = m['f'] == myUid;
               final ts = (m['ts'] as num?)?.toInt() ?? 0;
               final ok = _textOnly(m);
               return Align(
@@ -181,8 +182,8 @@ class _LiteChatState extends State<LiteChat> {
                     constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * .78),
                     decoration: BoxDecoration(color: ok ? (mine ? const Color(0xFF1F3D2B) : const Color(0xFF22262D)) : Colors.black, borderRadius: BorderRadius.circular(12)),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      if (!mine) Text(_names[(m['from'] ?? '').toString()] ?? 'عضو', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF8FC1FF))),
-                      Text(ok ? (m['text'] ?? '').toString() : 'صورة تعذر تحميلها\nبسبب وضع التوفير', style: TextStyle(height: 1.5, color: ok ? Colors.white : Colors.white54)),
+                      if (!mine) Text(_names[(m['f'] ?? '').toString()] ?? 'عضو', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF8FC1FF))),
+                      Text(ok ? (m['t'] ?? '').toString() : 'صورة تعذر تحميلها\nبسبب وضع التوفير', style: TextStyle(height: 1.5, color: ok ? Colors.white : Colors.white54)),
                       Align(alignment: AlignmentDirectional.centerEnd, child: Text(hhmm(ts), style: const TextStyle(fontSize: 10.5, color: Colors.white38))),
                     ]),
                   ),

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'app_state.dart';
+import 'vip.dart';
 import 'auth.dart' show deviceHash;
 import 'notif.dart';
 import 'bell.dart';
@@ -200,6 +201,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const ProfilePrivacyTiles(),
           const ExtraSettingsTiles(),
           _title('الحساب'),
+          ListTile(
+            leading: const Icon(Icons.inventory_2_outlined),
+            title: const Text('ممتلكاتي'),
+            subtitle: const Text('تأثيرات VIP التي اشتريتها', style: TextStyle(color: kMu, fontSize: 12)),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const MyVipsScreen())),
+          ),
           ListTile(
             leading: const Icon(Icons.verified_user_outlined),
             title: const Text('درجة الفخر'),

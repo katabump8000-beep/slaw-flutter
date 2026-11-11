@@ -100,6 +100,13 @@ class _ChatScreenState extends State<ChatScreen> {
   final Set<String> doneSeen = <String>{};
   Timer? seenTimer;
   Timer? recTimer;
+  Timer? recTick;
+  StreamSubscription<Amplitude>? _ampSub;
+  bool recPaused = false;
+  int recSecs = 0;
+  Uint8List? recBase; // مسودة محفوظة نكمل عليها
+  int recBaseSecs = 0;
+  final List<double> recLevels = <double>[];
   final AudioRecorder rec = AudioRecorder();
   Map<String, String>? nameIdx;
   final Map<String, Uint8List> imgCache = {};
@@ -246,6 +253,12 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     seenTimer?.cancel();
     recTimer?.cancel();
+    recTick?.cancel();
+    _ampSub?.cancel();
+    if (recording) {
+      rec.cancel().catchError((Object _) {});
+      Sfx.unblock('rec');
+    }
     _flush();
     rec.dispose();
     scroll.dispose();
@@ -899,40 +912,211 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // ---------- الصوت (للذكور فقط) ----------
+  // تسجيل بمؤثرات: إيقاف مؤقت (أزرق) | إرسال (أخضر) | إلغاء (أحمر) | حفظ كمسودة (أصفر).
+  // صيغة ADTS تسمح بدمج المسودة مع الجزء الجديد بالتسلسل البسيط.
+  static const int _recMax = 30;
+
+  Future<File> _draftFile() async => File('${(await getApplicationDocumentsDirectory()).path}/voice_draft.aac');
+
   Future<void> _toggleRec() async {
-    if (!_gate()) return;
+    if (!_gate() || recording) return;
     try {
-      if (recording) {
-        recTimer?.cancel();
-        final p = await rec.stop();
-        setState(() => recording = false);
-        if (p == null) return;
-        final b = await File(p).readAsBytes();
-        final d = 'data:audio/mp4;base64,${base64Encode(b)}';
-        if (d.length > 140000) {
-          toast('التسجيل طويل جداً', bad: true);
-          return;
-        }
-        final m = _base('audio');
-        m['au'] = d;
-        m['dur'] = min(60, max(1, b.length ~/ 3000));
-        await _post(m, count: false);
-        return;
-      }
       if (!await rec.hasPermission()) {
         toast('فعّل إذن الميكروفون', bad: true);
         return;
       }
+      recBase = null;
+      recBaseSecs = 0;
+      final f = await _draftFile();
+      final ds = prefs.getInt('vdraft_s') ?? 0;
+      if (await f.exists() && ds > 0) {
+        final go = await showDialog<bool>(
+          context: context,
+          builder: (d) => AlertDialog(
+            title: const Text('هل تريد اكمال صوت المحفوظ؟'),
+            content: Text('لديك تسجيل محفوظ مدته $ds ثانية.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('تسجيل جديد')),
+              TextButton(onPressed: () => Navigator.pop(d, true), child: const Text('إكمال')),
+            ],
+          ),
+        );
+        if (go == null) return;
+        if (go) {
+          recBase = await f.readAsBytes();
+          recBaseSecs = ds;
+        } else {
+          await f.delete();
+          prefs.remove('vdraft_s');
+        }
+      }
       final dir = (await getTemporaryDirectory()).path;
-      await rec.start(const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 24000, sampleRate: 16000), path: '$dir/v_${DateTime.now().millisecondsSinceEpoch}.m4a');
+      await rec.start(const RecordConfig(encoder: AudioEncoder.aacAdts, bitRate: 24000, sampleRate: 16000, numChannels: 1), path: '$dir/v_${DateTime.now().millisecondsSinceEpoch}.aac');
+      Sfx.block('rec');
+      recSecs = recBaseSecs;
+      recPaused = false;
+      recLevels.clear();
       setState(() => recording = true);
-      recTimer = Timer(const Duration(seconds: 20), () {
-        if (recording) _toggleRec();
+      _ampSub?.cancel();
+      _ampSub = rec.onAmplitudeChanged(const Duration(milliseconds: 90)).listen((a) {
+        if (recPaused) return;
+        recLevels.add(((a.current + 45) / 45).clamp(0.06, 1.0).toDouble());
+        if (recLevels.length > 34) recLevels.removeAt(0);
+        if (mounted) setState(() {});
+      });
+      recTick?.cancel();
+      recTick = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (recPaused || !recording) return;
+        recSecs++;
+        if (recSecs >= _recMax) {
+          _recSend();
+        } else if (mounted) {
+          setState(() {});
+        }
       });
     } catch (e) {
-      setState(() => recording = false);
+      _recEnd();
       err(e);
     }
+  }
+
+  void _recEnd() {
+    recTick?.cancel();
+    _ampSub?.cancel();
+    Sfx.unblock('rec');
+    if (mounted) setState(() => recording = false);
+  }
+
+  Future<Uint8List?> _recCollect() async {
+    final p = await rec.stop();
+    final bb = BytesBuilder();
+    if (recBase != null) bb.add(recBase!);
+    if (p != null) bb.add(await File(p).readAsBytes());
+    final out = bb.takeBytes();
+    return out.isEmpty ? null : out;
+  }
+
+  Future<void> _recPauseResume() async {
+    try {
+      if (recPaused) {
+        await rec.resume();
+      } else {
+        await rec.pause();
+      }
+      setState(() => recPaused = !recPaused);
+    } catch (e) {
+      err(e);
+    }
+  }
+
+  Future<void> _recCancel() async {
+    try {
+      await rec.cancel();
+    } catch (_) {}
+    recBase = null;
+    _recEnd();
+  }
+
+  Future<void> _recDraft() async {
+    try {
+      final b = await _recCollect();
+      _recEnd();
+      if (b == null) return;
+      final f = await _draftFile();
+      await f.writeAsBytes(b, flush: true);
+      await prefs.setInt('vdraft_s', max(1, recSecs));
+      recBase = null;
+      toast('تم حفظ الصوت كمسودة 💾');
+    } catch (e) {
+      _recEnd();
+      err(e);
+    }
+  }
+
+  Future<void> _recSend() async {
+    if (!recording) return;
+    try {
+      final b = await _recCollect();
+      _recEnd();
+      if (b == null) return;
+      final d = 'data:audio/aac;base64,${base64Encode(b)}';
+      if (d.length > 140000) {
+        toast('التسجيل طويل جداً', bad: true);
+        return;
+      }
+      final m = _base('audio');
+      m['au'] = d;
+      m['dur'] = min(_recMax, max(1, recSecs));
+      await _post(m, count: false);
+      recBase = null;
+      final f = await _draftFile();
+      if (await f.exists()) await f.delete();
+      prefs.remove('vdraft_s');
+    } catch (e) {
+      _recEnd();
+      err(e);
+    }
+  }
+
+  Widget _recBtn(IconData ic, Color c, String label, VoidCallback f) => Expanded(
+        child: GestureDetector(
+          onTap: f,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: c, boxShadow: [BoxShadow(color: c.withAlpha(150), blurRadius: 14, spreadRadius: 1)]),
+              child: Icon(ic, color: Colors.white, size: 26),
+            ),
+            const SizedBox(height: 4),
+            Text(label, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
+          ]),
+        ),
+      );
+
+  Widget _recPanel() {
+    final mm = (recSecs ~/ 60).toString().padLeft(2, '0');
+    final ss = (recSecs % 60).toString().padLeft(2, '0');
+    final t = DateTime.now().millisecondsSinceEpoch / 600.0;
+    return Container(
+      color: kBg2,
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+      child: SafeArea(
+        top: false,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.fiber_manual_record, size: 14, color: recPaused ? Colors.amber : kRed),
+            const SizedBox(width: 6),
+            Text(recPaused ? 'متوقف مؤقتاً  $mm:$ss' : 'جارٍ التسجيل  $mm:$ss', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+          ]),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 46,
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.center, children: [
+              for (var i = 0; i < 34; i++)
+                Builder(builder: (_) {
+                  final idx = i - (34 - recLevels.length);
+                  final lv = idx >= 0 ? recLevels[idx] : .06;
+                  final col = HSVColor.fromAHSV(1, ((i * 11) + t * 40) % 360, .75, 1).toColor();
+                  return Container(
+                    width: 5,
+                    height: 4 + lv * 40,
+                    margin: const EdgeInsets.symmetric(horizontal: 1.2),
+                    decoration: BoxDecoration(color: col, borderRadius: BorderRadius.circular(3), boxShadow: [BoxShadow(color: col.withAlpha(110), blurRadius: 6)]),
+                  );
+                }),
+            ]),
+          ),
+          const SizedBox(height: 12),
+          Row(children: [
+            _recBtn(recPaused ? Icons.play_arrow_rounded : Icons.pause_rounded, const Color(0xFF2F80ED), recPaused ? 'استئناف' : 'إيقاف مؤقت', _recPauseResume),
+            _recBtn(Icons.send_rounded, const Color(0xFF2EBB5E), 'إرسال', _recSend),
+            _recBtn(Icons.close_rounded, const Color(0xFFE53935), 'إلغاء', _recCancel),
+            _recBtn(Icons.bookmark_rounded, const Color(0xFFF2C21A), 'حفظ مسودة', _recDraft),
+          ]),
+        ]),
+      ),
+    );
   }
 
   // ---------- الإشارات @ ----------
@@ -1427,6 +1611,7 @@ class _ChatScreenState extends State<ChatScreen> {
         })),
       );
     }
+    if (recording) return _recPanel();
     return Container(
       color: kBg2,
       padding: const EdgeInsets.fromLTRB(4, 6, 6, 6),
@@ -1437,7 +1622,7 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(visualDensity: VisualDensity.compact, onPressed: _stickers, icon: const Icon(Icons.emoji_emotions_outlined)),
           IconButton(visualDensity: VisualDensity.compact, onPressed: _mentionPicker, icon: const Icon(Icons.alternate_email)),
           if (Session.me.gender == 'm')
-            IconButton(visualDensity: VisualDensity.compact, onPressed: _toggleRec, icon: Icon(recording ? Icons.stop_circle : Icons.mic_none, color: recording ? kRed : null)),
+            IconButton(visualDensity: VisualDensity.compact, onPressed: _toggleRec, icon: const Icon(Icons.mic_none)),
           Expanded(
             child: TextField(
               controller: ctrl,
@@ -1670,6 +1855,7 @@ Future<void> showGamesSheet(BuildContext context, String gid) async {
         b('🧩 فعالية التفكيك', 'تفكيك'),
         b('😀 فعالية الايموجي', 'ايموجي'),
         b('💛 الحدس (رهان جماعي)', 'حدس'),
+        b('🎈 البالونات (رهان جماعي)', 'بالون'),
         b('🐾 فعالية الحيوانات', 'حيوانات'),
         b('🎭 تخمين الشخصيات', 'شخصيات'),
       ],

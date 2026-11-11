@@ -54,6 +54,37 @@
     ".validate": "newData.val()==='dev'"
    }
   },
+  "vipReq": {
+   "$rid": {
+    ".read": false,
+    ".write": "auth!=null&&!data.exists()&&newData.child('u').val()===auth.uid&&newData.child('ts').val()===now",
+    ".validate": "newData.hasChildren(['u','ts','id'])",
+    "u": {".validate": "newData.isString()"},
+    "ts": {".validate": "newData.isNumber()"},
+    "id": {".validate": "newData.isString()&&newData.val().length<=12"},
+    "$other": {".validate": false}
+   }
+  },
+  "vips": {
+   "$uid": {
+    ".read": "auth!=null&&(auth.uid===$uid||(root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val()))",
+    ".write": false
+   }
+  },
+  "lite": {
+   "$g": {
+    ".read": "auth!=null&&(root.child('members/'+$g+'/'+auth.uid).val()===true||(root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val()))",
+    ".write": false
+   }
+  },
+  "liteD": {
+   "$a": {
+    "$b": {
+     ".read": "auth!=null&&(auth.uid===$a||auth.uid===$b)",
+     ".write": false
+    }
+   }
+  },
   "deviceAllow": {
    "$h": {
     ".read": "auth!=null",

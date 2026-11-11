@@ -21,7 +21,9 @@ class _TapSoundState extends State<TapSound> {
       Sfx.click();
       return;
     }
-    Sfx.start('vip${1 + math.Random().nextInt(4)}.wav', volume: .9).then((p) {
+    final k = vipKind.value;
+    final snd = k == 'thunder' ? 'zap${1 + math.Random().nextInt(3)}.wav' : (k == 'royal' ? 'royal.wav' : 'vip${1 + math.Random().nextInt(4)}.wav');
+    Sfx.start(snd, volume: .9).then((p) {
       p.onPlayerComplete.first.timeout(const Duration(seconds: 3), onTimeout: () {}).then((_) => p.dispose());
     });
   }

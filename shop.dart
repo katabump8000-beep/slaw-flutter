@@ -7,6 +7,7 @@ import 'auth.dart';
 import 'core.dart';
 import 'data.dart';
 import 'home.dart';
+import 'vip.dart';
 import 'war.dart';
 import 'widgets.dart';
 
@@ -23,6 +24,10 @@ const List<_Item> _items = [
   _Item('nick', '🏷', 'تغيير اللقب', 1000, 'غيّر لقبك (عربي فقط)'),
   _Item('sab', '💥', 'تخريب لقب', 1000, 'غيّر لقب عضو من نقابتك (عدا المشرفين)'),
   _Item('war', '⚔️', 'إعلان حرب', 10000, 'للمشرفين فقط', staff: true),
+  _Item('vip_galaxy', '👑', '𝑽𝑰𝑷 المجرة', 0, 'شهب ونجوم وتوهج أزرق يتدرج إلى البنفسجي'),
+  _Item('vip_emerald', '🌸', '𝑽𝑰𝑷 زمردة', 0, 'أوراق ورود راقية بألوان واجهتك'),
+  _Item('vip_thunder', '⚡', '𝑽𝑰𝑷 الصاعقة', 0, 'برق ورعد وأسلاك كهرباء، وألوان الواجهة زرقاء ثابتة'),
+  _Item('vip_royal', '🍷', '𝑽𝑰𝑷 الملكي', 0, 'خمري ملكي بحواف ذهبية وأوراق خريف متساقطة'),
 ];
 
 final Map<String, int> _ovr = {};
@@ -96,6 +101,9 @@ class _ShopScreenState extends State<ShopScreen> {
     loadShopPrices().then((_) {
       if (mounted) setState(() {});
     });
+    initVip().then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   Future<void> _staff() async {
@@ -116,6 +124,7 @@ class _ShopScreenState extends State<ShopScreen> {
         toast('رصيدك لا يكفي', bad: true);
         return;
       }
+      if (it.id.startsWith('vip_')) return _buyVip(it);
       const w = 'wallets';
       final W = '$w/$myUid/bal';
       switch (it.id) {
@@ -145,6 +154,43 @@ class _ShopScreenState extends State<ShopScreen> {
     } catch (e) {
       err(e);
     }
+  }
+
+  /// شراء VIP عبر السيرفر (يخصم الرصيد ويسجّل الملكية بشكل آمن)
+  Future<void> _buyVip(_Item it) async {
+    final id = it.id.substring(4);
+    if (vipOwned.contains(id)) {
+      toast('تملك هذا التأثير بالفعل، فعّله من ممتلكاتي', bad: true);
+      return;
+    }
+    final rid = ref('vipReq').push().key!;
+    try {
+      await ref('vipReq/$rid').set(<String, Object?>{'u': myUid, 'ts': ServerValue.timestamp, 'id': id}).timeout(const Duration(seconds: 8));
+    } catch (e) {
+      err(e);
+      return;
+    }
+    var ok = false;
+    for (var i = 0; i < 16 && !ok; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      try {
+        ok = (await ref('vips/$myUid/$id').get()).exists;
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    if (!ok) {
+      toast('تعذر إتمام الشراء (تحقق من رصيدك)', bad: true);
+      return;
+    }
+    vipOwned.add(id);
+    showAppSheet<void>(context, (sc) => [
+          const Text('تم شراء التأثير يمكنك رؤيته في الاعدادات في ممتلكاتي!', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w800, height: 1.8)),
+          AppButton('ممتلكاتي', onPressed: () {
+            Navigator.of(sc).pop();
+            Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const MyVipsScreen()));
+          }),
+        ]);
+    setState(() {});
   }
 
   void _nameSheet(String title, Future<void> Function(String) ok) {
@@ -276,13 +322,25 @@ class _ShopScreenState extends State<ShopScreen> {
       ]),
       body: ListView(children: [
         for (final it in _items)
-          if (!it.staff || staff)
+          if (!it.staff || staff) ...[
+            if (it.id == 'vip_galaxy')
+              const Padding(padding: EdgeInsets.fromLTRB(16, 16, 16, 4), child: Text('✨ تأثيرات VIP (4)', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: kMu))),
             ListTile(
               leading: CircleAvatar(backgroundColor: accentA(context, .18), child: Text(it.e, style: const TextStyle(fontSize: 18))),
-              title: Text(it.n, style: const TextStyle(fontWeight: FontWeight.w800)),
+              title: it.id.startsWith('vip_') ? Align(alignment: AlignmentDirectional.centerStart, child: VipName(it.id.substring(4))) : Text(it.n, style: const TextStyle(fontWeight: FontWeight.w800)),
               subtitle: Text(it.d, style: const TextStyle(color: kMu, fontSize: 12)),
-              trailing: SizedBox(width: 92, child: AppButton(fmtN(_pr(it)), compact: true, onPressed: () => _buy(it))),
+              trailing: it.id.startsWith('vip_')
+                  ? Row(mainAxisSize: MainAxisSize.min, children: [
+                      IconButton(
+                        tooltip: 'تجربة 3 دقائق',
+                        icon: const Text('👁', style: TextStyle(fontSize: 20)),
+                        onPressed: () => toast(startVipTrial(it.id.substring(4)) ? 'تجربة لمدة 3 دقائق ✨' : 'جرّبت هذا التأثير من قبل', bad: false),
+                      ),
+                      SizedBox(width: 92, child: AppButton(vipOwned.contains(it.id.substring(4)) ? 'مملوك' : (_pr(it) == 0 ? 'مجاني' : fmtN(_pr(it))), compact: true, onPressed: () => _buy(it))),
+                    ])
+                  : SizedBox(width: 92, child: AppButton(fmtN(_pr(it)), compact: true, onPressed: () => _buy(it))),
             ),
+          ],
       ]),
     );
   }

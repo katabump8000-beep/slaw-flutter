@@ -77,8 +77,13 @@ class FirApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<String>(
+      valueListenable: vipKind,
+      builder: (cv, vk, __) => ValueListenableBuilder<String>(
       valueListenable: accentHex,
-      builder: (c, ac, _) => MaterialApp(
+      builder: (c, ac0, _) {
+        // الصاعقة: ألوان الواجهة زرقاء دائماً (تتوقف خاصية تغيير اللون) | الملكي: خمري
+        final ac = vk == 'thunder' ? '#2F8CFF' : (vk == 'royal' ? '#B3203F' : ac0);
+        return MaterialApp(
         title: 'FIR',
         debugShowCheckedModeBanner: false,
         scaffoldMessengerKey: messengerKey,
@@ -100,6 +105,8 @@ class FirApp extends StatelessWidget {
           ),
         ),
         home: const AuthGate(),
+      );
+      },
       ),
     );
   }
@@ -139,7 +146,10 @@ class HomeLoader extends StatefulWidget {
 class _HomeLoaderState extends State<HomeLoader> {
   late Future<String> f = _load();
 
-  Future<String> _load() => Session.load().timeout(const Duration(seconds: 9), onTimeout: () => 'offline').catchError((Object _) => 'offline');
+  Future<String> _load() => Session.load().timeout(const Duration(seconds: 9), onTimeout: () => 'offline').catchError((Object _) => 'offline').then((r) {
+        if (r == 'ok') initVip();
+        return r;
+      });
 
   @override
   Widget build(BuildContext context) {

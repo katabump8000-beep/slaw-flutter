@@ -46,9 +46,9 @@ int _lev(String a, String b) {
 
 const List<String> _cmds = [
   'تفاصيلي', 'رصيدي', 'رصيد', 'معلوماته', 'تفاصيله', 'اوامر', 'العاب', 'كريستال', 'بالونات', 'اعلام', 'كتابه', 'تفكيك', 'الغاء', 'الوان', 'رهانات', 'رهان', 'تحويل',
-  'المتصدرين', 'المتجر', 'حيوانات', 'شخصيات', 'فخر', 'ايموجي', 'حدس',
+  'المتصدرين', 'المتجر', 'حيوانات', 'شخصيات', 'فخر', 'ايموجي', 'حدس', 'بالون',
 ];
-const Set<String> _gameCmds = {'حدس', 'ايموجي', 'كتابه', 'تفكيك', 'الوان', 'رهانات', 'حيوانات', 'شخصيات'};
+const Set<String> _gameCmds = {'حدس', 'بالون', 'ايموجي', 'كتابه', 'تفكيك', 'الوان', 'رهانات', 'حيوانات', 'شخصيات'};
 
 bool isCommandText(String t) => RegExp(r'^\s*\.\s*[\u0600-\u06FFa-zA-Z]').hasMatch(t);
 
@@ -153,6 +153,9 @@ Future<void> runCommand(BuildContext ctx, String gid, String raw) async {
       break;
     case 'حدس':
       await startHeart(ctx, gid);
+      break;
+    case 'بالون':
+      await startBalloonBet(ctx, gid);
       break;
     case 'تحويل':
       if (args.contains('@')) {

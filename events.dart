@@ -229,9 +229,9 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
       final bet = (o['mb'] as num?)?.toInt() ?? 0;
       kids.add(_decor('╗══════════════════╔', base));
       kids.add(const SizedBox(height: 6));
-      kids.add(Text('💛 الحدس', textAlign: TextAlign.center, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: base)));
+      kids.add(Text((o['title'] ?? '💛 الحدس').toString(), textAlign: TextAlign.center, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: base)));
       kids.add(const SizedBox(height: 4));
-      kids.add(const Text('بكل بساطة النظام يرسل لكم 5 قلوب وانتم يجب عليكم تحديد لون القلب الذي تظنون أنه القلب الفائز.. الفعالية تعتمد على حدسك', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, height: 1.55, color: Colors.white, fontWeight: FontWeight.w700)));
+      kids.add(Text(o['desc'] != null ? o['desc'].toString() : 'بكل بساطة النظام يرسل لكم 5 قلوب وانتم يجب عليكم تحديد لون القلب الذي تظنون أنه القلب الفائز.. الفعالية تعتمد على حدسك', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, height: 1.55, color: Colors.white, fontWeight: FontWeight.w700)));
       kids.add(const SizedBox(height: 6));
       kids.add(Text('العدد:  ${parts.length}   •   أقل رهان:  $bet', textAlign: TextAlign.center, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900, color: base)));
       kids.add(const SizedBox(height: 6));
@@ -260,7 +260,7 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
           ),
           const SizedBox(width: 8),
           GestureDetector(
-            onTap: () => widget.onAct?.call('hsjoin', {'bet': int.tryParse(normDigits(_betC.text.trim())) ?? bet}),
+            onTap: () => widget.onAct?.call((o['jn'] ?? 'hsjoin').toString(), {'bet': int.tryParse(normDigits(_betC.text.trim())) ?? bet}),
             child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9), decoration: BoxDecoration(color: base, borderRadius: BorderRadius.circular(10)), child: const Text('مشاركة', style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black, fontSize: 13))),
           ),
         ]));
@@ -270,7 +270,7 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
           padding: const EdgeInsets.only(top: 10),
           child: Center(
             child: GestureDetector(
-              onTap: () => widget.onAct?.call('hsstart', {}),
+              onTap: () => widget.onAct?.call((o['st'] ?? 'hsstart').toString(), {}),
               child: Container(padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 9), decoration: BoxDecoration(color: const Color(0xFF2EE07A), borderRadius: BorderRadius.circular(12)), child: const Text('بدأ', style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black, fontSize: 14))),
             ),
           ),
@@ -278,6 +278,11 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
       }
       kids.add(_cancel(o));
       kids.add(const SizedBox(height: 4));
+      kids.add(_decor('╝══════════════════╚', base));
+    } else if (k == 'bl_play') {
+      kids.add(_decor('╗══════════════════╔', base));
+      kids.add(const SizedBox(height: 6));
+      kids.add(_BalloonArena(o: o));
       kids.add(_decor('╝══════════════════╚', base));
     } else if (k == 'hs_play') {
       const hearts = <List<Object>>[
@@ -379,7 +384,7 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
           kids.add(Text.rich(TextSpan(children: [const TextSpan(text: 'الفائز:  ', style: TextStyle(color: Colors.white)), TextSpan(text: '${w['n']}', style: TextStyle(color: hc, fontWeight: FontWeight.w900))]), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)));
         }
         if (((o['wcount'] as num?)?.toInt() ?? 0) > winners.length) kids.add(Text('و ${(o['wcount'] as num).toInt() - winners.length} آخرين', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12.5, color: Colors.white70)));
-        kids.add(_row('اختياره:', (o['he'] ?? '').toString(), hc, size: 15));
+        if (o['nc'] != 1) kids.add(_row('اختياره:', (o['he'] ?? '').toString(), hc, size: 15));
         kids.add(_row('الجائزة:', '${o['prize'] ?? 0} رصيد', hc, size: 15));
       } else if (mode == 'refund') {
         kids.add(Text('اختار الجميع القلب نفسه ${o['he'] ?? ''}\nتم إرجاع رصيد كل مشارك', textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, height: 1.6, fontWeight: FontWeight.w800, color: Colors.white)));
@@ -405,7 +410,7 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: kids),
     );
     // حركة التقلّص الناعمة لبطاقات الحدس فقط؛ باقي البطاقات بحجم ثابت
-    if (k.startsWith('hs_')) return AnimatedSize(duration: const Duration(milliseconds: 700), curve: Curves.easeInOut, alignment: Alignment.topCenter, clipBehavior: Clip.none, child: box);
+    if (k.startsWith('hs_') || k.startsWith('bl_')) return AnimatedSize(duration: const Duration(milliseconds: 700), curve: Curves.easeInOut, alignment: Alignment.topCenter, clipBehavior: Clip.none, child: box);
     return box;
   }
 
@@ -617,5 +622,117 @@ class EventsHost {
     await markEventEnd(gid, eid);
     await _sub?.cancel();
     _active.remove(gid);
+  }
+}
+
+
+/// ساحة رهان البالونات: دبوس يسقط من السماء على بالونة عليها صورة المشارك ثم تنفجر، وقائمة الأرواح تحتها
+class _BalloonArena extends StatefulWidget {
+  final Map<String, dynamic> o;
+  const _BalloonArena({required this.o});
+  @override
+  State<_BalloonArena> createState() => _BalloonArenaState();
+}
+
+class _BalloonArenaState extends State<_BalloonArena> with SingleTickerProviderStateMixin {
+  late final AnimationController c = AnimationController(vsync: this, duration: const Duration(milliseconds: 2200));
+  int _seq = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  @override
+  void didUpdateWidget(covariant _BalloonArena old) {
+    super.didUpdateWidget(old);
+    _check();
+  }
+
+  void _check() {
+    final sq = (widget.o['seq'] as num?)?.toInt() ?? 0;
+    if (sq != _seq) {
+      _seq = sq;
+      if (sq > 0) c.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final o = widget.o;
+    final parts = (o['parts'] is List) ? (o['parts'] as List).whereType<Map>().toList() : <Map>[];
+    final seq = (o['seq'] as num?)?.toInt() ?? 0;
+    final popped = ((o['pop'] as num?)?.toInt() ?? 0) >= seq && seq > 0;
+    final pin = (o['pin'] ?? '').toString();
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 150,
+          child: Stack(alignment: Alignment.center, children: [
+            Positioned.fill(child: DecoratedBox(decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF1E88E5), Color(0xFF90CAF9)])))),
+            const Positioned(top: 14, left: 24, child: Icon(Icons.cloud, color: Colors.white70, size: 44)),
+            const Positioned(top: 38, right: 30, child: Icon(Icons.cloud, color: Colors.white60, size: 34)),
+            if (pin.isNotEmpty)
+              AnimatedBuilder(
+                animation: c,
+                builder: (cx, _) {
+                  final t = Curves.easeIn.transform(c.value.clamp(0.0, 1.0));
+                  final fell = c.value >= .93 || popped;
+                  return Stack(alignment: Alignment.center, children: [
+                    if (!fell || !popped)
+                      Positioned(
+                        bottom: 14,
+                        child: Column(mainAxisSize: MainAxisSize.min, children: [
+                          Container(
+                            width: 62,
+                            height: 76,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(color: const Color(0xFFE53935), borderRadius: const BorderRadius.all(Radius.elliptical(62, 76)), boxShadow: [BoxShadow(color: Colors.red.withAlpha(110), blurRadius: 10)]),
+                            child: ClipOval(child: SizedBox(width: 40, height: 40, child: UserAvatar(pin, size: 40))),
+                          ),
+                          Container(width: 1.5, height: 10, color: Colors.white70),
+                        ]),
+                      ),
+                    if (popped) const Positioned(bottom: 38, child: Icon(Icons.auto_awesome, color: Color(0xFFFFEB3B), size: 56)),
+                    if (!popped)
+                      Positioned(
+                        top: -34 + t * 118,
+                        child: Transform.rotate(angle: 3.14159, child: const Icon(Icons.push_pin, color: Colors.white, size: 34)),
+                      ),
+                  ]);
+                },
+              ),
+          ]),
+        ),
+      ),
+      const SizedBox(height: 6),
+      if ((o['msg'] ?? '').toString().isNotEmpty) Text(o['msg'].toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900, color: Color(0xFF4FC3F7))),
+      const SizedBox(height: 4),
+      for (final p in parts)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(children: [
+            UserAvatar(p['u'].toString(), size: 26),
+            const SizedBox(width: 8),
+            Expanded(child: Text((p['n'] ?? '').toString(), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: ((p['l'] as num?)?.toInt() ?? 0) > 0 ? Colors.white : Colors.white38))),
+            Text(
+              () {
+                final l = ((p['l'] as num?)?.toInt() ?? 0).clamp(0, 3);
+                if (l == 0) return '💀💀💀';
+                return '🎈' * l + '💥' * (3 - l);
+              }(),
+              style: const TextStyle(fontSize: 15),
+            ),
+          ]),
+        ),
+    ]);
   }
 }

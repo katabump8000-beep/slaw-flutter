@@ -1180,6 +1180,25 @@ Future<void> startHeart(BuildContext context, String gid) async {
   if (e.isNotEmpty) _evToast(e);
 }
 
+/// «رهان البالونات» الجماعي (غير لعبة البالونات الفردية): المنشئ يحدد الرهان ثم السيرفر ينشئ البطاقة
+Future<void> startBalloonBet(BuildContext context, String gid) async {
+  final c = TextEditingController(text: '100');
+  final b = await showDialog<int>(
+    context: context,
+    builder: (d) => AlertDialog(
+      title: const Text('رهان البالونات'),
+      content: TextField(controller: c, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'رهانك (حتى 5000)')),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(d), child: const Text('إلغاء')),
+        TextButton(onPressed: () => Navigator.pop(d, int.tryParse(normDigits(c.text.trim()))), child: const Text('إنشاء')),
+      ],
+    ),
+  );
+  if (b == null) return;
+  final e = await evCall(gid, 'balloon', {'bet': b});
+  if (e.isNotEmpty) _evToast(e);
+}
+
 /// «تعديل جوائز»: جائزة كل فعالية جماعية (للمطورين والإمبراطور)
 class EventPrizesScreen extends StatefulWidget {
   const EventPrizesScreen({super.key});
