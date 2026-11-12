@@ -5,6 +5,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'chess.dart' show kChessPalettes;
 import 'data.dart';
 import 'servertime.dart';
 import 'sfx.dart';
@@ -1212,20 +1213,47 @@ Future<void> startChess(BuildContext context, String gid) async {
     toast('الشطرنج غير مفعّل على السيرفر: ارفع ملفات push-server الجديدة وأعد تشغيله ثم انشر القواعد', bad: true);
     return;
   }
+  if (!context.mounted) return;
   final c = TextEditingController(text: '100');
-  final b = await showDialog<int>(
+  var secs = 60.0;
+  var pal = prefs.getInt('chess_pal') ?? 0;
+  final r = await showDialog<List<int>>(
     context: context,
-    builder: (d) => AlertDialog(
-      title: const Text('♟ تحدي الشطرنج'),
-      content: TextField(controller: c, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'قيمة الرهان (حتى 5000)')),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(d), child: const Text('إلغاء')),
-        TextButton(onPressed: () => Navigator.pop(d, int.tryParse(normDigits(c.text.trim()))), child: const Text('إنشاء')),
-      ],
+    builder: (d) => StatefulBuilder(
+      builder: (cx, set) => AlertDialog(
+        title: const Text('♟ إعدادات التحدي'),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            TextField(controller: c, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'قيمة الرهان (حتى 5000)')),
+            const SizedBox(height: 14),
+            Text('الوقت لكل حركة: ${secs.round()} ثانية', style: const TextStyle(fontWeight: FontWeight.w800)),
+            Slider(value: secs, min: 30, max: 80, divisions: 50, label: '${secs.round()}', onChanged: (v) => set(() => secs = v)),
+            const SizedBox(height: 4),
+            const Text('لون الطاولة', style: TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (var i = 0; i < kChessPalettes.length; i++)
+                GestureDetector(
+                  onTap: () => set(() => pal = i),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: pal == i ? const Color(0xFFFFD54A) : Colors.transparent, width: 2.5)),
+                    child: ClipRRect(borderRadius: BorderRadius.circular(6), child: GridView.count(crossAxisCount: 2, physics: const NeverScrollableScrollPhysics(), children: [for (var k = 0; k < 4; k++) ColoredBox(color: (k == 0 || k == 3) ? kChessPalettes[i][0] : kChessPalettes[i][1])])),
+                  ),
+                ),
+            ]),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d), child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(d, [int.tryParse(normDigits(c.text.trim())) ?? 0, secs.round(), pal]), child: const Text('إنشاء')),
+        ],
+      ),
     ),
   );
-  if (b == null) return;
-  final e = await evCall(gid, 'chess', {'bet': b});
+  if (r == null) return;
+  final e = await evCall(gid, 'chess', {'bet': r[0], 'mt': r[1], 'bc': r[2]});
   if (e.isNotEmpty) _evToast(e);
 }
 

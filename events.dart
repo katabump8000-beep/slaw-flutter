@@ -290,12 +290,25 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
         Text('♖', style: TextStyle(fontSize: 34, color: Color(0xFFFF4B4B))),
       ]));
       kids.add(const SizedBox(height: 6));
-      kids.add(Text('${o['an'] ?? ''} ينتظر خصما في\nتحدي في طاولة شطرنج على رهان\nيبلغ قيمته:  ${o['bet'] ?? 0}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, height: 1.7, fontWeight: FontWeight.w800, color: Colors.white)));
+      kids.add(Text('${o['an'] ?? ''} ينتظر خصما في\nتحدي في طاولة شطرنج على رهان\nيبلغ قيمته:  ${o['bt'] ?? 0}\nالوقت لكل حركة:  ${o['mt'] ?? 60} ثانية', textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, height: 1.7, fontWeight: FontWeight.w800, color: Colors.white)));
       if (!mine) {
         kids.add(const SizedBox(height: 8));
         kids.add(Center(
           child: GestureDetector(
-            onTap: () => widget.onAct?.call('chacc', {'cid': (o['cid'] ?? '').toString()}),
+            onTap: () async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (d) => AlertDialog(
+                  title: const Text('♟ قبول التحدي'),
+                  content: Text('سيُخصم من رصيدك ${o['bt'] ?? 0} عند القبول، والفائز يأخذ الرهانين.\nالوقت لكل حركة: ${o['mt'] ?? 60} ثانية.', style: const TextStyle(height: 1.7)),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('إلغاء')),
+                    TextButton(onPressed: () => Navigator.pop(d, true), child: const Text('تأكيد القبول')),
+                  ],
+                ),
+              );
+              if (ok == true) widget.onAct?.call('chacc', {'cid': (o['cid'] ?? '').toString()});
+            },
             child: Container(padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 9), decoration: BoxDecoration(color: const Color(0xFF2EE07A), borderRadius: BorderRadius.circular(12)), child: const Text('قبول', style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black))),
           ),
         ));
@@ -306,6 +319,14 @@ class _EvCardState extends State<EvCard> with SingleTickerProviderStateMixin {
     } else if (k == 'ch_live') {
       final eyes = (o['eyes'] as num?)?.toInt() ?? 0;
       final isP = o['au'] == myUid || o['bu'] == myUid;
+      final stT = (o['st'] as num?)?.toInt() ?? 0;
+      final ccid = (o['cid'] ?? '').toString();
+      if (isP && stT > 0 && nowMs() - stT < 25000 && !_chOpened.contains(ccid)) {
+        _chOpened.add(ccid);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ChessScreen(gid: (o['gid'] ?? '').toString(), cid: ccid)));
+        });
+      }
       kids.add(_decor('╗═════════════════╔', base));
       kids.add(const SizedBox(height: 8));
       kids.add(Row(children: [
@@ -670,6 +691,8 @@ class EventsHost {
   }
 }
 
+
+final Set<String> _chOpened = <String>{};
 
 /// ساحة رهان البالونات: سماء متحركة وغيوم تطفو، بالونات كل الأعضاء بصورهم، ثم دبوس ينزل من الهواء بتمايل فوق بالونة عشوائية فتنفجر
 class _BalloonArena extends StatefulWidget {

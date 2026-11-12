@@ -1819,6 +1819,12 @@
     },
     "mv": {
      ".validate": "newData.isString()&&newData.val().length<=5"
+    },
+    "mt": {
+     ".validate": "newData.isNumber()&&newData.val()>=30&&newData.val()<=80"
+    },
+    "bc": {
+     ".validate": "newData.isNumber()&&newData.val()>=0&&newData.val()<=7"
     }
    }
   },
@@ -2103,6 +2109,15 @@
     },
     "$other": {
      ".validate": false
+    }
+   }
+  },
+  "chessP": {
+   "$cid": {
+    ".read": "auth!=null",
+    "$u": {
+     ".write": "auth!=null&&auth.uid===$u&&(root.child('chess/'+$cid+'/white').val()===auth.uid||root.child('chess/'+$cid+'/black').val()===auth.uid)",
+     ".validate": "newData.isNumber()||newData.val()===0"
     }
    }
   }
