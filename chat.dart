@@ -1865,8 +1865,14 @@ Future<void> showGamesSheet(BuildContext context, String gid) async {
         b('🧩 فعالية التفكيك', 'تفكيك'),
         b('😀 فعالية الايموجي', 'ايموجي'),
         b('💛 الحدس (رهان جماعي)', 'حدس'),
-        b('🎈 البالونات (رهان جماعي)', 'بالون'),
-        b('♟ تحدي الشطرنج', 'شطرنج'),
+        AppButton('🎈 البالونات (رهان جماعي)', kind: 'g', onPressed: () {
+          Navigator.of(sc).pop();
+          startBalloonBet(context, gid);
+        }),
+        AppButton('♟ تحدي الشطرنج', kind: 'g', onPressed: () {
+          Navigator.of(sc).pop();
+          startChess(context, gid);
+        }),
         b('🐾 فعالية الحيوانات', 'حيوانات'),
         b('🎭 تخمين الشخصيات', 'شخصيات'),
       ],
