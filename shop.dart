@@ -192,7 +192,7 @@ class _ShopScreenState extends State<ShopScreen> {
       toast('تعذر إتمام الشراء (تحقق من رصيدك)', bad: true);
       return;
     }
-    vipOwned.add(id);
+    rememberVip(id);
     showAppSheet<void>(context, (sc) => [
           const Text('تم شراء التأثير يمكنك رؤيته في الاعدادات في ممتلكاتي!', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w800, height: 1.8)),
           AppButton('ممتلكاتي', onPressed: () {

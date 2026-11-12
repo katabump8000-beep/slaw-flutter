@@ -47,13 +47,36 @@ void _applyVip(String k) {
 
 /// تحميل ما يملكه المستخدم وتفعيل المحفوظ (إن كان ما زال يملكه)
 Future<void> initVip() async {
-  try {
-    vipOwned.clear();
-    final v = (await ref('vips/$myUid').get()).value;
-    if (v is Map) vipOwned.addAll(v.keys.map((e) => e.toString()));
-  } catch (_) {}
+  var ok = false;
+  final fresh = <String>{};
+  for (var i = 0; i < 3 && !ok; i++) {
+    try {
+      final v = (await ref('vips/$myUid').get().timeout(const Duration(seconds: 12))).value;
+      if (v is Map) fresh.addAll(v.keys.map((e) => e.toString()));
+      ok = true;
+    } catch (_) {
+      await Future<void>.delayed(const Duration(seconds: 2));
+    }
+  }
+  final ckey = 'vown_$myUid';
+  if (ok) {
+    vipOwned
+      ..clear()
+      ..addAll(fresh);
+    prefs.setString(ckey, fresh.join(','));
+  } else {
+    // تعذر الاتصال: لا نُفرغ ممتلكاته، نستخدم آخر نسخة محفوظة على الجهاز
+    final c = (prefs.getString(ckey) ?? '').split(',').where((e) => e.isNotEmpty);
+    vipOwned.addAll(c);
+  }
   final k = prefs.getString('vipk') ?? '';
   _applyVip(vipOwned.contains(k) ? k : '');
+}
+
+/// يُستدعى بعد شراء ناجح لتثبيت الملكية على الجهاز أيضاً
+void rememberVip(String id) {
+  vipOwned.add(id);
+  prefs.setString('vown_$myUid', vipOwned.join(','));
 }
 
 void setVipKind(String k) {
@@ -513,7 +536,7 @@ class _MyVipsState extends State<MyVipsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('ممتلكاتي')),
       body: mine.isEmpty
-          ? const Center(child: Padding(padding: EdgeInsets.all(30), child: Text('لا تملك أي تأثير بعد. يمكنك شراء VIP من المتجر.', textAlign: TextAlign.center, style: TextStyle(color: kMu, height: 1.8))))
+          ? Center(child: Padding(padding: const EdgeInsets.all(30), child: Column(mainAxisSize: MainAxisSize.min, children: [const Text('لا تملك أي تأثير بعد. يمكنك شراء VIP من المتجر.\nإذا اشتريت ولم يظهر اضغط تحديث.', textAlign: TextAlign.center, style: TextStyle(color: kMu, height: 1.8)), const SizedBox(height: 10), AppButton('تحديث', compact: true, onPressed: () async { await initVip(); if (mounted) setState(() {}); })])))
           : ListView(children: [
               for (final v in mine)
                 ValueListenableBuilder<String>(

@@ -1,3 +1,14 @@
+    try {
+      final h = await deviceHash();
+      // تحرير الجهاز: يُحذف ارتباطه بحسابك الحالي ليستطيع إنشاء حساب جديد عليه (المطور/الإمبراطور فقط)
+      await ref('devices/$h').remove();
+      try {
+        await ref('deviceAllow/$h').set(<String, Object?>{'by': myUid, 'ts': ServerValue.timestamp});
+      } catch (_) {}
+    } catch (e) {
+      toast('تعذر تحرير الجهاز: تأكد من نشر قواعد قاعدة البيانات الجديدة', bad: true);
+      return;
+    }
 import 'aichat.dart';
 import 'uiprefs.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -45,6 +56,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return;
       }
       await ref('avatars/$myUid').set(d);
+      ref('modReq/${ref('modReq').push().key}').set(<String, Object?>{'u': myUid, 'k': 'av', 'ts': ServerValue.timestamp}).catchError((Object _) {}); // فحص الصورة الشخصية بالذكاء الاصطناعي من السيرفر
       setAvCache(myUid, d);
       avatarTick.value++;
       if (mounted) setState(() {});

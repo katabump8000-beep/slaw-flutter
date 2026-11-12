@@ -2086,6 +2086,25 @@
   "srvFeat": {
    ".read": "auth!=null",
    ".write": false
+  },
+  "modReq": {
+   "$rid": {
+    ".read": false,
+    ".write": "auth!=null&&!data.exists()&&newData.child('u').val()===auth.uid&&newData.child('ts').val()===now",
+    ".validate": "newData.hasChildren(['u','k','ts'])",
+    "u": {
+     ".validate": "newData.isString()"
+    },
+    "k": {
+     ".validate": "newData.isString()&&newData.val().length<=4"
+    },
+    "ts": {
+     ".validate": "newData.isNumber()"
+    },
+    "$other": {
+     ".validate": false
+    }
+   }
   }
  }
 }

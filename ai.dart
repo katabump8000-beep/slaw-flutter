@@ -59,15 +59,18 @@ Future<bool?> imageUnsafe(Uint8List bytes, {String mime = 'image/jpeg'}) async {
   final t = await _gemini([
     {
       'text': 'You are a strict content moderator for a chat app that teenagers use. '
-          'Reply with exactly one word: UNSAFE if the image contains nudity, sexual or pornographic content, '
-          'graphic gore, or extreme violence. Otherwise reply SAFE.'
+          'Reply with exactly one word: UNSAFE if the image contains nudity, exposed genitals or breasts, sexual acts, pornographic or sexualized content (including cartoon/anime), '
+          'graphic gore, killing or extreme violence. Otherwise reply SAFE.'
     },
     {
       'inline_data': {'mime_type': mime, 'data': base64Encode(bytes)}
     },
   ], maxTokens: 8);
   if (t == null) return null;
-  return t.toUpperCase().contains('UNSAFE');
+  final u = t.toUpperCase();
+  if (u.contains('UNSAFE')) return true;
+  if (u.contains('SAFE')) return false;
+  return t.trim().isNotEmpty; // رد غامض أو رفض من الموديل = نعتبرها غير آمنة
 }
 
 /// يحوّل اسم شخصية عربي إلى لاتيني ثم يجلب صورتها من AniList
@@ -225,8 +228,25 @@ const List<String> _badPart = [
   'شرموط', 'شراميط', 'منيك', 'منيوك', 'قحبه', 'قحاب', 'متناك', 'كسمك', 'كسختك', 'كساختك', 'كسامك', 'fuck',
 ];
 
+// فك التشفير الشائع: ق💊 = قحبة ، ك🐟 = كسمك ، ز.ب.ي = زبي ، ك** امك ، ك.س اختك ، تلحس ز.ب.ي
+const String _ar = '\u0621-\u064A';
+String _decode(String raw) {
+  var t = raw.replaceAll(RegExp('[\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufe0f]'), '');
+  t = t.replaceAllMapped(RegExp('(^|[^' + _ar + '])ق\\s*[+\\-.*_~]*\\s*💊'), (m) => '${m[1]}قحبه');
+  t = t.replaceAllMapped(RegExp('(^|[^' + _ar + '])ك\\s*[+\\-.*_~]*\\s*(?:🐟|🐠|🐡)'), (m) => '${m[1]}كسمك');
+  t = t.replaceAll(RegExp('(?<=[' + _ar + '])[.\\-_*+~](?=[' + _ar + '])'), '');
+  return t;
+}
+
+final List<RegExp> _coded = [
+  RegExp('(^|[^' + _ar + '])ك[*#?]{1,3}\\s*(امك|امه|اختك|اختي|عرضك|دينك|ربك)'),
+  RegExp('تلحس\\s*(زب|طيز|كس)'),
+];
+
 /// 0 = نظيف، 1 = إهانة خفيفة، 2 = كلمة شنيعة
 int badLevel(String text) {
+  text = _decode(text);
+  if (_coded.any((r) => r.hasMatch(_nb(text)))) return 2;
   final t = _nb(text);
   var lv = _directInsult.hasMatch(t) ? 1 : 0;
   for (final w in t.split(RegExp(r'[^\u0621-\u064Aa-zA-Z0-9]+'))) {
