@@ -1,14 +1,3 @@
-    try {
-      final h = await deviceHash();
-      // تحرير الجهاز: يُحذف ارتباطه بحسابك الحالي ليستطيع إنشاء حساب جديد عليه (المطور/الإمبراطور فقط)
-      await ref('devices/$h').remove();
-      try {
-        await ref('deviceAllow/$h').set(<String, Object?>{'by': myUid, 'ts': ServerValue.timestamp});
-      } catch (_) {}
-    } catch (e) {
-      toast('تعذر تحرير الجهاز: تأكد من نشر قواعد قاعدة البيانات الجديدة', bad: true);
-      return;
-    }
 import 'aichat.dart';
 import 'uiprefs.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -108,9 +97,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (ok != true) return;
     try {
       final h = await deviceHash();
-      await ref('deviceAllow/$h').set(<String, Object?>{'by': myUid, 'ts': ServerValue.timestamp});
+      // تحرير الجهاز: يُحذف ارتباطه بحسابك الحالي ليستطيع إنشاء حساب جديد عليه (المطور/الإمبراطور فقط)
+      await ref('devices/$h').remove();
+      try {
+        await ref('deviceAllow/$h').set(<String, Object?>{'by': myUid, 'ts': ServerValue.timestamp});
+      } catch (_) {}
     } catch (e) {
-      toast('تعذر منح التصريح (حدّث قواعد قاعدة البيانات: deviceAllow)', bad: true);
+      toast('تعذر تحرير الجهاز: تأكد من نشر قواعد قاعدة البيانات الجديدة', bad: true);
       return;
     }
     BellService.stop();
