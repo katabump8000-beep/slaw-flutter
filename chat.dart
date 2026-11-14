@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as im;
 import 'package:image_picker/image_picker.dart';
+import 'package:video_player/video_player.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
@@ -533,6 +534,8 @@ class _ChatScreenState extends State<ChatScreen> {
       t = 'ملصق';
     } else if (type == 'audio') {
       t = 'تسجيل صوتي';
+    } else if (type == 'video') {
+      t = 'فيديو';
     }
     if (t.isEmpty) return;
     final p = await prof((m['from'] ?? '').toString());
@@ -637,15 +640,8 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  /// فحص الصورة بالذكاء الاصطناعي قبل الإرسال
-  Future<bool> _clean(Uint8List bytes) async {
-    final bad = await imageUnsafe(bytes);
-    if (bad == true) {
-      await _punish('image', 'تم رصد محتوى غير لائق.');
-      return false;
-    }
-    return true;
-  }
+  /// الفحص صار بالكامل من السيرفر (الصورة تُرسل «قيد الفحص» ولا تصل إلا بعد موافقة الذكاء الاصطناعي)
+  Future<bool> _clean(Uint8List bytes) async => true;
 
   Future<String?> _overlay(Uint8List b, String text, int pos, Color col) async {
     try {
@@ -722,12 +718,131 @@ class _ChatScreenState extends State<ChatScreen> {
       m['img'] = d;
       final cap = r['cap'] as String;
       if (cap.isNotEmpty) m['cap'] = cap;
-      final k = await _post(m);
-      if (cap.contains('@')) _notifyMentions(k, cap);
+      await _sendPending(m);
     } catch (e) {
       err(e);
     }
   }
+
+  // ---------- الفيديو (حتى دقيقة، 5 يومياً لكل عضو) ----------
+  Future<void> _sendVideo() async {
+    if (!_gate()) return;
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    final n = prefs.getString('vd_day') == today ? (prefs.getInt('vd_n') ?? 0) : 0;
+    if (n >= 5 && !Session.isDev) {
+      toast('وصلت للحد اليومي: 5 فيديوهات في اليوم', bad: true);
+      return;
+    }
+    try {
+      final x = await ImagePicker().pickVideo(source: ImageSource.gallery, maxDuration: const Duration(minutes: 1));
+      if (x == null || !mounted) return;
+      final f = File(x.path);
+      final size = await f.length();
+      if (size > 3500000) {
+        toast('الفيديو كبير (${(size / 1048576).toStringAsFixed(1)} ميجابايت). الحد 3.3 ميجابايت — اختر مقطعاً أقصر أو بجودة أقل', bad: true);
+        return;
+      }
+      final vc = VideoPlayerController.file(f);
+      var secs = 0;
+      try {
+        await vc.initialize();
+        secs = vc.value.duration.inSeconds;
+      } finally {
+        await vc.dispose();
+      }
+      if (secs > 61) {
+        toast('مدة الفيديو أكثر من دقيقة', bad: true);
+        return;
+      }
+      toast('جارٍ إرسال الفيديو...');
+      final d = 'data:video/mp4;base64,${base64Encode(await f.readAsBytes())}';
+      final id = ref('vids').push().key!;
+      await ref('vids/$id').set(<String, Object?>{'u': myUid, 'd': d, 'ts': ServerValue.timestamp, 'dur': secs});
+      final m = _base('video');
+      m['vid'] = id;
+      m['dur'] = secs.clamp(0, 120);
+      await _sendPending(m);
+      prefs.setString('vd_day', today);
+      prefs.setInt('vd_n', n + 1);
+    } catch (e) {
+      err(e);
+    }
+  }
+
+  // ---------- الإرسال بعد الفحص (صور وفيديو): تظهر فضية «جار الارسال والفحص...» حتى يوافق الذكاء الاصطناعي ----------
+  final Map<String, Map<String, dynamic>> _pending = {};
+
+  Future<void> _sendPending(Map<String, Object?> m) async {
+    final pid = ref('pend/$gid').push().key!;
+    final pay = Map<String, Object?>.from(m)
+      ..remove('ts')
+      ..remove('from');
+    if (mounted) {
+      setState(() {
+        _pending[pid] = {'t': m['type'], 'at': nowMs()};
+        _reply = null;
+      });
+    }
+    Timer? to;
+    StreamSubscription<DatabaseEvent>? sub;
+    void finish() {
+      to?.cancel();
+      sub?.cancel();
+      if (mounted) setState(() => _pending.remove(pid));
+      ref('pendRes/$myUid/$pid').remove().catchError((Object _) {});
+    }
+
+    sub = ref('pendRes/$myUid/$pid').onValue.listen((e) {
+      final v = e.snapshot.value;
+      if (v is! Map) return;
+      finish();
+      if (v['ok'] == true) {
+        final cap = (m['cap'] ?? '').toString();
+        final mid = (v['mid'] ?? '').toString();
+        if (mid.isNotEmpty && cap.contains('@')) _notifyMentions(mid, cap);
+        return;
+      }
+      switch ((v['why'] ?? '').toString()) {
+        case 'unsafe':
+          toast('تم رفض الإرسال: محتوى مخالف — تم حظرك 7 ساعات', bad: true);
+          break;
+        case 'muted':
+          toast('أنت مقيد من الشات', bad: true);
+          break;
+        case 'busy':
+          toast('تعذر فحص المحتوى الآن، حاول بعد قليل', bad: true);
+          break;
+        default:
+          toast('تعذر الإرسال', bad: true);
+      }
+    });
+    to = Timer(const Duration(minutes: 4), () {
+      if (!_pending.containsKey(pid)) return;
+      finish();
+      ref('pend/$gid/$pid').remove().catchError((Object _) {});
+      toast('تعذر فحص المحتوى الآن، حاول لاحقاً', bad: true);
+    });
+    try {
+      await ref('pend/$gid/$pid').set(<String, Object?>{'u': myUid, 'ts': ServerValue.timestamp, 'm': pay});
+    } catch (e) {
+      finish();
+      err(e);
+    }
+  }
+
+  Widget _pendingBubble(Map<String, dynamic> p) => Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          decoration: BoxDecoration(color: const Color(0xFF8A8F98).withAlpha(110), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFC0C4CC).withAlpha(150))),
+          child: Row(mainAxisSize: MainAxisSize.min, children: const [
+            SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white70)),
+            SizedBox(width: 10),
+            Text('جار الارسال والفحص...', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w800)),
+          ]),
+        ),
+      );
 
   // ---------- الملصقات ----------
   List<String> _recent() => (prefs.getString('rstk') ?? '').split(',').where((e) => e.isNotEmpty).toList();
@@ -750,6 +865,10 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!mounted) return;
     Future<void> sendSticker(String sid) async {
       try {
+        if (!await stickerReady(sid)) {
+          toast('الملصق قيد الفحص...', bad: true);
+          return;
+        }
         final m = _base('sticker');
         m['sid'] = sid;
         await _post(m, count: false);
@@ -859,16 +978,20 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   for (final sid in mine)
                     GestureDetector(
-                      onTap: () {
+                      onTap: () async {
                         if (delMode) {
                           set(() => sel.contains(sid) ? sel.remove(sid) : sel.add(sid));
                           return;
                         }
-                        Navigator.of(sc).pop();
+                        if (!await stickerReady(sid)) {
+                          toast('الملصق قيد الفحص...', bad: true);
+                          return;
+                        }
+                        if (sc.mounted) Navigator.of(sc).pop();
                         sendSticker(sid);
                       },
                       child: Stack(children: [
-                        _StickerImg(sid: sid, size: 76),
+                        _StkCell(sid: sid, size: 76),
                         if (delMode)
                           Positioned(
                             top: 2,
@@ -901,11 +1024,10 @@ class _ChatScreenState extends State<ChatScreen> {
       final d = await cropImage(context, await x.readAsBytes(), out: const [256, 200, 150], limit: 24000, round: false, title: 'قص الملصق', ratio: 1);
       if (d == null) return;
       final b = dataUrlBytes(d);
-      if (b != null && !await _clean(b)) return;
       final sid = ref('stickers').push().key!;
       await db.ref().update(<String, Object?>{'stickers/$sid': <String, Object?>{'u': myUid, 'd': d}, 'myStickers/$myUid/$sid': true});
       prefs.setString('st_$sid', d);
-      toast('تم إنشاء الملصق ✅');
+      toast('تم إنشاء الملصق — قيد الفحص بالذكاء الاصطناعي ثم يُفتح تلقائياً');
     } catch (e) {
       err(e);
     }
@@ -1415,7 +1537,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final type = (m['type'] ?? 'text').toString();
       if (type == 'sys') continue;
       final nm = (await prof((m['from'] ?? '').toString())).name;
-      final t = type == 'text' ? (m['text'] ?? '').toString() : (type == 'image' ? '[صورة]' : (type == 'sticker' ? '[ملصق]' : '[تسجيل صوتي]'));
+      final t = type == 'text' ? (m['text'] ?? '').toString() : (type == 'image' ? '[صورة]' : (type == 'sticker' ? '[ملصق]' : (type == 'video' ? '[فيديو]' : '[تسجيل صوتي]')));
       out.add('$nm: ${t.length > 120 ? t.substring(0, 120) : t}');
     }
     return out;
@@ -1562,6 +1684,11 @@ class _ChatScreenState extends State<ChatScreen> {
           AppButton('🖼️ إرسال صورة', kind: 'g', onPressed: () {
             Navigator.of(sc).pop();
             _sendImage();
+          }),
+          const SizedBox(height: 8),
+          AppButton('🎬 إرسال فيديو (حتى دقيقة)', kind: 'g', onPressed: () {
+            Navigator.of(sc).pop();
+            _sendVideo();
           }),
           if (Session.isDev) ...[
             const SizedBox(height: 8),
@@ -1753,15 +1880,18 @@ class _ChatScreenState extends State<ChatScreen> {
             controller: scroll,
             reverse: true,
             padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-            itemCount: rows.length + (more ? 1 : 0),
+            itemCount: rows.length + (more ? 1 : 0) + _pending.length,
             findChildIndexCallback: (Key k) {
               if (k is ValueKey<String>) {
                 final i = rows.indexOf(k.value);
-                return i < 0 ? null : i;
+                return i < 0 ? null : i + _pending.length;
               }
               return null;
             },
             itemBuilder: (c, i) {
+              final pl = _pending.keys.toList();
+              if (i < pl.length) return _pendingBubble(_pending[pl[i]]!);
+              i -= pl.length;
               if (i == rows.length) {
                 return Padding(padding: const EdgeInsets.all(8), child: Center(child: TextButton(onPressed: _older, child: const Text('تحميل رسائل أقدم'))));
               }
@@ -2081,6 +2211,8 @@ class _MsgBubbleState extends State<MsgBubble> {
           if (cap.isNotEmpty) body.add(Padding(padding: const EdgeInsets.only(top: 5), child: Text.rich(TextSpan(children: _spans(cap, context.accent2)), style: const TextStyle(fontSize: 15, height: 1.5))));
         } else if (type == 'sticker') {
           body.add(_StickerImg(sid: (m['sid'] ?? '').toString(), steal: true));
+        } else if (type == 'video') {
+          body.add(_VideoBubble(vid: (m['vid'] ?? '').toString(), dur: (m['dur'] as num?)?.toInt() ?? 0));
         } else if (type == 'audio') {
           body.add(VoiceBubble(src: (m['au'] ?? '').toString()));
         } else {
@@ -2295,4 +2427,79 @@ class StickerThumb extends StatelessWidget {
   const StickerThumb({super.key, required this.sid, this.size = 132});
   @override
   Widget build(BuildContext context) => _StickerImg(sid: sid, size: size);
+}
+
+
+/// فقاعة فيديو: لا تنزّل الفيديو إلا عند الضغط (الفيديو مخزّن في vids/{id})
+class _VideoBubble extends StatelessWidget {
+  final String vid;
+  final int dur;
+  const _VideoBubble({required this.vid, required this.dur});
+  @override
+  Widget build(BuildContext context) {
+    final mm = '${dur ~/ 60}:${(dur % 60).toString().padLeft(2, '0')}';
+    return GestureDetector(
+      onTap: vid.isEmpty ? null : () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => VideoScreen(keyName: vid, title: 'فيديو', base: 'vids'))),
+      child: Container(
+        width: 220,
+        height: 124,
+        decoration: BoxDecoration(color: const Color(0xFF0B0D12), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white12)),
+        child: Stack(alignment: Alignment.center, children: [
+          const Icon(Icons.play_circle_fill_rounded, size: 54, color: Colors.white70),
+          Positioned(bottom: 8, right: 10, child: Text('🎬 فيديو • $mm', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white70))),
+        ]),
+      ),
+    );
+  }
+}
+
+
+/// وقت إنشاء مفتاح Firebase (أول 8 رموز = الوقت بالمللي ثانية)
+int pushKeyTime(String k) {
+  const ch = '-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz';
+  var t = 0;
+  for (var i = 0; i < 8 && i < k.length; i++) {
+    t = t * 64 + ch.indexOf(k[i]);
+  }
+  return t;
+}
+
+/// الملصق جاهز للاستعمال؟ الجديد (أقل من 15 دقيقة) يحتاج موافقة الفحص (ck)، والقديم مسموح
+Future<bool> stickerReady(String sid) async {
+  if (nowMs() - pushKeyTime(sid) > 15 * 60000) return true;
+  try {
+    return (await ref('stickers/$sid/ck').get()).value == 1;
+  } catch (_) {
+    return true;
+  }
+}
+
+/// خانة ملصق في المخزون: فضية معتمة «قيد الفحص...» حتى يوافق الذكاء الاصطناعي
+class _StkCell extends StatelessWidget {
+  final String sid;
+  final double size;
+  const _StkCell({required this.sid, required this.size});
+  @override
+  Widget build(BuildContext context) {
+    final fresh = nowMs() - pushKeyTime(sid) < 15 * 60000;
+    final img = _StickerImg(sid: sid, size: size);
+    if (!fresh) return img;
+    return StreamBuilder<DatabaseEvent>(
+      stream: ref('stickers/$sid/ck').onValue,
+      builder: (c, sn) {
+        final ok = sn.data?.snapshot.value == 1;
+        if (ok) return img;
+        return Stack(children: [
+          img,
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(color: const Color(0xDD9AA0A8), borderRadius: BorderRadius.circular(12)),
+              alignment: Alignment.center,
+              child: const Text('قيد الفحص...', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFF2B2E33))),
+            ),
+          ),
+        ]);
+      },
+    );
+  }
 }

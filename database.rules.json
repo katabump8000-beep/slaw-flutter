@@ -564,7 +564,7 @@
     ".write": "auth!=null&&(root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val())&&!newData.exists()",
     "$mid": {
      ".write": "auth!=null&&((!data.exists()&&newData.child('from').val()===auth.uid&&(root.child('members/'+$gid+'/'+auth.uid).exists()||(root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val()))&&!root.child('banned/'+auth.uid).exists()&&(!root.child('bans/'+$gid+'/'+auth.uid).exists()||root.child('bans/'+$gid+'/'+auth.uid).val()<now)&&(!(newData.child('type').val()==='sys')||(root.child('groups/'+$gid+'/kind').val()==='ads'||root.child('groups/'+$gid+'/kind').val()==='shop'||root.child('groups/'+$gid+'/kind').val()==='news'||root.child('groups/'+$gid+'/kind').val()==='upd'||root.child('groups/'+$gid+'/kind').val()==='work')||(root.child('groups/'+$gid+'/kind').val()==='main'&&((newData.child('k').val()==='bot'&&newData.hasChild('f'))||(newData.child('k').val()==='visit'&&root.child('members/'+$gid+'/'+auth.uid).val()==='v')||(newData.child('type').val()==='sys'&&newData.child('k').val()==='welcome'&&root.child('groups/'+$gid+'/kind').val()==='main'&&newData.parent().parent().parent().child('welcomed').child($gid).child(auth.uid).exists()&&!root.child('welcomed/'+$gid+'/'+auth.uid).exists()))))&&((newData.child('type').val()==='sys'&&newData.child('k').val()==='welcome'&&root.child('groups/'+$gid+'/kind').val()==='main'&&newData.parent().parent().parent().child('welcomed').child($gid).child(auth.uid).exists()&&!root.child('welcomed/'+$gid+'/'+auth.uid).exists())||(root.child('groups/'+$gid+'/locked').val()!==true)||((root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val())||root.child('groupAdmins/'+$gid+'/'+auth.uid).exists())||(newData.child('type').val()==='sys'&&(root.child('groups/'+$gid+'/kind').val()==='ads'||root.child('groups/'+$gid+'/kind').val()==='shop'||root.child('groups/'+$gid+'/kind').val()==='news'||root.child('groups/'+$gid+'/kind').val()==='upd'||root.child('groups/'+$gid+'/kind').val()==='work'))))&&(newData.child('type').val()!=='audio'||root.child('profiles/'+auth.uid+'/gender').val()==='m')&&(!root.child('mod/'+auth.uid+'/until').exists()||root.child('mod/'+auth.uid+'/until').val()<now)||(data.exists()&&!newData.exists()&&((data.child('type').val()!=='sys'&&(data.child('from').val()===auth.uid||(root.child('groupAdmins/'+$gid+'/'+auth.uid).exists()&&!(root.child('roles/'+data.child('from').val()).val()==='dev'||data.child('from').val()===root.child('config/emperorUid').val()))))||(root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val()))))",
-     ".validate": "newData.hasChildren(['from','type','ts'])&&((newData.child('type').val()==='text'||newData.child('type').val()==='sys')&&newData.hasChild('text')||newData.child('type').val()==='image'&&newData.hasChild('img')||newData.child('type').val()==='sticker'&&newData.hasChild('sid')||newData.child('type').val()==='audio'&&newData.hasChild('au'))",
+     ".validate": "newData.hasChildren(['from','type','ts'])&&((newData.child('type').val()==='text'||newData.child('type').val()==='sys')&&newData.hasChild('text')||newData.child('type').val()==='image'&&newData.hasChild('img')||newData.child('type').val()==='sticker'&&newData.hasChild('sid')||newData.child('type').val()==='audio'&&newData.hasChild('au')||newData.child('type').val()==='video'&&newData.hasChild('vid'))",
      "from": {
       ".validate": "newData.isString()"
      },
@@ -647,6 +647,9 @@
       ".validate": "newData.isString()&&newData.val().length<=12&&((root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val()))"
      },
      "rpi": {
+      ".validate": "newData.isString()&&newData.val().length<=40"
+     },
+     "vid": {
       ".validate": "newData.isString()&&newData.val().length<=40"
      }
     },
@@ -2118,6 +2121,92 @@
     "$u": {
      ".write": "auth!=null&&auth.uid===$u&&(root.child('chess/'+$cid+'/white').val()===auth.uid||root.child('chess/'+$cid+'/black').val()===auth.uid)",
      ".validate": "newData.isNumber()||newData.val()===0"
+    }
+   }
+  },
+  "vids": {
+   "$id": {
+    ".read": "auth!=null",
+    ".write": "auth!=null&&!data.exists()&&newData.child('u').val()===auth.uid",
+    ".validate": "newData.hasChildren(['u','d','ts'])&&newData.child('d').isString()&&newData.child('d').val().beginsWith('data:video/')&&newData.child('d').val().length<5200000",
+    "u": {
+     ".validate": "newData.isString()"
+    },
+    "d": {
+     ".validate": "true"
+    },
+    "ts": {
+     ".validate": "newData.isNumber()"
+    },
+    "dur": {
+     ".validate": "newData.isNumber()&&newData.val()>=0&&newData.val()<=120"
+    },
+    "$other": {
+     ".validate": false
+    }
+   }
+  },
+  "pend": {
+   "$gid": {
+    "$pid": {
+     ".read": "auth!=null&&data.child('u').val()===auth.uid",
+     ".write": "auth!=null&&((!data.exists()&&newData.child('u').val()===auth.uid&&newData.child('ts').val()===now)||(data.exists()&&!newData.exists()&&data.child('u').val()===auth.uid))",
+     ".validate": "newData.hasChildren(['u','ts','m'])&&newData.child('m').hasChild('type')",
+     "u": {
+      ".validate": "newData.isString()"
+     },
+     "ts": {
+      ".validate": "newData.isNumber()"
+     },
+     "m": {
+      "type": {
+       ".validate": "newData.isString()&&newData.val().length<=8"
+      },
+      "img": {
+       ".validate": "newData.isString()&&newData.val().length<=80000"
+      },
+      "cap": {
+       ".validate": "newData.isString()&&newData.val().length<=300"
+      },
+      "vid": {
+       ".validate": "newData.isString()&&newData.val().length<=40"
+      },
+      "dur": {
+       ".validate": "newData.isNumber()"
+      },
+      "color": {
+       ".validate": "newData.isString()&&newData.val().length<=12"
+      },
+      "vis": {
+       ".validate": "newData.isBoolean()"
+      },
+      "ms": {
+       ".validate": "newData.isString()||newData.isNumber()"
+      },
+      "rpn": {
+       ".validate": "newData.isString()&&newData.val().length<=60"
+      },
+      "rpt": {
+       ".validate": "newData.isString()&&newData.val().length<=200"
+      },
+      "rpi": {
+       ".validate": "newData.isString()&&newData.val().length<=40"
+      },
+      "$other": {
+       ".validate": false
+      }
+     },
+     "$other": {
+      ".validate": false
+     }
+    }
+   }
+  },
+  "pendRes": {
+   "$uid": {
+    "$pid": {
+     ".read": "auth!=null&&auth.uid===$uid",
+     ".write": "auth!=null&&auth.uid===$uid&&!newData.exists()"
     }
    }
   }

@@ -148,7 +148,10 @@ class _HomeLoaderState extends State<HomeLoader> {
   late Future<String> f = _load();
 
   Future<String> _load() => Session.load().timeout(const Duration(seconds: 9), onTimeout: () => 'offline').catchError((Object _) => 'offline').then((r) {
-        if (r == 'ok') initVip();
+        if (r == 'ok') {
+          initVip();
+          if (Session.isEmp) _aiHealth();
+        }
         return r;
       });
 
@@ -234,4 +237,14 @@ class _Blocked extends StatelessWidget {
       ),
     );
   }
+}
+
+
+/// تنبيه للإمبراطور فقط: هل فحص الصور +18 يعمل على السيرفر؟
+Future<void> _aiHealth() async {
+  try {
+    final v = (await ref('srvFeat/aiVision').get().timeout(const Duration(seconds: 8))).value;
+    if (v == 'ok') return;
+    toast(v == 'nokey' ? '⚠️ فحص الصور +18 متوقف: لا يوجد مفتاح OpenRouter على السيرفر' : '⚠️ فحص الصور +18 لا يعمل على السيرفر (حدّث السيرفر وتحقق من المفتاح والرصيد)', bad: true);
+  } catch (_) {}
 }

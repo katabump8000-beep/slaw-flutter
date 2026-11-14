@@ -23,14 +23,14 @@ Future<bool> hasMedia(String key) async {
 }
 
 /// يرجع ملف الفيديو من الكاش فوراً إن كان محمّلاً مسبقاً (باسم يتضمن وقت الرفع) وإلا ينزّله مرة واحدة
-Future<File?> mediaFile(String key) async {
+Future<File?> mediaFile(String key, {String base = 'media'}) async {
   try {
-    final ts = (await ref('media/$key/ts').get()).value?.toString() ?? '';
+    final ts = (await ref('$base/$key/ts').get()).value?.toString() ?? '';
     if (ts.isEmpty) return null;
     final dir = (await getTemporaryDirectory()).path;
     final f = File('$dir/media_${key}_$ts.mp4');
     if (await f.exists() && await f.length() > 1000) return f;
-    final d = (await ref('media/$key/d').get()).value?.toString() ?? '';
+    final d = (await ref('$base/$key/d').get()).value?.toString() ?? '';
     final i = d.indexOf(',');
     if (i < 0) return null;
     await f.writeAsBytes(base64Decode(d.substring(i + 1)));
@@ -56,7 +56,8 @@ Future<void> prefetchMedia(String key) async {
 class VideoScreen extends StatefulWidget {
   final String keyName;
   final String title;
-  const VideoScreen({super.key, required this.keyName, required this.title});
+  final String base;
+  const VideoScreen({super.key, required this.keyName, required this.title, this.base = 'media'});
 
   @override
   State<VideoScreen> createState() => _VideoScreenState();
@@ -75,7 +76,7 @@ class _VideoScreenState extends State<VideoScreen> {
 
   Future<void> _load() async {
     try {
-      final f = await mediaFile(widget.keyName);
+      final f = await mediaFile(widget.keyName, base: widget.base);
       if (f == null) throw 'none';
       final vc = VideoPlayerController.file(f);
       await vc.initialize();
@@ -86,7 +87,7 @@ class _VideoScreenState extends State<VideoScreen> {
       }
       setState(() => c = vc);
     } catch (_) {
-      if (mounted) setState(() => err0 = 'تعذر تشغيل الفيديو');
+      if (mounted) setState(() => err0 = 'الفيديو غير متوفر (قد يكون حُذف)');
     }
   }
 
