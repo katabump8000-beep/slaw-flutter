@@ -2209,6 +2209,28 @@
      ".write": "auth!=null&&auth.uid===$uid&&!newData.exists()"
     }
    }
+  },
+  "modEv": {
+   "$mk": {
+    ".read": "auth!=null&&(root.child('roles/'+auth.uid).val()==='dev'||auth.uid===root.child('config/emperorUid').val())",
+    ".write": false
+   }
+  },
+  "modCfg": {
+   ".read": false,
+   ".write": "auth!=null&&auth.uid===root.child('config/emperorUid').val()",
+   "model": {
+    ".validate": "newData.isString()&&newData.val().length<=80"
+   },
+   "key": {
+    ".validate": "newData.isString()&&newData.val().length<=300"
+   },
+   "prompt": {
+    ".validate": "newData.isString()&&newData.val().length<=1500"
+   },
+   "$other": {
+    ".validate": false
+   }
   }
  }
 }

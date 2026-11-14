@@ -816,7 +816,7 @@ class _ChatScreenState extends State<ChatScreen> {
           toast('تعذر الإرسال', bad: true);
       }
     });
-    to = Timer(const Duration(minutes: 4), () {
+    to = Timer(const Duration(seconds: 80), () {
       if (!_pending.containsKey(pid)) return;
       finish();
       ref('pend/$gid/$pid').remove().catchError((Object _) {});

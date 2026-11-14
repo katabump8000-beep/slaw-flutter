@@ -438,11 +438,60 @@ class _AiStatusState extends State<AiStatusScreen> {
   bool off = false;
   final TextEditingController keyC = TextEditingController();
   final TextEditingController modelC = TextEditingController();
+  // ذكاء فحص الصور/الملصقات/الفيديو (+18) المخصص
+  final TextEditingController mKeyC = TextEditingController();
+  final TextEditingController mModelC = TextEditingController();
+  final TextEditingController mPromptC = TextEditingController();
+  String modLine = '';
 
   @override
   void initState() {
     super.initState();
     _check();
+    _modInfo();
+  }
+
+  Future<void> _modInfo() async {
+    try {
+      final st = (await ref('srvFeat/aiVision').get()).value;
+      final last = (await ref('srvFeat/modLast').get()).value;
+      final info = (await ref('srvFeat/modInfo').get()).value;
+      final names = {'ok': '✅ يعمل', 'nokey': '⚠️ لا يوجد مفتاح', 'fail': '❌ لا يعمل (تحقق من المفتاح والرصيد والنموذج)'};
+      if (mounted) {
+        setState(() => modLine = 'فحص +18: ${names[st] ?? 'لم يُفحص بعد (حدّث السيرفر)'}'
+            '${info is Map ? '\nالنموذج: ${(info['model'] ?? '').toString().isEmpty ? 'الأساسي' : info['model']}${info['custom'] == true ? ' (مخصص)' : ''}' : ''}'
+            '${last == null ? '' : '\nآخر نتيجة فحص: $last'}');
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveMod() async {
+    final up = <String, Object?>{};
+    if (mKeyC.text.trim().length >= 10) up['modCfg/key'] = mKeyC.text.trim();
+    if (mModelC.text.trim().isNotEmpty) up['modCfg/model'] = mModelC.text.trim();
+    if (mPromptC.text.trim().isNotEmpty) up['modCfg/prompt'] = mPromptC.text.trim();
+    if (up.isEmpty) {
+      toast('اكتب شيئاً للحفظ', bad: true);
+      return;
+    }
+    try {
+      await db.ref().update(up);
+      mKeyC.clear();
+      toast('تم حفظ إعدادات ذكاء الفحص ✅', accent: true);
+    } catch (e) {
+      err(e);
+    }
+  }
+
+  Future<void> _resetMod() async {
+    try {
+      await ref('modCfg').remove();
+      mPromptC.clear();
+      mModelC.clear();
+      toast('عاد ذكاء الفحص للإعداد الافتراضي');
+    } catch (e) {
+      err(e);
+    }
   }
 
   Future<void> _check() async {
@@ -470,6 +519,9 @@ class _AiStatusState extends State<AiStatusScreen> {
   void dispose() {
     keyC.dispose();
     modelC.dispose();
+    mKeyC.dispose();
+    mModelC.dispose();
+    mPromptC.dispose();
     super.dispose();
   }
 
@@ -504,7 +556,7 @@ class _AiStatusState extends State<AiStatusScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('حالة Ai')),
-      body: Center(
+      body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -521,6 +573,27 @@ class _AiStatusState extends State<AiStatusScreen> {
             TextField(controller: modelC, decoration: const InputDecoration(hintText: 'النموذج (اختياري)')),
             const SizedBox(height: 8),
             AppButton('حفظ المفتاح', compact: true, onPressed: _saveKey),
+            const SizedBox(height: 26),
+            const Divider(),
+            const Text('ذكاء فحص الصور والملصقات والفيديو (+18)', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 8),
+            Text(modLine.isEmpty ? '...' : modLine, textAlign: TextAlign.center, style: const TextStyle(height: 1.7, color: kMu)),
+            const SizedBox(height: 8),
+            const Text('اختياري: ضع نموذجاً ومفتاحاً خاصين بالفحص (يُستعمل مع نموذج احتياطي سريع بالتوازي). اترك المفتاح فارغاً ليستعمل المفتاح الأساسي. اترك التعليمات فارغة لاستعمال الافتراضية.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, height: 1.6)),
+            const SizedBox(height: 8),
+            TextField(controller: mModelC, decoration: const InputDecoration(hintText: 'نموذج الفحص (مثال: google/gemini-2.0-flash-001)')),
+            const SizedBox(height: 8),
+            TextField(controller: mKeyC, obscureText: true, decoration: const InputDecoration(hintText: 'مفتاح الفحص (اختياري)')),
+            const SizedBox(height: 8),
+            TextField(controller: mPromptC, minLines: 4, maxLines: 8, maxLength: 1500, decoration: const InputDecoration(hintText: 'تعليمات الفحص: مثلاً\nاعتبر المحتوى مخالفاً إذا كان فيه عري أو أفعال جنسية أو إشارة 🖕 أو علم الألوان أو كلام مسيء مباشر أو دم وقتل. غير ذلك سليم.')),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: AppButton('حفظ', compact: true, onPressed: _saveMod)),
+              const SizedBox(width: 8),
+              Expanded(child: AppButton('افتراضي', kind: 'g', compact: true, onPressed: _resetMod)),
+              const SizedBox(width: 8),
+              Expanded(child: AppButton('تحديث الحالة', kind: 'g', compact: true, onPressed: _modInfo)),
+            ]),
           ]),
         ),
       ),

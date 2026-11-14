@@ -37,7 +37,11 @@ String notifText(NotifItem n, String who) {
     case 'all':
       return '📢 $who نادى الجميع في «${n.groupLabel}»\n${n.tx}';
     case 'mod':
-      return 'العضو [${n.m}] تم تقييده مدة ${n.a.toInt() >= 1440 ? '${(n.a / 1440).round()} يوم' : n.a.toInt() >= 60 ? '${(n.a / 60).round()} ساعة' : '${n.a.toInt()} دقيقة'} بسبب ارساله كلمة: ${n.tx}';
+      {
+        final media = n.tx.startsWith('🖼') || n.tx.startsWith('🏷') || n.tx.startsWith('🎬');
+        final dur = n.a.toInt() <= 0 ? 'للأبد' : (n.a.toInt() >= 1440 ? '${(n.a / 1440).round()} يوم' : n.a.toInt() >= 60 ? '${(n.a / 60).round()} ساعة' : '${n.a.toInt()} دقيقة');
+        return media ? 'العضو [${n.m}] تم تقييده مدة $dur\nبسبب إرساله: ${n.tx}' : 'العضو [${n.m}] تم تقييده مدة $dur بسبب ارساله كلمة: ${n.tx}';
+      }
     case 'guard':
       return n.tx;
     case 'susp':
@@ -378,6 +382,23 @@ class _ModCard extends StatelessWidget {
           Expanded(child: Text(notifText(n, ''), style: const TextStyle(fontSize: 14, height: 1.6))),
           Text(hhmm(n.ts), style: const TextStyle(fontSize: 11, color: kMu)),
         ]),
+        if ((n.v['mk'] ?? '').toString().isNotEmpty && (n.tx.startsWith('🖼') || n.tx.startsWith('🏷')))
+          FutureBuilder<DataSnapshot>(
+            future: ref('modEv/${(n.v['mk'] ?? '').toString()}').get(),
+            builder: (c, sn) {
+              final b = sn.data?.value == null ? null : dataUrlBytes(sn.data!.value.toString());
+              if (b == null) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Center(
+                  child: GestureDetector(
+                    onTap: () => showDialog<void>(context: context, builder: (d) => Dialog(child: InteractiveViewer(child: Image.memory(b)))),
+                    child: ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.memory(b, height: 130, fit: BoxFit.cover)),
+                  ),
+                ),
+              );
+            },
+          ),
         const SizedBox(height: 8),
         Row(children: [
           Expanded(child: AppButton('تحرير الحظر', kind: 'g', compact: true, onPressed: () async {
