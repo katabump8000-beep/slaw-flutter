@@ -2236,7 +2236,7 @@
    "$rid": {
     ".read": false,
     ".write": "auth!=null&&auth.uid===root.child('config/emperorUid').val()&&!data.exists()&&newData.child('u').val()===auth.uid&&newData.child('ts').val()===now",
-    ".validate": "newData.hasChildren(['u','ts'])&&(newData.hasChild('t')||newData.hasChild('img'))",
+    ".validate": "newData.hasChildren(['u','ts'])&&(newData.hasChild('t')||newData.hasChild('img')||newData.hasChild('full'))",
     "u": {
      ".validate": "newData.isString()"
     },
@@ -2251,6 +2251,9 @@
     },
     "$other": {
      ".validate": false
+    },
+    "full": {
+     ".validate": "newData.isBoolean()"
     }
    }
   },

@@ -536,6 +536,8 @@ class _AiStatusState extends State<AiStatusScreen> {
   // ---------- اختبار ذكاء الفحص: نص أو صورة، والنتيجة تظهر هنا ----------
   final TextEditingController testC = TextEditingController();
   String testLine = '';
+  List<Map> fullItems = [];
+  String fullMeta = '';
   StreamSubscription<DatabaseEvent>? _testSub;
   int _testAt = 0;
 
@@ -543,6 +545,17 @@ class _AiStatusState extends State<AiStatusScreen> {
     _testSub ??= ref('modTestRes/$myUid').onValue.listen((e) {
       final v = e.snapshot.value;
       if (v is! Map || (v['ts'] as num? ?? 0).toInt() < _testAt) return;
+      if (v['full'] == true) {
+        final items = (v['items'] is List) ? (v['items'] as List).whereType<Map>().toList() : <Map>[];
+        if (mounted) {
+          setState(() {
+            fullItems = items;
+            fullMeta = '${v['provider'] ?? ''} • ${v['model'] ?? ''} • ${v['ms'] ?? 0}ms';
+            testLine = '';
+          });
+        }
+        return;
+      }
       final res = (v['res'] ?? '').toString();
       final cats = {'NUDITY': 'إباحي / عري', 'SEXUAL': 'إباحي / عري', 'MIDDLE_FINGER': 'إشارة 🖕', 'PRIDE_FLAG': 'علم الألوان', 'INSULT_TEXT': 'كلام مسيء مباشر', 'GORE': 'دموي / عنف'};
       final q = (v['quote'] ?? '').toString();
@@ -551,12 +564,15 @@ class _AiStatusState extends State<AiStatusScreen> {
     });
   }
 
-  Future<void> _sendTest({String? text, String? img}) async {
+  Future<void> _sendTest({String? text, String? img, bool full = false}) async {
     _listenTest();
     _testAt = DateTime.now().millisecondsSinceEpoch - 5000;
-    setState(() => testLine = 'جارٍ الفحص...');
+    setState(() {
+      testLine = 'جارٍ الفحص...';
+      fullItems = [];
+    });
     try {
-      await ref('modTest/${ref('modTest').push().key}').set(<String, Object?>{'u': myUid, 'ts': ServerValue.timestamp, if (text != null) 't': text, if (img != null) 'img': img});
+      await ref('modTest/${ref('modTest').push().key}').set(<String, Object?>{'u': myUid, 'ts': ServerValue.timestamp, if (text != null) 't': text, if (img != null) 'img': img, if (full) 'full': true});
     } catch (e) {
       setState(() => testLine = '');
       err(e);
@@ -573,6 +589,26 @@ class _AiStatusState extends State<AiStatusScreen> {
       return;
     }
     await _sendTest(img: d);
+  }
+
+  Widget _testCard() {
+    final allOk = fullItems.every((e) => e['ok'] == true);
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: const Color(0xFF14110E), borderRadius: BorderRadius.circular(14), border: Border.all(color: allOk ? const Color(0xFF2EE07A) : const Color(0xFFFF5A5A), width: 1.6)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text(allOk ? '✅ الفاحص يعمل بشكل صحيح' : '❌ الفاحص لا يعمل بشكل صحيح', textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 8),
+        for (final e in fullItems)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Text('${e['ok'] == true ? '✅' : '❌'}  ${e['n']}  ←  ${e['ok'] == true ? 'نتيجة صحيحة' : _whyAr((e['got'] ?? '').toString())}', style: const TextStyle(height: 1.5)),
+          ),
+        const SizedBox(height: 6),
+        Text(fullMeta, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11.5, color: kMu)),
+      ]),
+    );
   }
 
   Future<void> _check() async {
@@ -616,7 +652,6 @@ class _AiStatusState extends State<AiStatusScreen> {
     }
     try {
       await ref('secrets/aiKey').set(k);
-      await ref('config/aiManual').set(true); // من الآن لا يكتب التطبيق مفتاحه القديم فوق هذا المفتاح
       if (modelC.text.trim().isNotEmpty) await ref('secrets/aiModel').set(modelC.text.trim());
       keyC.clear();
       toast('تم حفظ المفتاح ✅', accent: true);
@@ -662,21 +697,10 @@ class _AiStatusState extends State<AiStatusScreen> {
             const SizedBox(height: 8),
             Text(modLine.isEmpty ? '...' : modLine, textAlign: TextAlign.center, style: const TextStyle(height: 1.7, color: kMu)),
             const SizedBox(height: 8),
-            const Text('اختياري: ضع نموذجاً ومفتاحاً خاصين بالفحص (يُستعمل مع نموذج احتياطي سريع بالتوازي). اترك المفتاح فارغاً ليستعمل المفتاح الأساسي. اترك التعليمات فارغة لاستعمال الافتراضية.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, height: 1.6)),
-            const SizedBox(height: 8),
-            TextField(controller: mModelC, decoration: const InputDecoration(hintText: 'نموذج الفحص (مثال: google/gemini-2.0-flash-001)')),
-            const SizedBox(height: 8),
-            TextField(controller: mKeyC, obscureText: true, decoration: const InputDecoration(hintText: 'مفتاح الفحص (اختياري)')),
-            const SizedBox(height: 8),
-            TextField(controller: mPromptC, minLines: 4, maxLines: 8, maxLength: 1500, decoration: const InputDecoration(hintText: 'تعليمات الفحص: مثلاً\nاعتبر المحتوى مخالفاً إذا كان فيه عري أو أفعال جنسية أو إشارة 🖕 أو علم الألوان أو كلام مسيء مباشر أو دم وقتل. غير ذلك سليم.')),
-            const SizedBox(height: 8),
-            Row(children: [
-              Expanded(child: AppButton('حفظ', compact: true, onPressed: _saveMod)),
-              const SizedBox(width: 8),
-              Expanded(child: AppButton('افتراضي', kind: 'g', compact: true, onPressed: _resetMod)),
-              const SizedBox(width: 8),
-              Expanded(child: AppButton('تحديث الحالة', kind: 'g', compact: true, onPressed: _modInfo)),
-            ]),
+            const Text('مفتاح الذكاء الاصطناعي أعلاه واحد لكل شيء: الشات والمساعد وفاحص الصور والملصقات والفيديو.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, height: 1.6)),
+            const SizedBox(height: 10),
+            AppButton('تشغيل بطاقة الاختبار الكاملة', onPressed: () => _sendTest(full: true)),
+            if (fullItems.isNotEmpty) _testCard(),
             const SizedBox(height: 18),
             const Text('اختبار ذكاء الفحص', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
             const SizedBox(height: 6),

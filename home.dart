@@ -223,14 +223,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     Session.ensurePid();
     BellService.start();
-    if (Session.isEmp && kOpenRouterKey.isNotEmpty) {
-      // يزوّد السيرفر بمفتاح التطبيق مرة واحدة فقط، ولا يكتب أبداً فوق مفتاح وضعه الإمبراطور بنفسه من «حالة Ai»
-      ref('config/aiManual').get().then((s) {
-        if (s.value == true) return;
-        ref('secrets/aiKey').set(kOpenRouterKey).catchError((Object _) {});
-        ref('secrets/aiModel').set(kAiModel).catchError((Object _) {});
-      }).catchError((Object _) {});
-    }
+    // لا يُكتب أي مفتاح من التطبيق إلى السيرفر أبداً: المفتاح يضعه الإمبراطور فقط من «حالة Ai»
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) checkNeedPw(context);
       claimDino();
