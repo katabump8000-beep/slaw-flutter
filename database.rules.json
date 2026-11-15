@@ -2231,6 +2231,34 @@
    "$other": {
     ".validate": false
    }
+  },
+  "modTest": {
+   "$rid": {
+    ".read": false,
+    ".write": "auth!=null&&auth.uid===root.child('config/emperorUid').val()&&!data.exists()&&newData.child('u').val()===auth.uid&&newData.child('ts').val()===now",
+    ".validate": "newData.hasChildren(['u','ts'])&&(newData.hasChild('t')||newData.hasChild('img'))",
+    "u": {
+     ".validate": "newData.isString()"
+    },
+    "ts": {
+     ".validate": "newData.isNumber()"
+    },
+    "t": {
+     ".validate": "newData.isString()&&newData.val().length<=500"
+    },
+    "img": {
+     ".validate": "newData.isString()&&newData.val().length<=100000"
+    },
+    "$other": {
+     ".validate": false
+    }
+   }
+  },
+  "modTestRes": {
+   "$uid": {
+    ".read": "auth!=null&&auth.uid===$uid",
+    ".write": false
+   }
   }
  }
 }

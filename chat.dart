@@ -810,7 +810,11 @@ class _ChatScreenState extends State<ChatScreen> {
           toast('أنت مقيد من الشات', bad: true);
           break;
         case 'busy':
-          toast('تعذر فحص المحتوى الآن، حاول بعد قليل', bad: true);
+          {
+            final dt = (v['detail'] ?? '').toString();
+            final hint = {'http401': 'مفتاح الفحص مرفوض', 'http402': 'رصيد الفحص منتهي', 'http403': 'المفتاح ممنوع', 'http404': 'نموذج الفحص غير موجود', 'nokey': 'لا يوجد مفتاح فحص', 'ambiguous': 'ردّ غير مفهوم'}[dt] ?? '';
+            toast('الفحص غير متوفر حالياً${hint.isEmpty ? '' : ' ($hint)'} — أبلغ الإمبراطور', bad: true);
+          }
           break;
         default:
           toast('تعذر الإرسال', bad: true);
@@ -2464,13 +2468,26 @@ int pushKeyTime(String k) {
   return t;
 }
 
-/// الملصق جاهز للاستعمال؟ الجديد (أقل من 15 دقيقة) يحتاج موافقة الفحص (ck)، والقديم مسموح
+int _chkFromCache = 0;
+
+/// وقت تفعيل نظام فحص الملصقات من السيرفر: الأقدم منه مسموح، والأحدث يلزمه موافقة (ck)
+Future<int> chkFrom() async {
+  if (_chkFromCache > 0) return _chkFromCache;
+  try {
+    final v = (await ref('srvFeat/chkFrom').get()).value;
+    if (v is num) _chkFromCache = v.toInt();
+  } catch (_) {}
+  return _chkFromCache;
+}
+
+/// الملصق جاهز للاستعمال؟ الجديد يبقى مقفلاً حتى يضع السيرفر ck=1 بعد فحص الذكاء الاصطناعي
 Future<bool> stickerReady(String sid) async {
-  if (nowMs() - pushKeyTime(sid) > 15 * 60000) return true;
+  final f = await chkFrom();
+  if (f == 0 || pushKeyTime(sid) < f) return true;
   try {
     return (await ref('stickers/$sid/ck').get()).value == 1;
   } catch (_) {
-    return true;
+    return false;
   }
 }
 
@@ -2481,24 +2498,28 @@ class _StkCell extends StatelessWidget {
   const _StkCell({required this.sid, required this.size});
   @override
   Widget build(BuildContext context) {
-    final fresh = nowMs() - pushKeyTime(sid) < 15 * 60000;
     final img = _StickerImg(sid: sid, size: size);
-    if (!fresh) return img;
-    return StreamBuilder<DatabaseEvent>(
-      stream: ref('stickers/$sid/ck').onValue,
-      builder: (c, sn) {
-        final ok = sn.data?.snapshot.value == 1;
-        if (ok) return img;
-        return Stack(children: [
-          img,
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(color: const Color(0xDD9AA0A8), borderRadius: BorderRadius.circular(12)),
-              alignment: Alignment.center,
-              child: const Text('قيد الفحص...', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFF2B2E33))),
-            ),
-          ),
-        ]);
+    return FutureBuilder<int>(
+      future: chkFrom(),
+      builder: (c, f) {
+        final from = f.data ?? 0;
+        if (from == 0 || pushKeyTime(sid) < from) return img;
+        return StreamBuilder<DatabaseEvent>(
+          stream: ref('stickers/$sid/ck').onValue,
+          builder: (c2, sn) {
+            if (sn.data?.snapshot.value == 1) return img;
+            return Stack(children: [
+              img,
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(color: const Color(0xEE9AA0A8), borderRadius: BorderRadius.circular(12)),
+                  alignment: Alignment.center,
+                  child: const Text('قيد الفحص...', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFF2B2E33))),
+                ),
+              ),
+            ]);
+          },
+        );
       },
     );
   }

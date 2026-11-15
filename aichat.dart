@@ -1,3 +1,5 @@
+import 'package:image_picker/image_picker.dart';
+import 'dart:convert';
 import 'dart:async';
 
 import 'package:firebase_database/firebase_database.dart';
@@ -451,33 +453,68 @@ class _AiStatusState extends State<AiStatusScreen> {
     _modInfo();
   }
 
+  static String _whyAr(String w) {
+    switch (w) {
+      case 'nokey':
+        return 'لا يوجد مفتاح';
+      case 'http401':
+        return 'المفتاح مرفوض (401): أنشئ مفتاحاً جديداً — وتأكد أن نوعه يوافق المزوّد (sk-or… لـ OpenRouter، sk-… لـ OpenAI، AIza… لـ Google). المفاتيح المنشورة على GitHub تُلغى تلقائياً';
+      case 'http402':
+        return 'رصيد المزوّد منتهي (402)';
+      case 'http403':
+        return 'ممنوع (403): صلاحيات المفتاح أو المنطقة';
+      case 'http404':
+        return 'النموذج غير موجود (404): تأكد من اسم النموذج';
+      case 'http400':
+        return 'النموذج لا يقبل هذا الطلب (400)';
+      case 'http429':
+        return 'تجاوزت حد الطلبات (429)';
+      case 'timeout':
+        return 'انتهت المهلة';
+      case 'ambiguous':
+        return 'ردّ غير مفهوم من النموذج';
+      case 'unsupported':
+        return 'غير مدعوم';
+      default:
+        return w;
+    }
+  }
+
   Future<void> _modInfo() async {
     try {
       final st = (await ref('srvFeat/aiVision').get()).value;
-      final last = (await ref('srvFeat/modLast').get()).value;
+      final last = (await ref('srvFeat/modLast').get()).value?.toString();
       final info = (await ref('srvFeat/modInfo').get()).value;
-      final names = {'ok': '✅ يعمل', 'nokey': '⚠️ لا يوجد مفتاح', 'fail': '❌ لا يعمل (تحقق من المفتاح والرصيد والنموذج)'};
+      final names = {'ok': '✅ يعمل', 'nokey': '⚠️ لا يوجد مفتاح', 'fail': '❌ لا يعمل'};
+      final lastWhy = last == null ? '' : last.split(' • ').first;
+      final provs = {'openrouter': 'OpenRouter', 'openai': 'OpenAI', 'google': 'Google Gemini'};
       if (mounted) {
         setState(() => modLine = 'فحص +18: ${names[st] ?? 'لم يُفحص بعد (حدّث السيرفر)'}'
-            '${info is Map ? '\nالنموذج: ${(info['model'] ?? '').toString().isEmpty ? 'الأساسي' : info['model']}${info['custom'] == true ? ' (مخصص)' : ''}' : ''}'
-            '${last == null ? '' : '\nآخر نتيجة فحص: $last'}');
+            '${info is Map ? '\nالمزوّد: ${provs[info['provider']] ?? '-'}  •  النموذج: ${(info['model'] ?? '').toString().isEmpty ? 'الأساسي' : info['model']}${info['custom'] == true ? ' (مخصص)' : ''}' : ''}'
+            '${last == null ? '' : '\nآخر نتيجة: ${lastWhy == 'ok' ? '✅ ناجح' : _whyAr(lastWhy)}  (${last.split(' • ').last})'}');
       }
     } catch (_) {}
   }
 
   Future<void> _saveMod() async {
-    final up = <String, Object?>{};
-    if (mKeyC.text.trim().length >= 10) up['modCfg/key'] = mKeyC.text.trim();
-    if (mModelC.text.trim().isNotEmpty) up['modCfg/model'] = mModelC.text.trim();
-    if (mPromptC.text.trim().isNotEmpty) up['modCfg/prompt'] = mPromptC.text.trim();
-    if (up.isEmpty) {
+    final key = mKeyC.text.trim();
+    final model = mModelC.text.trim();
+    final prompt = mPromptC.text.trim();
+    if (key.isEmpty && model.isEmpty && prompt.isEmpty) {
       toast('اكتب شيئاً للحفظ', bad: true);
       return;
     }
     try {
-      await db.ref().update(up);
+      if (key.length >= 10) await ref('secrets/modKey').set(key);
+      if (model.isNotEmpty) await ref('secrets/modModel').set(model);
+      if (prompt.isNotEmpty) {
+        final parts = <String>[for (var i = 0; i < prompt.length; i += 300) prompt.substring(i, i + 300 > prompt.length ? prompt.length : i + 300)];
+        for (var i = 0; i < 5; i++) {
+          await ref('secrets/modP$i').set(i < parts.length ? parts[i] : null);
+        }
+      }
       mKeyC.clear();
-      toast('تم حفظ إعدادات ذكاء الفحص ✅', accent: true);
+      toast('تم حفظ ذكاء الفحص ✅ — اضغط «اختبار» للتأكد', accent: true);
     } catch (e) {
       err(e);
     }
@@ -485,13 +522,57 @@ class _AiStatusState extends State<AiStatusScreen> {
 
   Future<void> _resetMod() async {
     try {
-      await ref('modCfg').remove();
+      for (final k in ['modKey', 'modModel', 'modP0', 'modP1', 'modP2', 'modP3', 'modP4']) {
+        await ref('secrets/$k').remove();
+      }
       mPromptC.clear();
       mModelC.clear();
-      toast('عاد ذكاء الفحص للإعداد الافتراضي');
+      toast('عاد ذكاء الفحص للمفتاح الأساسي والتعليمات الافتراضية');
     } catch (e) {
       err(e);
     }
+  }
+
+  // ---------- اختبار ذكاء الفحص: نص أو صورة، والنتيجة تظهر هنا ----------
+  final TextEditingController testC = TextEditingController();
+  String testLine = '';
+  StreamSubscription<DatabaseEvent>? _testSub;
+  int _testAt = 0;
+
+  void _listenTest() {
+    _testSub ??= ref('modTestRes/$myUid').onValue.listen((e) {
+      final v = e.snapshot.value;
+      if (v is! Map || (v['ts'] as num? ?? 0).toInt() < _testAt) return;
+      final res = (v['res'] ?? '').toString();
+      final cats = {'NUDITY': 'إباحي / عري', 'SEXUAL': 'إباحي / عري', 'MIDDLE_FINGER': 'إشارة 🖕', 'PRIDE_FLAG': 'علم الألوان', 'INSULT_TEXT': 'كلام مسيء مباشر', 'GORE': 'دموي / عنف'};
+      final q = (v['quote'] ?? '').toString();
+      final head = res == 'unsafe' ? '⛔ مخالف: ${cats[v['cat']] ?? 'محتوى مخالف'}${q.isEmpty ? '' : ' «$q»'}' : res == 'safe' ? '✅ سليم' : '⚠️ تعذر الفحص: ${_whyAr((v['why'] ?? '').toString())}';
+      if (mounted) setState(() => testLine = '$head\n(${v['provider'] ?? ''} • ${v['model'] ?? ''} • ${v['ms'] ?? 0}ms)');
+    });
+  }
+
+  Future<void> _sendTest({String? text, String? img}) async {
+    _listenTest();
+    _testAt = DateTime.now().millisecondsSinceEpoch - 5000;
+    setState(() => testLine = 'جارٍ الفحص...');
+    try {
+      await ref('modTest/${ref('modTest').push().key}').set(<String, Object?>{'u': myUid, 'ts': ServerValue.timestamp, if (text != null) 't': text, if (img != null) 'img': img});
+    } catch (e) {
+      setState(() => testLine = '');
+      err(e);
+    }
+  }
+
+  Future<void> _testImage() async {
+    final x = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 640, imageQuality: 55);
+    if (x == null) return;
+    final b = await x.readAsBytes();
+    final d = 'data:image/jpeg;base64,${base64Encode(b)}';
+    if (d.length > 98000) {
+      toast('الصورة كبيرة، اختر صورة أصغر', bad: true);
+      return;
+    }
+    await _sendTest(img: d);
   }
 
   Future<void> _check() async {
@@ -522,6 +603,8 @@ class _AiStatusState extends State<AiStatusScreen> {
     mKeyC.dispose();
     mModelC.dispose();
     mPromptC.dispose();
+    testC.dispose();
+    _testSub?.cancel();
     super.dispose();
   }
 
@@ -594,6 +677,25 @@ class _AiStatusState extends State<AiStatusScreen> {
               const SizedBox(width: 8),
               Expanded(child: AppButton('تحديث الحالة', kind: 'g', compact: true, onPressed: _modInfo)),
             ]),
+            const SizedBox(height: 18),
+            const Text('اختبار ذكاء الفحص', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 6),
+            TextField(controller: testC, decoration: const InputDecoration(hintText: 'اكتب نصاً للفحص (مثلاً شتيمة) أو اختر صورة')),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: AppButton('فحص النص', compact: true, onPressed: () {
+                final t = testC.text.trim();
+                if (t.isEmpty) {
+                  toast('اكتب نصاً أولاً', bad: true);
+                  return;
+                }
+                _sendTest(text: t);
+              })),
+              const SizedBox(width: 8),
+              Expanded(child: AppButton('فحص صورة', kind: 'g', compact: true, onPressed: _testImage)),
+            ]),
+            if (testLine.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(testLine, textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, height: 1.7))),
+            const SizedBox(height: 30),
           ]),
         ),
       ),
